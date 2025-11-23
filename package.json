@@ -2,10 +2,11 @@
   "name": "interaction-bot",
   "version": "1.0.0",
   "description": "Script Playwright que abre o LinkedIn com interface gráfica.",
-  "main": "src/open-linkedin.ts",
+  "main": "src/main.ts",
   "scripts": {
-    "start": "ts-node src/open-linkedin.ts",
-    "open:linkedin": "ts-node src/open-linkedin.ts",
+    "start": "ts-node src/main.ts",
+    "open:linkedin": "npx ts-node src/main.ts",
+    "install:chrome": "npx playwright install chrome",
     "install:browsers": "npx playwright install chromium",
     "test": "playwright test",
     "test:ui": "playwright test --ui --headed"
