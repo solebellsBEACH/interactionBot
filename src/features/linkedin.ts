@@ -12,7 +12,7 @@ export class LinkedinFeatures {
 
     if(inMailOptions){
         const addNoteButton = page.getByRole('button', {
-            name: 'Adicionar nota'
+            name: 'Adicionar nota',
         });
 
         await addNoteButton.waitFor({ state: 'visible', timeout: 10_000 });
