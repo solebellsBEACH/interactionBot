@@ -1,23 +1,22 @@
 import { Browser, firefox } from 'playwright';
+import { LinkedinCoreFeatures } from './features/linkedin-core';
+import { env } from './shared/env';
 
-const env = {
-  linkedinURLs:{
-    recruiterURL:"https://www.linkedin.com/in/natalia-castoldi-69086b182/",
-  }
-}
+
 
 async function main(): Promise<void> {
-  const browser = await firefox.launch(
+
+  const linkedinCoreFeatures = new LinkedinCoreFeatures()
+  const browser = await firefox.launchPersistentContext( 
+  env.userDataDir,
     {
        headless: false,
        slowMo: 50,
     }
   )
 
-  await openLinkedin(browser)
+  await linkedinCoreFeatures.openLinkedin(browser)
 
-  // await signIn()
-  // await connectWithRecruiters()
 
   console.log('LinkedIn aberto. Feche a janela para encerrar.');
 }
@@ -26,14 +25,3 @@ main().catch((error) => {
   console.error('Falha ao abrir o LinkedIn:', error);
   process.exit(1);
 });
-
-async function openLinkedin(browser: Browser){
-  try {
-    const page = await browser.newPage();
-    await page.goto(env.linkedinURLs.recruiterURL, {
-    waitUntil: 'domcontentloaded'
-    });
-  } catch (error) {
-    throw(error)
-  }
-}
