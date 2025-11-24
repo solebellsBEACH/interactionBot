@@ -15,9 +15,7 @@ async function main(): Promise<void> {
   const linkedinFeatures = new LinkedinFeatures(page)
 
 
-    await linkedinFeatures.sendConnection(env.linkedinURLs.feedURL,{
-    message:'Example message',
-  })
+  await linkedinFeatures.easyApply()
 
 
   // await linkedinFeatures.sendConnection(env.linkedinURLs.feedURL,{

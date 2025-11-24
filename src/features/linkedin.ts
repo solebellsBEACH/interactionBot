@@ -1,4 +1,4 @@
-import { Page } from "playwright";
+import { Locator, Page } from "playwright";
 import { ElementHandle } from "../shared/utils/element-handle";
 import { HandleActions } from "../shared/interfaces/element-handle";
 import { env } from "../shared/env";
@@ -30,6 +30,27 @@ export class LinkedinFeatures {
             })
         }
         
+    }
+
+    async easyApply(){
+        this._linkedinCoreFeatures.goToLinkedinURL(env.linkedinURLs.jobURL)
+        
+        await this._elementHandle.handleByRole(HandleActions.click,'button', {
+            name: 'Candidatura simplificada à vaga de'
+        })
+        await this._findNextStepButton('Avançar para próxima etapa')
+        // this._findNextStepButton('Revise sua candidatura')
+    }
+
+    private async _findNextStepButton(name:string){
+        
+        const nextStepButton = await this._elementHandle.handleByRole(HandleActions.get,'button', {name})
+        console.log(await this._elementHandle.handleForm())
+        if(!!nextStepButton ){
+
+            await nextStepButton.click()
+            this._findNextStepButton(name)
+        }
     }
 
     private async _sendInMail(message:string){
