@@ -1,20 +1,16 @@
-import { BrowserContext } from "playwright";
-import { env } from "../shared/env";
+import { Page } from "playwright";
 
 export class LinkedinCoreFeatures {
-    constructor(){
-        
-    }
 
-    async openLinkedin(browser: BrowserContext){
-      try {
-        const page = await browser.newPage();
-        await page.goto(env.linkedinURLs.recruiterURL, {
-        waitUntil: 'domcontentloaded'
+    private _page: Page
+
+    constructor(page:Page){
+      this._page = page
+    }
+    
+    async goToLinkedinURL(linkedinUrl:string){
+        await this._page.goto(linkedinUrl, {
+          waitUntil: 'domcontentloaded'
         });
-        return page;
-      } catch (error) {
-        throw(error)
-      }
-    }   
+    }
 }

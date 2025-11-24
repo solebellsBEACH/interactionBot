@@ -1,24 +1,28 @@
 import { firefox } from 'playwright';
-import { LinkedinCoreFeatures } from './features/linkedin-core';
 import { env } from './shared/env';
 import { LinkedinFeatures } from './features/linkedin';
 
 async function main(): Promise<void> {
   const browser = await firefox.launchPersistentContext( 
-  env.userDataDir,
+    env.userDataDir,
     {
        headless: false,
        slowMo: 50,
     }
   )
-  
-  const linkedinCoreFeatures = new LinkedinCoreFeatures()
-  const page = await linkedinCoreFeatures.openLinkedin(browser)
+
+  const page = await browser.newPage();
   const linkedinFeatures = new LinkedinFeatures(page)
 
-  await linkedinFeatures.sendConnection({
+
+    await linkedinFeatures.sendConnection(env.linkedinURLs.feedURL,{
     message:'Example message',
   })
+
+
+  // await linkedinFeatures.sendConnection(env.linkedinURLs.feedURL,{
+  //   message:'Example message',
+  // })
 
   console.log('LinkedIn aberto. Feche a janela para encerrar.');
 }
