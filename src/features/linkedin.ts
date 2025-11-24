@@ -1,44 +1,40 @@
 import { Page } from "playwright";
+import { ElementHandle } from "../shared/utils/element-handle";
+import { HandleActions } from "../shared/interfaces/element-handle";
+import { env } from "../shared/env";
 
 export class LinkedinFeatures {
 
-    async sendConnection(page: Page, inMailOptions?:{message:string}){
-        const connectButton = page.getByRole('button', {
-        name: 'Convidar Marcelo Xavier para se conectar'
-    });
+    private _elementHandle: ElementHandle
 
-    await connectButton.waitFor({ state: 'visible', timeout: 10_000 });
-    await connectButton.click();
-
-    if(inMailOptions){
-        const addNoteButton = page.getByRole('button', {
-            name: 'Adicionar nota',
-        });
-
-        await addNoteButton.waitFor({ state: 'visible', timeout: 10_000 });
-        await addNoteButton.click();
-
-        const input = page.getByPlaceholder('Ex.: Nos conhecemos em…')
-        await input.waitFor({ state: 'visible', timeout: 10_000 });
-        await input.fill(inMailOptions.message)
-
-        const sendMessageButton = page.getByRole('button', {
-            name: 'Enviar'
-        });
-        await sendMessageButton.waitFor({ state: 'visible', timeout: 10_000 });
-        await sendMessageButton.click()
-        
-
-    }else{
-        const sendWithoutNoteButton = page.getByRole('button', {
-            name: 'Enviar sem nota'
-        });
-
-        await sendWithoutNoteButton.waitFor({ state: 'visible', timeout: 10_000 });
-        await sendWithoutNoteButton.click();
-
-        }
+    constructor(page:Page){
+        this._elementHandle = new ElementHandle(page)
     }
 
+    async sendConnection(inMailOptions?:{message:string}){
 
+        await this._elementHandle.handleByRole(HandleActions.click,'button', {
+            name: env.linkedinURLs.message
+        })
+
+        if(inMailOptions){
+            await this._elementHandle.handleByRole(HandleActions.click,'button', {
+                name: 'Adicionar nota'
+            })
+            
+            this._elementHandle.handleByPlaceholder(HandleActions.fill,'Ex.: Nos conhecemos em…', inMailOptions.message)
+            
+            await this._elementHandle.handleByRole(HandleActions.click,'button', {
+                name: 'Enviar'
+            })
+        }else{
+
+            await this._elementHandle.handleByRole(HandleActions.click,'button', {
+                name: 'Enviar sem nota'
+            })
+        }
+        
+    }
+
+    
 }

@@ -3,12 +3,7 @@ import { LinkedinCoreFeatures } from './features/linkedin-core';
 import { env } from './shared/env';
 import { LinkedinFeatures } from './features/linkedin';
 
-
-
 async function main(): Promise<void> {
-
-  const linkedinCoreFeatures = new LinkedinCoreFeatures()
-  const linkedinFeatures = new LinkedinFeatures()
   const browser = await firefox.launchPersistentContext( 
   env.userDataDir,
     {
@@ -16,10 +11,12 @@ async function main(): Promise<void> {
        slowMo: 50,
     }
   )
-
+  
+  const linkedinCoreFeatures = new LinkedinCoreFeatures()
   const page = await linkedinCoreFeatures.openLinkedin(browser)
+  const linkedinFeatures = new LinkedinFeatures(page)
 
-  await linkedinFeatures.sendConnection(page, {
+  await linkedinFeatures.sendConnection({
     message:'Example message',
   })
 
