@@ -3,26 +3,24 @@ import { env } from './shared/env';
 import { LinkedinFeatures } from './features/linkedin';
 
 async function main(): Promise<void> {
-  const browser = await firefox.launchPersistentContext( 
+  const browser = await firefox.launchPersistentContext(
     env.userDataDir,
     {
-       headless: false,
-       slowMo: 50,
+      headless: false,
+      slowMo: 50,
     }
   )
 
   const page = await browser.newPage();
   const linkedinFeatures = new LinkedinFeatures(page)
+  console.log('LinkedIn aberto. Feche a janela para encerrar.');
 
-
-  await linkedinFeatures.easyApply()
-
-
+  await linkedinFeatures.upvoteOnPosts()
+  // await linkedinFeatures.easyApply()
   // await linkedinFeatures.sendConnection(env.linkedinURLs.feedURL,{
   //   message:'Example message',
   // })
 
-  console.log('LinkedIn aberto. Feche a janela para encerrar.');
 }
 
 main().catch((error) => {
