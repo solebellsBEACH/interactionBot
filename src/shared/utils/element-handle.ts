@@ -37,10 +37,19 @@ export class ElementHandle {
     }
 
     async handleForm(){
-        const element = await this._page.locator('form')
-        await element.waitFor({ state: 'visible', timeout:this.DEFAULT_TIMEOUT });
+        const forms = this._page.locator('.jobs-easy-apply-modal form, .jobs-easy-apply-content form, form')
+        const count = await forms.count()
 
-        return this._getFormValues(element)
+        for (let i = 0; i < count; i++) {
+            const element = forms.nth(i)
+            try {
+                await element.waitFor({ state: 'visible', timeout:this.DEFAULT_TIMEOUT });
+                return this._getFormValues(element)
+            } catch (error) {
+                // try next visible form if exists
+                if (i === count - 1) throw error
+            }
+        }
     }
 
     private async _getFormValues(element: Locator) {

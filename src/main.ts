@@ -15,7 +15,7 @@ async function main(): Promise<void> {
   const linkedinFeatures = new LinkedinFeatures(page)
   console.log('LinkedIn aberto. Feche a janela para encerrar.');
 
-  await linkedinFeatures.upvoteOnPosts()
+  console.log(await linkedinFeatures.easyApply())
   // await linkedinFeatures.easyApply()
   // await linkedinFeatures.sendConnection(env.linkedinURLs.feedURL,{
   //   message:'Example message',
