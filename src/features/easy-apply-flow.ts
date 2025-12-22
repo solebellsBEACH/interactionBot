@@ -1,11 +1,11 @@
 import { Locator, Page } from "playwright";
 import { LinkedinCoreFeatures } from "./linkedin-core";
-import { ElementHandle } from "../shared/utils/element-handle";
+import { ElementHandle, FormFieldValue } from "../shared/utils/element-handle";
 
 export type EasyApplyStepValues = {
     step: number
-    inputValues?: string[]
-    selectValues?: string[]
+    inputValues?: FormFieldValue[]
+    selectValues?: FormFieldValue[]
 }
 
 type ButtonGroups = {
