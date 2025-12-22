@@ -1,6 +1,7 @@
 import { Locator, Page } from "playwright";
 import { LinkedinCoreFeatures } from "./linkedin-core";
 import { ElementHandle, FormFieldValue } from "../shared/utils/element-handle";
+import { saveEasyApplyResponses } from "../api/controllers/easy-apply-responses";
 
 export type EasyApplyStepValues = {
     step: number
@@ -49,6 +50,7 @@ export class EasyApplyFlow {
             }
 
             if (submit) {
+                await this._persistSteps(jobURL, stepsValues)
                 // await submit.click({ force: true }) // Descomente para finalizar automaticamente
                 break
             }
@@ -130,5 +132,13 @@ export class EasyApplyFlow {
         await button.scrollIntoViewIfNeeded()
         await button.click({ force: true })
         await this._page.waitForTimeout(700)
+    }
+
+    private async _persistSteps(jobURL: string, stepsValues: EasyApplyStepValues[]) {
+        try {
+            await saveEasyApplyResponses(jobURL, stepsValues)
+        } catch (error) {
+            console.error("Erro ao salvar respostas Easy Apply", error)
+        }
     }
 }
