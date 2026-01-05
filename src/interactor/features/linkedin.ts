@@ -1,9 +1,10 @@
 import { Page } from "playwright";
+
+import { LinkedinCoreFeatures } from "./linkedin-core";
+import { EasyApplyFlow, EasyApplyStepValues } from "./easy-apply-flow";
 import { ElementHandle } from "../shared/utils/element-handle";
 import { HandleActions } from "../shared/interfaces/element-handle";
 import { env } from "../shared/env";
-import { LinkedinCoreFeatures } from "./linkedin-core";
-import { EasyApplyFlow, EasyApplyStepValues } from "./easy-apply-flow";
 
 export class LinkedinFeatures {
 

@@ -1,7 +1,8 @@
 import { Locator, Page } from "playwright";
 import { LinkedinCoreFeatures } from "./linkedin-core";
+
+import { saveEasyApplyResponses } from "../../api/controllers/easy-apply-responses";
 import { ElementHandle, FormFieldValue } from "../shared/utils/element-handle";
-import { saveEasyApplyResponses } from "../api/controllers/easy-apply-responses";
 
 export type EasyApplyStepValues = {
     step: number

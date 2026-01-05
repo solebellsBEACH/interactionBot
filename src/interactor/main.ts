@@ -13,16 +13,16 @@ async function main(): Promise<void> {
 
   const page = await browser.newPage();
   const linkedinFeatures = new LinkedinFeatures(page)
-  console.log('LinkedIn aberto. Feche a janela para encerrar.');
+  // console.log('LinkedIn aberto. Feche a janela para encerrar.');
 
-  const jobUrl = process.env.LINKEDIN_JOB_URL?.trim();
-  const easyApplyResult = await linkedinFeatures.easyApply(jobUrl || undefined);
+  // const jobUrl = process.env.LINKEDIN_JOB_URL?.trim();
+  // const easyApplyResult = await linkedinFeatures.easyApply(jobUrl || undefined);
 
-  console.log(easyApplyResult)
-  // await linkedinFeatures.easyApply()
-  // await linkedinFeatures.sendConnection(env.linkedinURLs.feedURL,{
-  //   message:'Example message',
-  // })
+  // console.log(easyApplyResult)
+  // // await linkedinFeatures.easyApply()
+  // // await linkedinFeatures.sendConnection(env.linkedinURLs.feedURL,{
+  // //   message:'Example message',
+  // // })
 
 }
 
