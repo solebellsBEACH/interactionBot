@@ -1,5 +1,9 @@
 export const env = {
   userDataDir: '/home/lucas/.config/google-chrome/Default',
+  linkedinAuth: {
+    email: process.env.LINKEDIN_EMAIL?.trim(),
+    password: process.env.LINKEDIN_PASSWORD,
+  },
   linkedinURLs: {
     postUrl: 'https://www.linkedin.com/search/results/content/?keywords=%23react%20%23job&origin=GLOBAL_SEARCH_HEADER&sid=-mV',
     feedURL: 'https://www.linkedin.com/feed/',
