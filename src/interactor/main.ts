@@ -1,8 +1,12 @@
 import { chromium, firefox } from 'playwright';
 import { env } from './shared/env';
 import { LinkedinFeatures } from './features/linkedin';
+import { WhatsAppClient } from './shared/whatsapp/whatsapp-client';
 
 async function main(): Promise<void> {
+  const whatsapp = new WhatsAppClient(env.whatsapp)
+  await whatsapp.init()
+
   const browser = await chromium.launchPersistentContext(
     env.userDataDir,
     {
@@ -12,7 +16,7 @@ async function main(): Promise<void> {
   )
 
   const page = await browser.pages()[0]
-  const linkedinFeatures = new LinkedinFeatures(page)
+  const linkedinFeatures = new LinkedinFeatures(page, whatsapp)
   console.log('LinkedIn aberto. Feche a janela para encerrar.');
 
   const jobUrl = process.env.LINKEDIN_JOB_URL?.trim();

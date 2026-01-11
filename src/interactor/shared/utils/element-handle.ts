@@ -7,6 +7,11 @@ export type FormFieldValue = {
     value: string
 }
 
+export type FormPromptField = FormFieldValue & {
+    type: 'input' | 'select'
+    options?: string[]
+}
+
 export type FormValues = {
     inputValues: FormFieldValue[]
     selectValues: FormFieldValue[]
@@ -47,7 +52,7 @@ export class ElementHandle {
         }
     }
 
-    async handleForm(): Promise<FormValues | undefined>{
+    async handleForm(prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormValues | undefined>{
         const forms = this._page.locator('.jobs-easy-apply-modal form, .jobs-easy-apply-content form, form')
         const count = await forms.count()
 
@@ -55,7 +60,7 @@ export class ElementHandle {
             const element = forms.nth(i)
             try {
                 await element.waitFor({ state: 'visible', timeout:this.DEFAULT_TIMEOUT });
-                return this._getFormValues(element)
+                return this._getFormValues(element, prompt)
             } catch (error) {
                 // try next visible form if exists
                 if (i === count - 1) throw error
@@ -63,9 +68,9 @@ export class ElementHandle {
         }
     }
 
-    private async _getFormValues(element: Locator): Promise<FormValues> {
-        const selectValues = await this._getSelectValues(element)
-        const inputValues = await this._getInputValues(element)
+    private async _getFormValues(element: Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormValues> {
+        const selectValues = await this._getSelectValues(element, prompt)
+        const inputValues = await this._getInputValues(element, prompt)
        
         return {
             selectValues,
@@ -73,51 +78,86 @@ export class ElementHandle {
         };
     }
 
-    private async  _getInputValues(element:Locator): Promise<FormFieldValue[]>{
+    private async  _getInputValues(element:Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormFieldValue[]>{
         const inputs = await element.getByRole('textbox').all();
-        return await Promise.all(
-            inputs.map(async (item) => {
-                const value = await item.inputValue()
-                const meta = await this._getControlMeta(item)
-                const label = meta.labelText || meta.placeholder || meta.ariaLabel || meta.name || meta.id
-                const key = this._normalizeKey(label || undefined)
-                return {
-                    key,
-                    label,
-                    value
+        const values: FormFieldValue[] = []
+
+        for (const item of inputs) {
+            const value = await item.inputValue()
+            const meta = await this._getControlMeta(item)
+            const label = meta.labelText || meta.placeholder || meta.ariaLabel || meta.name || meta.id
+            const key = this._normalizeKey(label || undefined)
+            let finalValue = value
+
+            if (prompt && !value.trim()) {
+                const editable = await item.isEditable().catch(() => false)
+                if (editable) {
+                    const answer = await prompt({
+                        type: 'input',
+                        key,
+                        label,
+                        value
+                    })
+                    if (answer && answer.trim()) {
+                        await item.fill(answer)
+                        finalValue = answer
+                    }
                 }
+            }
+
+            values.push({
+                key,
+                label,
+                value: finalValue
             })
-        );
+        }
+
+        return values
     }
 
-    private async _getSelectValues(element:Locator): Promise<FormFieldValue[]>{
+    private async _getSelectValues(element:Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormFieldValue[]>{
         const selects = await element.locator('select').all()
         if (selects.length === 0) return []
 
-        return Promise.all(
-            selects.map(async (select) => {
-                const meta = await this._getControlMeta(select)
-                const selectedOption = await select.locator('option:checked').allInnerTexts()
-                let value = selectedOption[0]?.trim() || ''
+        const values: FormFieldValue[] = []
 
-                if (!value) {
-                    const fallbackOptions = await select.locator('option').allInnerTexts()
-                    const idx = fallbackOptions.findIndex((item) => item.includes('Select an option'))
-                    if (idx >= 0 && fallbackOptions[idx + 1]) {
-                        value = fallbackOptions[idx + 1].trim()
-                    }
-                }
+        for (const select of selects) {
+            const meta = await this._getControlMeta(select)
+            const selectedOption = await select.locator('option:checked').allInnerTexts()
+            let value = selectedOption[0]?.trim() || ''
+            const allOptions = (await select.locator('option').allInnerTexts()).map((item) => item.trim())
 
-                const label = meta.labelText || meta.ariaLabel || meta.name || meta.id
-                const key = this._normalizeKey(label || undefined)
+            const label = meta.labelText || meta.ariaLabel || meta.name || meta.id
+            const key = this._normalizeKey(label || undefined)
 
-                return {
+            const missing = !value || this._isSelectPlaceholder(value)
+            if (prompt && missing) {
+                const promptOptions = allOptions.filter((option) => option && !this._isSelectPlaceholder(option))
+                const answer = await prompt({
+                    type: 'select',
                     key,
                     label,
-                    value
+                    value,
+                    options: promptOptions.length ? promptOptions : allOptions
+                })
+                const resolved = this._resolveSelectValue(answer, promptOptions) || this._resolveSelectValue(answer, allOptions)
+                if (resolved) {
+                    await select.selectOption({ label: resolved })
+                    value = resolved
                 }
+            } else if (!value) {
+                const fallback = allOptions.find((option) => option && !this._isSelectPlaceholder(option))
+                if (fallback) value = fallback
+            }
+
+            values.push({
+                key,
+                label,
+                value
             })
-        )
+        }
+
+        return values
     }
 
     private async _runHandleActions(handle: HandleActions, element: Locator, contentText?:string){
@@ -182,6 +222,35 @@ export class ElementHandle {
             .trim()
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/^-+|-+$/g, '')
+    }
+
+    private _isSelectPlaceholder(value: string) {
+        const normalized = value.toLowerCase()
+        const hasSelectOption = normalized.includes('select') && normalized.includes('option')
+        return (
+            hasSelectOption ||
+            normalized.includes('selecione') ||
+            normalized.includes('selecionar') ||
+            normalized.includes('choose')
+        )
+    }
+
+    private _resolveSelectValue(answer: string | null | undefined, options: string[]) {
+        if (!answer) return null
+        const trimmed = answer.trim()
+        if (!trimmed) return null
+
+        const asNumber = Number(trimmed)
+        if (!Number.isNaN(asNumber) && asNumber >= 1 && asNumber <= options.length) {
+            return options[asNumber - 1]
+        }
+
+        const lowered = trimmed.toLowerCase()
+        const direct = options.find((option) => option.toLowerCase() === lowered)
+        if (direct) return direct
+
+        const partial = options.find((option) => option.toLowerCase().includes(lowered))
+        return partial || null
     }
     
 }

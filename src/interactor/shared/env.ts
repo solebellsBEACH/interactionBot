@@ -4,10 +4,16 @@ export const env = {
     email: process.env.LINKEDIN_EMAIL?.trim(),
     password: process.env.LINKEDIN_PASSWORD,
   },
+  whatsapp: {
+    enabled: process.env.WHATSAPP_ENABLED?.toLowerCase() === 'true' || Boolean(process.env.WHATSAPP_TO),
+    to: process.env.WHATSAPP_TO?.trim(),
+    authDir: process.env.WHATSAPP_AUTH_DIR?.trim() || '.whatsapp-auth',
+    requestTimeoutMs: Number(process.env.WHATSAPP_TIMEOUT_MS || 120_000),
+  },
   linkedinURLs: {
     postUrl: 'https://www.linkedin.com/search/results/content/?keywords=%23react%20%23job&origin=GLOBAL_SEARCH_HEADER&sid=-mV',
     feedURL: 'https://www.linkedin.com/feed/',
-    jobURL: 'https://www.linkedin.com/jobs/view/4328023423/?trackingId=BzBD8%2FKBaD3d8FXL8BUYHw%3D%3D&refId=rU4l5BPRcxIKUa7q1LRRFw%3D%3D&eBP=CwEAAAGbR5V7C4Xm9KTVXfhl6E6gslerpq2Uhz6ZgaGiC0j9ouVDnVzoOGLThIJ8FdgWkqh-GqueoJ5uTDVnUWess69Xf0rRRODa63b_cV9yLsHMuh0nbyixLVUvGkmrjrfn9oYbkFQsWieg4XQrNDRJ97pMNrprZhuST3f5_YrhxGmtsMtW3lXm5ib9S7PbfuzLZViXideV1OHv5u6VTQu4gYHUh9uVkLWid3z8l5I8ygp_d28N5MA3JW78Vudv8FGOxVj-eOkkr0qBqhgeJZLeQo_LJM6cecATIbXcG7n92GZP8xNGr_y8oYmcWEfa0vRWWhekjK0uhpZGU4ZrW7dlcaKY8MTTgpLb0XPhIhAc3fzJIxzLLNrHMwZKi9HbVNKo0ZlJMlICn1942Lk5zihCrTjUptFXrmKE-tqRek3JXZ_e84iP5cMnC6nP1BNFXBX0VFNxIZ1wdIy2LuyHZ5XVbUr5upFyLtb5Qm4ezg&alternateChannel=search&skipRedirect=true&isJobSearch=false',
+    jobURL: `https://www.linkedin.com/jobs/view/4329650329/?alternateChannel=search&eBP=CwEAAAGbrWB8U9iXHSkKncLYIm4rUbKGEjWIlKTFrLfTfECq1Rc2ttK9qjYBsNaiqC-cEAMZWDowGsnsWr69Xn11ZTO3EYQeyMPbXaNfq8Fgj6D9mWyg9E9MKeRaxHMq7WAr3M3owmMKe-PFNGilprGfx4z76hG0RLPPdWyxbnGuWXmMg9l9aHs4by-ly60nMmwW2zLkZTmDekpIXHr1e7zHkKCVt9F5GDMHe7mxQqPbLic_9Zzi7xFYTRVx-GGzv1rPQpmin9U5B5drUKHvRtpQU2ZxjNfRRmnaWUUsrKBZwxVg861O_FbwLHdYh7TGoI0Ff0YUu3fo2NH4N1ADVW1z4ZT3XUz5Hb-6pMKEJPLcdtSIUNnYZjr_IHJ8Op7Az90Mn1s0v6k0dZ9zaXv6apDGJ2s9ItFgnNhkLQoyaM3m7MqUjMs4yNf5E-iCDHMDUha-zPA5yeb2QiILyfy37K1Yc4ijBgtcM-ZXBtVVeV1a0BrkK5vo2vGwnhfwCZxcsIh2gTqmmL0uselOR4LZbMNtrQQOjA&refId=BVOw3msTNY%2FulrpYf2WasA%3D%3D&trackingId=elPrpgYn0fPpCwzATKoleQ%3D%3D&trk=d_flagship3_search_srp_jobs`,
     recruiterURL: "https://www.linkedin.com/in/philipe-loureiro/",
     message: 'Convidar Philipe Loureiro para se conectar'
   }

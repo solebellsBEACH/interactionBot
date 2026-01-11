@@ -5,6 +5,7 @@ import { EasyApplyFlow, EasyApplyStepValues } from "./easy-apply-flow";
 import { ElementHandle } from "../shared/utils/element-handle";
 import { HandleActions } from "../shared/interfaces/element-handle";
 import { env } from "../shared/env";
+import { WhatsAppClient } from "../shared/whatsapp/whatsapp-client";
 
 export class LinkedinFeatures {
 
@@ -12,18 +13,21 @@ export class LinkedinFeatures {
     private _linkedinCoreFeatures: LinkedinCoreFeatures
     private _page: Page
     private _easyApplyFlow: EasyApplyFlow
+    private _whatsapp?: WhatsAppClient
     private _default = {
         maxLikes: 20,
     }
 
-    constructor(page: Page) {
+    constructor(page: Page, whatsapp?: WhatsAppClient) {
         this._page = page
         this._elementHandle = new ElementHandle(page)
         this._linkedinCoreFeatures = new LinkedinCoreFeatures(page)
+        this._whatsapp = whatsapp
         this._easyApplyFlow = new EasyApplyFlow(
             page,
             this._elementHandle,
-            this._linkedinCoreFeatures
+            this._linkedinCoreFeatures,
+            whatsapp
         )
     }
 
