@@ -1,6 +1,7 @@
 import makeWASocket, { fetchLatestBaileysVersion, proto, useMultiFileAuthState } from "@whiskeysockets/baileys";
 import pino from "pino";
 import path from "path";
+const qrcode = require("qrcode-terminal") as { generate: (text: string, opts?: { small?: boolean }) => void };
 
 export type WhatsAppConfig = {
     enabled: boolean
@@ -20,6 +21,9 @@ export class WhatsAppClient {
     private _to?: string
     private _pending?: PendingReply
     private _initPromise?: Promise<void>
+    private _lastQr?: string
+    private _reconnectAttempts = 0
+    private _reconnecting = false
 
     constructor(private readonly _config: WhatsAppConfig) { }
 
@@ -79,12 +83,11 @@ export class WhatsAppClient {
     }
 
     private async _start(): Promise<void> {
-        if (!this._config.to) {
-            console.warn("WhatsApp enabled but WHATSAPP_TO is missing.")
-            return
+        if (this._config.to) {
+            this._to = this._normalizeTo(this._config.to)
+        } else {
+            console.warn("WhatsApp enabled but WHATSAPP_TO is missing. QR will show, but messages won't be sent.")
         }
-
-        this._to = this._normalizeTo(this._config.to)
 
         const authDir = path.resolve(process.cwd(), this._config.authDir)
         const { state, saveCreds } = await useMultiFileAuthState(authDir)
@@ -93,19 +96,29 @@ export class WhatsAppClient {
         this._sock = makeWASocket({
             auth: state,
             version,
-            printQRInTerminal: true,
-            logger: pino({ level: "silent" })
+            logger: pino({ level: "info" })
         })
 
         this._sock.ev.on("creds.update", saveCreds)
         this._sock.ev.on("connection.update", (update) => {
+            if (update.qr && update.qr !== this._lastQr) {
+                this._lastQr = update.qr
+                console.log("Scan this QR with WhatsApp:")
+                qrcode.generate(update.qr, { small: true })
+            }
             if (update.connection === "open") {
                 this._ready = true
+                this._reconnectAttempts = 0
                 console.log("WhatsApp connected.")
             }
             if (update.connection === "close") {
                 this._ready = false
-                console.warn("WhatsApp disconnected.")
+                const statusCode = (update as { lastDisconnect?: { error?: { output?: { statusCode?: number } } } })
+                    .lastDisconnect?.error?.output?.statusCode
+                console.warn("WhatsApp disconnected.", statusCode ? `code=${statusCode}` : "")
+                if (statusCode === 515) {
+                    this._scheduleReconnect()
+                }
             }
         })
         this._sock.ev.on("messages.upsert", (event) => {
@@ -114,7 +127,7 @@ export class WhatsAppClient {
             const message = event.messages?.[0]
             if (!message) return
             if (message.key.fromMe) return
-            if (message.key.remoteJid !== this._to) return
+            if (this._to && message.key.remoteJid !== this._to) return
 
             const text = this._getMessageText(message.message)
             if (!text) return
@@ -130,27 +143,33 @@ export class WhatsAppClient {
         if (!this._sock) return false
         if (this._ready) return true
 
-        return new Promise((resolve) => {
-            const timeout = setTimeout(() => {
-                cleanup()
-                resolve(false)
-            }, timeoutMs)
+        const start = Date.now()
+        while (Date.now() - start < timeoutMs) {
+            if (this._ready) return true
+            await new Promise((resolve) => setTimeout(resolve, 250))
+        }
 
-            const onUpdate = (update: { connection?: string }) => {
-                if (update.connection === "open") {
-                    cleanup()
-                    resolve(true)
-                }
-            }
+        return false
+    }
 
-            const cleanup = () => {
-                clearTimeout(timeout)
-                this._sock?.ev.removeAllListeners("connection.update")
+    private _scheduleReconnect() {
+        if (this._reconnecting) return
+        this._reconnecting = true
+        this._reconnectAttempts += 1
 
-            }
-
-            this._sock?.ev.on("connection.update", onUpdate)
-        })
+        const delay = Math.min(3_000 * this._reconnectAttempts, 15_000)
+        setTimeout(() => {
+            this._reconnecting = false
+            this._initPromise = undefined
+            try {
+                const sock = this._sock as unknown as { end?: (err?: Error) => void }
+                sock?.end?.(new Error("Restarting WhatsApp connection"))
+            } catch { }
+            this._sock = undefined
+            void this.init().catch((error) => {
+                console.warn("WhatsApp reconnect failed.", error)
+            })
+        }, delay)
     }
 
     private async _sendMessage(text: string): Promise<void> {

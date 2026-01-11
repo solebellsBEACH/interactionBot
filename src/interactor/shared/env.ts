@@ -1,3 +1,33 @@
+import fs from "fs";
+import path from "path";
+
+const loadEnvFromFile = (filePath: string) => {
+  if (!fs.existsSync(filePath)) return
+
+  const content = fs.readFileSync(filePath, "utf-8")
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith("#")) continue
+
+    const idx = trimmed.indexOf("=")
+    if (idx === -1) continue
+
+    const key = trimmed.slice(0, idx).trim()
+    let value = trimmed.slice(idx + 1).trim()
+    if (!key) continue
+
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1)
+    }
+
+    if (!(key in process.env)) {
+      process.env[key] = value
+    }
+  }
+}
+
+loadEnvFromFile(path.resolve(process.cwd(), ".env"))
+
 export const env = {
   userDataDir: '/home/lucas/.config/google-chrome/Default',
   linkedinAuth: {

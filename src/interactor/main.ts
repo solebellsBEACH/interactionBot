@@ -7,20 +7,20 @@ async function main(): Promise<void> {
   const whatsapp = new WhatsAppClient(env.whatsapp)
   await whatsapp.init()
 
-  const browser = await chromium.launchPersistentContext(
-    env.userDataDir,
-    {
-      headless: false,
-      slowMo: 50,
-    }
-  )
+  // const browser = await chromium.launchPersistentContext(
+  //   env.userDataDir,
+  //   {
+  //     headless: false,
+  //     slowMo: 50,
+  //   }
+  // )
 
-  const page = await browser.pages()[0]
-  const linkedinFeatures = new LinkedinFeatures(page, whatsapp)
-  console.log('LinkedIn aberto. Feche a janela para encerrar.');
+  // const page = await browser.pages()[0]
+  // const linkedinFeatures = new LinkedinFeatures(page, whatsapp)
+  // console.log('LinkedIn aberto. Feche a janela para encerrar.');
 
-  const jobUrl = process.env.LINKEDIN_JOB_URL?.trim();
-  const easyApplyResult = await linkedinFeatures.easyApply(jobUrl || undefined);
+  // const jobUrl = process.env.LINKEDIN_JOB_URL?.trim();
+  // const easyApplyResult = await linkedinFeatures.easyApply(jobUrl || undefined);
 
   // console.log(easyApplyResult)
   // // await linkedinFeatures.easyApply()

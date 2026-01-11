@@ -1,5 +1,5 @@
 import { Locator, Page, } from "playwright";
-import { HandleActions, Role } from "../interfaces/element-handle";
+import { HandleActions, Role } from "../interfaces/element-handle.types";
 
 export type FormFieldValue = {
     key?: string
@@ -19,47 +19,47 @@ export type FormValues = {
 
 export class ElementHandle {
     private _page: Page
-    private DEFAULT_TIMEOUT:number
+    private DEFAULT_TIMEOUT: number
 
-    constructor(page: Page, timeout?:number){
+    constructor(page: Page, timeout?: number) {
         this._page = page
-        this.DEFAULT_TIMEOUT=timeout||5_000
+        this.DEFAULT_TIMEOUT = timeout || 5_000
     }
 
-    async handleByRole(handle:HandleActions, role:Role, options:{name?:string}, contentText?:string){
+    async handleByRole(handle: HandleActions, role: Role, options: { name?: string }, contentText?: string) {
         try {
             const element = this._page.getByRole(role, options);
-            await element.waitFor({ state: 'visible', timeout:this.DEFAULT_TIMEOUT });
+            await element.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT });
             return this._runHandleActions(handle, element, contentText) || element
         } catch (error) {
             console.error({
-                label:options.name,
+                label: options.name,
                 error
             })
         }
     }
 
-    async handleByPlaceholder(handle:HandleActions, placeholder:string, contentText:string){
+    async handleByPlaceholder(handle: HandleActions, placeholder: string, contentText: string) {
         try {
-            const element = this._page.getByPlaceholder(placeholder); 
-            await element.waitFor({ state: 'visible', timeout:this.DEFAULT_TIMEOUT });
-            return this._runHandleActions(handle, element, contentText)|| element
+            const element = this._page.getByPlaceholder(placeholder);
+            await element.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT });
+            return this._runHandleActions(handle, element, contentText) || element
         } catch (error) {
-             console.error({
-            label:placeholder,
-            error
-        })
+            console.error({
+                label: placeholder,
+                error
+            })
         }
     }
 
-    async handleForm(prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormValues | undefined>{
+    async handleForm(prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormValues | undefined> {
         const forms = this._page.locator('.jobs-easy-apply-modal form, .jobs-easy-apply-content form, form')
         const count = await forms.count()
 
         for (let i = 0; i < count; i++) {
             const element = forms.nth(i)
             try {
-                await element.waitFor({ state: 'visible', timeout:this.DEFAULT_TIMEOUT });
+                await element.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT });
                 return this._getFormValues(element, prompt)
             } catch (error) {
                 // try next visible form if exists
@@ -71,14 +71,14 @@ export class ElementHandle {
     private async _getFormValues(element: Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormValues> {
         const selectValues = await this._getSelectValues(element, prompt)
         const inputValues = await this._getInputValues(element, prompt)
-       
+
         return {
             selectValues,
             inputValues
         };
     }
 
-    private async  _getInputValues(element:Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormFieldValue[]>{
+    private async _getInputValues(element: Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormFieldValue[]> {
         const inputs = await element.getByRole('textbox').all();
         const values: FormFieldValue[] = []
 
@@ -115,7 +115,7 @@ export class ElementHandle {
         return values
     }
 
-    private async _getSelectValues(element:Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormFieldValue[]>{
+    private async _getSelectValues(element: Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormFieldValue[]> {
         const selects = await element.locator('select').all()
         if (selects.length === 0) return []
 
@@ -160,12 +160,12 @@ export class ElementHandle {
         return values
     }
 
-    private async _runHandleActions(handle: HandleActions, element: Locator, contentText?:string){
+    private async _runHandleActions(handle: HandleActions, element: Locator, contentText?: string) {
         switch (handle) {
             case HandleActions.click:
                 await element.click()
                 break;
-            
+
             case HandleActions.fill:
                 await element.fill(contentText || "")
                 break;
@@ -252,5 +252,5 @@ export class ElementHandle {
         const partial = options.find((option) => option.toLowerCase().includes(lowered))
         return partial || null
     }
-    
+
 }
