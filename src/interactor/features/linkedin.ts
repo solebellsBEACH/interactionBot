@@ -49,7 +49,18 @@ export class LinkedinFeatures {
         const tag = (searchJobTag || env.linkedinURLs.searchJobTag || '').trim()
         if (!tag) return []
 
-        const results = await this.searchJobTag(tag, options)
+        const defaultLimit = env.linkedinURLs.defaultJobsApplyLength || 0
+        const requestedLimit = options?.maxResults
+        const effectiveMaxResults = requestedLimit !== undefined
+            ? requestedLimit
+            : (defaultLimit > 0 ? defaultLimit : undefined)
+
+        const searchOptions: SearchJobTagOptions = {
+            ...options,
+            ...(effectiveMaxResults && effectiveMaxResults > 0 ? { maxResults: effectiveMaxResults } : {})
+        }
+
+        const results = await this.searchJobTag(tag, searchOptions)
 
         if (this._discord) {
             await this._discord.log(`Easy Apply results for "${tag}": ${results.length}`)
@@ -95,6 +106,8 @@ export class LinkedinFeatures {
         const results = new Map<string, EasyApplyJobResult>()
 
         for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
+            if (this._page.isClosed()) break
+            console.log(`Buscando jobs (Easy Apply): página ${pageIndex + 1}/${maxPages}`)
             const searchUrl = this._buildSearchJobUrl(tag, options?.location, pageIndex * 25)
             await this._linkedinCoreFeatures.goToLinkedinURL(searchUrl)
             const ready = await this._waitForJobResults()
@@ -227,8 +240,9 @@ export class LinkedinFeatures {
     }
 
     private async _collectEasyApplyFromPage(): Promise<EasyApplyJobResult[]> {
+        if (this._page.isClosed()) return []
         const cards = this._page.locator('li.jobs-search-results__list-item, .jobs-search-results__list-item, li[data-job-id], div.job-card-container')
-        const count = await cards.count()
+        const count = await cards.count().catch(() => 0)
         const results: EasyApplyJobResult[] = []
 
         for (let i = 0; i < count; i++) {
