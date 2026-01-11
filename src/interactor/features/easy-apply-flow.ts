@@ -3,7 +3,7 @@ import { LinkedinCoreFeatures } from "./linkedin-core";
 
 import { saveEasyApplyResponses } from "../../api/controllers/easy-apply-responses";
 import { ElementHandle, FormFieldValue, FormPromptField } from "../shared/utils/element-handle";
-import { WhatsAppClient } from "../shared/whatsapp/whatsapp-client";
+import { DiscordClient } from "../shared/discord/discord-client";
 
 export type EasyApplyStepValues = {
     step: number
@@ -21,21 +21,21 @@ export class EasyApplyFlow {
     private readonly _page: Page
     private readonly _elementHandle: ElementHandle
     private readonly _navigator: LinkedinCoreFeatures
-    private readonly _whatsapp?: WhatsAppClient
+    private readonly _discord?: DiscordClient
     private readonly _maxSteps = 15
     private readonly _maxStagnantSteps = 2
 
-    constructor(page: Page, elementHandle: ElementHandle, navigator: LinkedinCoreFeatures, whatsapp?: WhatsAppClient) {
+    constructor(page: Page, elementHandle: ElementHandle, navigator: LinkedinCoreFeatures, discord?: DiscordClient) {
         this._page = page
         this._elementHandle = elementHandle
         this._navigator = navigator
-        this._whatsapp = whatsapp
+        this._discord = discord
     }
 
     async execute(jobURL: string): Promise<EasyApplyStepValues[]> {
         const stepsValues: EasyApplyStepValues[] = []
 
-        await this._whatsapp?.log(`Easy Apply started: ${jobURL}`)
+        await this._discord?.log(`Easy Apply started: ${jobURL}`)
         await this._navigator.goToLinkedinURL(jobURL)
         await this._openEasyApplyModal()
         let lastFingerprint = await this._waitForFormAndFingerprint()
@@ -47,7 +47,7 @@ export class EasyApplyFlow {
         let step = 1
         let stagnantCount = 0
         while (step <= this._maxSteps) {
-            await this._whatsapp?.log(`Easy Apply step ${step}`)
+            await this._discord?.log(`Easy Apply step ${step}`)
             const values = await this._collectStepValues(step)
             if (values) stepsValues.push(values)
 
@@ -67,7 +67,7 @@ export class EasyApplyFlow {
 
             if (!clicked) {
                 if (submit) {
-                    await this._whatsapp?.log("Easy Apply ready to submit")
+                    await this._discord?.log("Easy Apply ready to submit")
                     await this._persistSteps(jobURL, stepsValues)
                     await submit.click({ force: true }) // Descomente para finalizar automaticamente
                     break
@@ -84,7 +84,7 @@ export class EasyApplyFlow {
             if (!nextFingerprint || nextFingerprint === lastFingerprint) {
                 const submitAfter = await this._firstEnabled(submitButtons)
                 if (submitAfter) {
-                    await this._whatsapp?.log("Easy Apply ready to submit")
+                    await this._discord?.log("Easy Apply ready to submit")
                     await this._persistSteps(jobURL, stepsValues)
                     await submitAfter.click({ force: true })
                     break
@@ -96,7 +96,7 @@ export class EasyApplyFlow {
                 stagnantCount++
                 if (stagnantCount >= this._maxStagnantSteps) {
                     console.warn('Easy Apply: form did not change after click, stopping at step', step)
-                    await this._whatsapp?.log("Easy Apply stopped: form did not change after click.")
+                    await this._discord?.log("Easy Apply stopped: form did not change after click.")
                     break
                 }
                 continue
@@ -160,7 +160,7 @@ export class EasyApplyFlow {
     private async _collectStepValues(step: number) {
         try {
             const formValues = await this._elementHandle.handleForm(
-                this._whatsapp
+                this._discord
                     ? async (field) => this._askForField(field, step)
                     : undefined
             )
@@ -181,17 +181,17 @@ export class EasyApplyFlow {
     }
 
     private async _askForField(field: FormPromptField, step: number) {
-        if (!this._whatsapp) return null
+        if (!this._discord) return null
         const label = field.label || field.key || 'campo'
         if (field.type === 'select') {
             const options = field.options || []
             const optionsText = options.map((option, idx) => `${idx + 1}) ${option}`).join('\n')
             const prompt = `[Easy Apply] Step ${step} - choose for "${label}":\n${optionsText}\nReply with number or text.`
-            return this._whatsapp.ask(prompt)
+            return this._discord.ask(prompt)
         }
 
         const prompt = `[Easy Apply] Step ${step} - fill "${label}":`
-        return this._whatsapp.ask(prompt)
+        return this._discord.ask(prompt)
     }
 
     private _getButtonLocators(): ButtonGroups {

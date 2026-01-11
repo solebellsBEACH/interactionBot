@@ -1,23 +1,30 @@
 import { chromium, firefox } from 'playwright';
 import { env } from './shared/env';
 import { LinkedinFeatures } from './features/linkedin';
-import { WhatsAppClient } from './shared/whatsapp/whatsapp-client';
+import { DiscordClient } from './shared/discord/discord-client';
 
 async function main(): Promise<void> {
-  const whatsapp = new WhatsAppClient(env.whatsapp)
-  await whatsapp.init()
+  const discord = new DiscordClient(env.discord)
+  await discord.init()
 
-  // const browser = await chromium.launchPersistentContext(
-  //   env.userDataDir,
-  //   {
-  //     headless: false,
-  //     slowMo: 50,
-  //   }
-  // )
+  const browser = await chromium.launchPersistentContext(
+    env.userDataDir,
+    {
+      headless: false,
+      slowMo: 50,
+    }
+  )
 
-  // const page = await browser.pages()[0]
-  // const linkedinFeatures = new LinkedinFeatures(page, whatsapp)
-  // console.log('LinkedIn aberto. Feche a janela para encerrar.');
+  const page = await browser.pages()[0]
+  const linkedinFeatures = new LinkedinFeatures(page, discord)
+  console.log('LinkedIn aberto. Feche a janela para encerrar.');
+
+  const catchJobsResult = await linkedinFeatures.catchJobs()
+  if (catchJobsResult.length > 0) {
+    console.table(catchJobsResult)
+  } else {
+    console.log('No Easy Apply jobs found.')
+  }
 
   // const jobUrl = process.env.LINKEDIN_JOB_URL?.trim();
   // const easyApplyResult = await linkedinFeatures.easyApply(jobUrl || undefined);
