@@ -145,9 +145,6 @@ export class ElementHandle {
                     await select.selectOption({ label: resolved })
                     value = resolved
                 }
-            } else if (!value) {
-                const fallback = allOptions.find((option) => option && !this._isSelectPlaceholder(option))
-                if (fallback) value = fallback
             }
 
             values.push({

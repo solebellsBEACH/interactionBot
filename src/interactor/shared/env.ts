@@ -41,6 +41,18 @@ export const env = {
     interactive: process.env.DISCORD_INTERACTIVE?.toLowerCase() === 'true',
     consoleOnly: process.env.DISCORD_CONSOLE_ONLY?.toLowerCase() === 'true',
   },
+  gpt: {
+    enabled: process.env.GPT_ENABLED?.toLowerCase() === 'true' || Boolean(process.env.OPENAI_API_KEY),
+    apiKey: process.env.OPENAI_API_KEY,
+    model: process.env.GPT_MODEL || 'gpt-4o-mini',
+    baseUrl: process.env.GPT_BASE_URL,
+    requestTimeoutMs: Number(process.env.GPT_TIMEOUT_MS || 20_000),
+    temperature: Number(process.env.GPT_TEMPERATURE || 0.2),
+    maxTokens: Number(process.env.GPT_MAX_TOKENS || 64),
+  },
+  easyApply: {
+    isStandalone: process.env.EASY_APPLY_STANDALONE?.toLowerCase() === 'true',
+  },
   linkedinURLs: {
     postUrl: 'https://www.linkedin.com/search/results/content/?keywords=%23react%20%23job&origin=GLOBAL_SEARCH_HEADER&sid=-mV',
     feedURL: 'https://www.linkedin.com/feed/',
@@ -48,6 +60,6 @@ export const env = {
     jobURL: `https://www.linkedin.com/jobs/view/4329650329/?alternateChannel=search&eBP=CwEAAAGbrWB8U9iXHSkKncLYIm4rUbKGEjWIlKTFrLfTfECq1Rc2ttK9qjYBsNaiqC-cEAMZWDowGsnsWr69Xn11ZTO3EYQeyMPbXaNfq8Fgj6D9mWyg9E9MKeRaxHMq7WAr3M3owmMKe-PFNGilprGfx4z76hG0RLPPdWyxbnGuWXmMg9l9aHs4by-ly60nMmwW2zLkZTmDekpIXHr1e7zHkKCVt9F5GDMHe7mxQqPbLic_9Zzi7xFYTRVx-GGzv1rPQpmin9U5B5drUKHvRtpQU2ZxjNfRRmnaWUUsrKBZwxVg861O_FbwLHdYh7TGoI0Ff0YUu3fo2NH4N1ADVW1z4ZT3XUz5Hb-6pMKEJPLcdtSIUNnYZjr_IHJ8Op7Az90Mn1s0v6k0dZ9zaXv6apDGJ2s9ItFgnNhkLQoyaM3m7MqUjMs4yNf5E-iCDHMDUha-zPA5yeb2QiILyfy37K1Yc4ijBgtcM-ZXBtVVeV1a0BrkK5vo2vGwnhfwCZxcsIh2gTqmmL0uselOR4LZbMNtrQQOjA&refId=BVOw3msTNY%2FulrpYf2WasA%3D%3D&trackingId=elPrpgYn0fPpCwzATKoleQ%3D%3D&trk=d_flagship3_search_srp_jobs`,
     recruiterURL: "https://www.linkedin.com/in/philipe-loureiro/",
     message: 'Convidar Philipe Loureiro para se conectar',
-    defaultJobsApplyLength: 10
+    defaultJobsApplyLength: 20
   }
 }

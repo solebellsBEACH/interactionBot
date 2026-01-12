@@ -38,7 +38,7 @@ export class DiscordClient {
     }
 
     async ask(prompt: string, timeoutMs?: number): Promise<string | null> {
-        await this.log(prompt)
+        console.log(prompt)
 
         if (!this._config.interactive) return null
         if (!process.stdin.isTTY) return null
