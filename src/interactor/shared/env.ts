@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { DEFAULTS } from "./config/defaults";
 
 const loadEnvFromFile = (filePath: string) => {
   if (!fs.existsSync(filePath)) return
@@ -28,38 +29,56 @@ const loadEnvFromFile = (filePath: string) => {
 
 loadEnvFromFile(path.resolve(process.cwd(), ".env"))
 
+const readString = (key: string, fallback = '') => {
+  const value = process.env[key]
+  if (value === undefined || value === null) return fallback
+  const trimmed = value.trim()
+  return trimmed || fallback
+}
+
+const readBool = (key: string, fallback = false) => {
+  const value = readString(key)
+  if (!value) return fallback
+  return value.toLowerCase() === 'true'
+}
+
+const readNumber = (key: string, fallback = 0) => {
+  const value = Number(readString(key))
+  return Number.isNaN(value) ? fallback : value
+}
+
 export const env = {
-  userDataDir: '/home/lucas/.config/google-chrome/Default',
+  userDataDir: readString('USER_DATA_DIR', DEFAULTS.userDataDir),
   linkedinAuth: {
-    email: process.env.LINKEDIN_EMAIL?.trim(),
-    password: process.env.LINKEDIN_PASSWORD,
+    email: readString('LINKEDIN_EMAIL'),
+    password: readString('LINKEDIN_PASSWORD'),
   },
   discord: {
-    enabled: process.env.DISCORD_ENABLED?.toLowerCase() === 'true' || Boolean(process.env.DISCORD_WEBHOOK_URL),
-    webhookUrl: process.env.DISCORD_WEBHOOK_URL?.trim(),
-    requestTimeoutMs: Number(process.env.DISCORD_TIMEOUT_MS || 120_000),
-    interactive: process.env.DISCORD_INTERACTIVE?.toLowerCase() === 'true',
-    consoleOnly: process.env.DISCORD_CONSOLE_ONLY?.toLowerCase() === 'true',
+    enabled: readBool('DISCORD_ENABLED') || Boolean(readString('DISCORD_WEBHOOK_URL')),
+    webhookUrl: readString('DISCORD_WEBHOOK_URL'),
+    requestTimeoutMs: readNumber('DISCORD_TIMEOUT_MS', 120_000),
+    interactive: readBool('DISCORD_INTERACTIVE'),
+    consoleOnly: readBool('DISCORD_CONSOLE_ONLY'),
   },
   gpt: {
-    enabled: process.env.GPT_ENABLED?.toLowerCase() === 'true' || Boolean(process.env.OPENAI_API_KEY),
-    apiKey: process.env.OPENAI_API_KEY,
-    model: process.env.GPT_MODEL || 'gpt-4o-mini',
-    baseUrl: process.env.GPT_BASE_URL,
-    requestTimeoutMs: Number(process.env.GPT_TIMEOUT_MS || 20_000),
-    temperature: Number(process.env.GPT_TEMPERATURE || 0.2),
-    maxTokens: Number(process.env.GPT_MAX_TOKENS || 64),
+    enabled: readBool('GPT_ENABLED') || Boolean(readString('OPENAI_API_KEY')),
+    apiKey: readString('OPENAI_API_KEY'),
+    model: readString('GPT_MODEL', 'gpt-4o-mini'),
+    baseUrl: readString('GPT_BASE_URL'),
+    requestTimeoutMs: readNumber('GPT_TIMEOUT_MS', 20_000),
+    temperature: readNumber('GPT_TEMPERATURE', 0.2),
+    maxTokens: readNumber('GPT_MAX_TOKENS', 64),
   },
   easyApply: {
-    isStandalone: process.env.EASY_APPLY_STANDALONE?.toLowerCase() === 'true',
+    isStandalone: readBool('EASY_APPLY_STANDALONE'),
   },
   linkedinURLs: {
-    postUrl: 'https://www.linkedin.com/search/results/content/?keywords=%23react%20%23job&origin=GLOBAL_SEARCH_HEADER&sid=-mV',
-    feedURL: 'https://www.linkedin.com/feed/',
-    searchJobTag: 'Front-end',
-    jobURL: `https://www.linkedin.com/jobs/view/4329650329/?alternateChannel=search&eBP=CwEAAAGbrWB8U9iXHSkKncLYIm4rUbKGEjWIlKTFrLfTfECq1Rc2ttK9qjYBsNaiqC-cEAMZWDowGsnsWr69Xn11ZTO3EYQeyMPbXaNfq8Fgj6D9mWyg9E9MKeRaxHMq7WAr3M3owmMKe-PFNGilprGfx4z76hG0RLPPdWyxbnGuWXmMg9l9aHs4by-ly60nMmwW2zLkZTmDekpIXHr1e7zHkKCVt9F5GDMHe7mxQqPbLic_9Zzi7xFYTRVx-GGzv1rPQpmin9U5B5drUKHvRtpQU2ZxjNfRRmnaWUUsrKBZwxVg861O_FbwLHdYh7TGoI0Ff0YUu3fo2NH4N1ADVW1z4ZT3XUz5Hb-6pMKEJPLcdtSIUNnYZjr_IHJ8Op7Az90Mn1s0v6k0dZ9zaXv6apDGJ2s9ItFgnNhkLQoyaM3m7MqUjMs4yNf5E-iCDHMDUha-zPA5yeb2QiILyfy37K1Yc4ijBgtcM-ZXBtVVeV1a0BrkK5vo2vGwnhfwCZxcsIh2gTqmmL0uselOR4LZbMNtrQQOjA&refId=BVOw3msTNY%2FulrpYf2WasA%3D%3D&trackingId=elPrpgYn0fPpCwzATKoleQ%3D%3D&trk=d_flagship3_search_srp_jobs`,
-    recruiterURL: "https://www.linkedin.com/in/philipe-loureiro/",
-    message: 'Convidar Philipe Loureiro para se conectar',
-    defaultJobsApplyLength: 20
+    postUrl: readString('LINKEDIN_POST_URL', DEFAULTS.linkedin.postUrl),
+    feedURL: readString('LINKEDIN_FEED_URL', DEFAULTS.linkedin.feedURL),
+    searchJobTag: readString('LINKEDIN_SEARCH_TAG', DEFAULTS.linkedin.searchJobTag),
+    jobURL: readString('LINKEDIN_JOB_URL', DEFAULTS.linkedin.jobURL),
+    recruiterURL: readString('LINKEDIN_RECRUITER_URL', DEFAULTS.linkedin.recruiterURL),
+    message: readString('LINKEDIN_CONNECT_MESSAGE', DEFAULTS.linkedin.message),
+    defaultJobsApplyLength: readNumber('LINKEDIN_DEFAULT_JOBS_APPLY_LENGTH', DEFAULTS.linkedin.defaultJobsApplyLength)
   }
 }

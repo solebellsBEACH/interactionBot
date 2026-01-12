@@ -39,7 +39,7 @@ export class ElementHandle {
         }
     }
 
-    async handleByPlaceholder(handle: HandleActions, placeholder: string, contentText: string) {
+    async handleByPlaceholder(handle: HandleActions, placeholder: string | RegExp, contentText: string) {
         try {
             const element = this._page.getByPlaceholder(placeholder);
             await element.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT });
