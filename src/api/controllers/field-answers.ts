@@ -35,8 +35,13 @@ export async function upsertFieldAnswers(jobUrl: string, fields: EasyApplyField[
   }
 }
 
-export async function getFieldAnswer(key: string): Promise<WithId<FieldAnswer> | null> {
+export async function getFieldAnswer(key: string, label?: string | null): Promise<WithId<FieldAnswer> | null> {
   await connectToDatabase();
   const collection = await getCollection<FieldAnswer>(COLLECTION);
+  if (label) {
+    return collection.findOne({
+      $or: [{ key }, { label }],
+    });
+  }
   return collection.findOne({ key });
 }

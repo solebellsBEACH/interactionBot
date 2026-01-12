@@ -32,25 +32,25 @@ async function main(): Promise<void> {
   const linkedinFeatures = new LinkedinFeatures(page, discord)
   console.log('LinkedIn aberto. Feche a janela para encerrar.');
 
-  const catchJobsResult = await linkedinFeatures.catchJobs()
-  if (catchJobsResult.length === 0) {
-    console.log('No Easy Apply jobs found.')
-    return
-  }
+  // const catchJobsResult = await linkedinFeatures.catchJobs()
+  // if (catchJobsResult.length === 0) {
+  //   console.log('No Easy Apply jobs found.')
+  //   return
+  // }
 
-  const limit = Math.max(0, env.linkedinURLs.defaultJobsApplyLength || 0)
-  const jobsToApply = limit > 0 ? catchJobsResult.slice(0, limit) : catchJobsResult
-  console.table(jobsToApply)
+  // const limit = Math.max(0, env.linkedinURLs.defaultJobsApplyLength || 0)
+  // const jobsToApply = limit > 0 ? catchJobsResult.slice(0, limit) : catchJobsResult
+  // console.table(jobsToApply)
 
-  for (const job of jobsToApply) {
-    console.log(`Easy Apply: ${job.title} | ${job.company}`)
-    try {
-      await linkedinFeatures.easyApply(job.url)
-      await page.waitForTimeout(1500)
-    } catch (error) {
-      console.error('Easy Apply failed for', job.url, error)
-    }
-  }
+  // for (const job of jobsToApply) {
+  //   console.log(`Easy Apply: ${job.title} | ${job.company}`)
+  //   try {
+  //     await linkedinFeatures.easyApply(job.url)
+  //     await page.waitForTimeout(1500)
+  //   } catch (error) {
+  //     console.error('Easy Apply failed for', job.url, error)
+  //   }
+  // }
 
   // console.log(easyApplyResult)
   // // await linkedinFeatures.easyApply()

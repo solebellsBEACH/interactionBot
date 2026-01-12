@@ -269,26 +269,25 @@ export class EasyApplyFlow {
     }
 
     private async _resolveFieldAnswer(field: FormPromptField, step: number) {
-        const cacheKey = this._buildAnswerCacheKey(field)
-        const cached = this._answerCache.get(cacheKey)
+        const cached = this._getCachedAnswer(field)
         if (cached) return cached
 
         const profileAnswer = this._coerceSelectAnswer(field, this._answerFromProfile(field))
         if (profileAnswer) {
-            this._answerCache.set(cacheKey, profileAnswer)
+            this._storeCachedAnswer(field, profileAnswer)
             return profileAnswer
         }
 
         const historyAnswer = this._coerceSelectAnswer(field, await this._answerFromHistory(field))
         if (historyAnswer) {
-            this._answerCache.set(cacheKey, historyAnswer)
+            this._storeCachedAnswer(field, historyAnswer)
             return historyAnswer
         }
 
         const historyContext = await this._historyContext(field)
         const gptAnswer = this._coerceSelectAnswer(field, await this._askWithGpt(field, historyContext))
         if (gptAnswer) {
-            this._answerCache.set(cacheKey, gptAnswer)
+            this._storeCachedAnswer(field, gptAnswer)
             return gptAnswer
         }
 
@@ -299,17 +298,14 @@ export class EasyApplyFlow {
 
         const manualAnswer = this._coerceSelectAnswer(field, await this._askForField(field, step, true))
         if (manualAnswer) {
-            this._answerCache.set(cacheKey, manualAnswer)
+            this._storeCachedAnswer(field, manualAnswer)
         }
         return manualAnswer
     }
 
     private _answerFromProfile(field: FormPromptField) {
         const answers = this._profile.answers || {}
-        const candidates = new Set<string>()
-
-        if (field.key) candidates.add(field.key)
-        if (field.label) candidates.add(this._normalizeKey(field.label))
+        const candidates = new Set(this._buildAnswerCandidates(field))
 
         for (const candidate of candidates) {
             const direct = answers[candidate]
@@ -334,7 +330,7 @@ export class EasyApplyFlow {
             if (cached) return cached
 
             try {
-                const record = await getFieldAnswer(candidate)
+                const record = await getFieldAnswer(candidate, field.label)
                 if (record?.value) {
                     this._historyCache.set(candidate, record.value)
                     return record.value
@@ -359,7 +355,7 @@ export class EasyApplyFlow {
                 continue
             }
             try {
-                const record = await getFieldAnswer(candidate)
+                const record = await getFieldAnswer(candidate, field.label)
                 if (record?.value) {
                     this._historyCache.set(candidate, record.value)
                     context[candidate] = record.value
@@ -395,16 +391,22 @@ export class EasyApplyFlow {
         return this._discord.ask(prompt)
     }
 
-    private _buildAnswerCacheKey(field: FormPromptField) {
-        const key = field.key || this._normalizeKey(field.label)
-        const options = field.type === 'select' ? (field.options || []).join('|') : ''
+    private _buildAnswerCacheKey(field: FormPromptField, key: string, includeOptions = false) {
+        const options = includeOptions && field.type === 'select' ? (field.options || []).join('|') : ''
         return `${field.type}:${key || 'field'}:${options}`
     }
 
     private _buildAnswerCandidates(field: FormPromptField) {
         const candidates = new Set<string>()
         if (field.key) candidates.add(field.key)
-        if (field.label) candidates.add(this._normalizeKey(field.label))
+        const label = field.label || ''
+        if (label) {
+            candidates.add(this._normalizeKey(label))
+            const deduped = this._dedupeLabel(label)
+            if (deduped && deduped !== label) {
+                candidates.add(this._normalizeKey(deduped))
+            }
+        }
         return Array.from(candidates).filter(Boolean)
     }
 
@@ -413,7 +415,16 @@ export class EasyApplyFlow {
         const options = (field.options || []).map((option) => option.trim()).filter(Boolean)
         if (options.length === 0) return answer
 
-        const lowered = answer.toLowerCase().trim()
+        const trimmed = answer.trim()
+        const numericMatch = trimmed.match(/^(\d+)/)
+        if (numericMatch) {
+            const asNumber = Number(numericMatch[1])
+            if (!Number.isNaN(asNumber) && asNumber >= 1 && asNumber <= options.length) {
+                return options[asNumber - 1]
+            }
+        }
+
+        const lowered = trimmed.toLowerCase()
         const direct = options.find((option) => option.toLowerCase() === lowered)
         if (direct) return direct
 
@@ -421,6 +432,54 @@ export class EasyApplyFlow {
             lowered.includes(option.toLowerCase()) || option.toLowerCase().includes(lowered)
         )
         return contained || null
+    }
+
+    private _getCachedAnswer(field: FormPromptField) {
+        const candidates = this._buildAnswerCandidates(field)
+        if (candidates.length === 0) return null
+
+        const primaryKey = this._buildAnswerCacheKey(field, candidates[0], true)
+        const primary = this._answerCache.get(primaryKey)
+        if (primary) return primary
+
+        for (const candidate of candidates) {
+            const key = this._buildAnswerCacheKey(field, candidate, false)
+            const cached = this._answerCache.get(key)
+            if (cached) return cached
+        }
+
+        return null
+    }
+
+    private _storeCachedAnswer(field: FormPromptField, value: string) {
+        const candidates = this._buildAnswerCandidates(field)
+        if (candidates.length === 0) return
+        for (const candidate of candidates) {
+            this._answerCache.set(this._buildAnswerCacheKey(field, candidate, false), value)
+        }
+        this._answerCache.set(this._buildAnswerCacheKey(field, candidates[0], true), value)
+    }
+
+    private _dedupeLabel(label: string) {
+        const trimmed = label.trim()
+        const compact = trimmed.replace(/\s+/g, '').toLowerCase()
+        if (compact.length % 2 !== 0) return trimmed
+        const half = compact.length / 2
+        if (compact.slice(0, half) !== compact.slice(half)) return trimmed
+
+        let seen = 0
+        let cutIndex = trimmed.length
+        for (let i = 0; i < trimmed.length; i++) {
+            if (trimmed[i].trim()) {
+                seen++
+            }
+            if (seen >= half) {
+                cutIndex = i + 1
+                break
+            }
+        }
+
+        return trimmed.slice(0, cutIndex).trim()
     }
 
     private _normalizeKey(value?: string | null) {
