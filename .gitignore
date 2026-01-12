@@ -22,3 +22,5 @@ blob-report/
 # Configuração local
 .env
 .DS_Store
+.whatsapp-auth/
+data/user-profile.json
