@@ -41,7 +41,7 @@ export async function updateApplication(id: string, updates: Partial<Application
     { returnDocument: "after" }
   );
 
-  return result.value;
+  return result ?? null;
 }
 
 export async function deleteApplication(id: string) {

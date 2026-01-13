@@ -151,15 +151,19 @@ export class EasyApplyAnswerResolver {
             const options = field.options || []
             const optionsText = options.map((option, idx) => `${idx + 1}) ${option}`).join('\n')
             const prompt = `[Easy Apply] Step ${step} - choose for "${label}":\n${optionsText}\nReply with number or text.`
+            if (this._discord) {
+                return this._discord.ask(prompt)
+            }
             if (forcePrompt) return this._promptCli(prompt)
-            if (!this._discord) return null
-            return this._discord.ask(prompt)
+            return null
         }
 
         const prompt = `[Easy Apply] Step ${step} - fill "${label}":`
+        if (this._discord) {
+            return this._discord.ask(prompt)
+        }
         if (forcePrompt) return this._promptCli(prompt)
-        if (!this._discord) return null
-        return this._discord.ask(prompt)
+        return null
     }
 
     private _buildAnswerCacheKey(field: FormPromptField, key: string, includeOptions = false) {

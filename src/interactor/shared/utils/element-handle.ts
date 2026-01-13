@@ -17,6 +17,12 @@ export type FormValues = {
     selectValues: FormFieldValue[]
 }
 
+type SelectEntry = {
+    label: string
+    value: string
+    index: number
+}
+
 export class ElementHandle {
     private _page: Page
     private DEFAULT_TIMEOUT: number
@@ -125,25 +131,29 @@ export class ElementHandle {
             const meta = await this._getControlMeta(select)
             const selectedOption = await select.locator('option:checked').allInnerTexts()
             let value = selectedOption[0]?.trim() || ''
-            const allOptions = (await select.locator('option').allInnerTexts()).map((item) => item.trim())
+            const allEntries = await this._getSelectEntries(select)
+            const allLabels = allEntries.map((entry) => entry.label)
 
             const label = meta.labelText || meta.ariaLabel || meta.name || meta.id
             const key = this._normalizeKey(label || undefined)
 
             const missing = !value || this._isSelectPlaceholder(value)
             if (prompt && missing) {
-                const promptOptions = allOptions.filter((option) => option && !this._isSelectPlaceholder(option))
+                const promptEntries = allEntries.filter((entry) => entry.label && !this._isSelectPlaceholder(entry.label))
+                const entries = promptEntries.length ? promptEntries : allEntries
+                const options = entries.map((entry) => entry.label)
                 const answer = await prompt({
                     type: 'select',
                     key,
                     label,
                     value,
-                    options: promptOptions.length ? promptOptions : allOptions
+                    options
                 })
-                const resolved = this._resolveSelectValue(answer, promptOptions) || this._resolveSelectValue(answer, allOptions)
-                if (resolved) {
-                    await select.selectOption({ label: resolved })
-                    value = resolved
+                const resolvedIndex = this._resolveSelectIndex(answer, entries)
+                if (resolvedIndex !== null) {
+                    const selected = entries[resolvedIndex]
+                    await select.selectOption({ index: selected.index })
+                    value = selected.label
                 }
             }
 
@@ -232,22 +242,35 @@ export class ElementHandle {
         )
     }
 
-    private _resolveSelectValue(answer: string | null | undefined, options: string[]) {
+    private _resolveSelectIndex(answer: string | null | undefined, entries: SelectEntry[]) {
         if (!answer) return null
         const trimmed = answer.trim()
         if (!trimmed) return null
 
         const asNumber = Number(trimmed)
-        if (!Number.isNaN(asNumber) && asNumber >= 1 && asNumber <= options.length) {
-            return options[asNumber - 1]
+        if (!Number.isNaN(asNumber) && asNumber >= 1 && asNumber <= entries.length) {
+            return asNumber - 1
         }
 
         const lowered = trimmed.toLowerCase()
-        const direct = options.find((option) => option.toLowerCase() === lowered)
-        if (direct) return direct
+        const directLabel = entries.findIndex((entry) => entry.label.toLowerCase() === lowered)
+        if (directLabel >= 0) return directLabel
 
-        const partial = options.find((option) => option.toLowerCase().includes(lowered))
-        return partial || null
+        const directValue = entries.findIndex((entry) => entry.value.toLowerCase() === lowered)
+        if (directValue >= 0) return directValue
+
+        const partial = entries.findIndex((entry) => entry.label.toLowerCase().includes(lowered))
+        return partial >= 0 ? partial : null
+    }
+
+    private async _getSelectEntries(select: Locator): Promise<SelectEntry[]> {
+        return select.locator('option').evaluateAll((options) =>
+            options.map((option, index) => ({
+                label: (option.textContent || '').trim(),
+                value: (option as HTMLOptionElement).value || '',
+                index
+            }))
+        )
     }
 
 }

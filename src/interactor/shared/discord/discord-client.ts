@@ -104,10 +104,8 @@ export class DiscordClient {
     async ask(prompt: string, timeoutMs?: number): Promise<string | null> {
         if (!this._config.interactive) return null
         const effectiveTimeout = timeoutMs ?? this._config.requestTimeoutMs
-        if (this._canUseDiscordPrompt()) {
-            return this._promptDiscord(prompt, effectiveTimeout)
-        }
-        return this._promptCli(prompt, effectiveTimeout)
+        if (!this._canUseDiscordPrompt()) return null
+        return this._promptDiscord(prompt, effectiveTimeout)
     }
 
     private _canUseDiscordPrompt() {
@@ -276,9 +274,9 @@ export class DiscordClient {
             'Comandos disponiveis:',
             `${prefix}help - mostra esta mensagem`,
             `${prefix}easy-apply [jobUrl] - inicia o Easy Apply`,
-            `${prefix}catch-jobs [tag] - busca vagas Easy Apply`,
+            `${prefix}catch-jobs - pergunta tag e quantidade`,
             `${prefix}connect <profileUrl> [mensagem] - envia convite`,
-            `${prefix}upvote-posts - curte posts do feed`,
+            `${prefix}upvote-posts - curte posts (pede quantidade e tag)`,
             'Se houver pergunta pendente, responda sem prefixo.'
         ].join('\n')
     }
