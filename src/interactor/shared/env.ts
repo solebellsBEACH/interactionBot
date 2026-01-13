@@ -56,9 +56,13 @@ export const env = {
   discord: {
     enabled: readBool('DISCORD_ENABLED') || Boolean(readString('DISCORD_WEBHOOK_URL')),
     webhookUrl: readString('DISCORD_WEBHOOK_URL'),
+    botToken: readString('DISCORD_BOT_TOKEN'),
+    channelId: readString('DISCORD_CHANNEL_ID'),
     requestTimeoutMs: readNumber('DISCORD_TIMEOUT_MS', 120_000),
     interactive: readBool('DISCORD_INTERACTIVE'),
     consoleOnly: readBool('DISCORD_CONSOLE_ONLY'),
+    commandPrefix: readString('DISCORD_COMMAND_PREFIX', '!'),
+    commandsEnabled: readBool('DISCORD_COMMANDS_ENABLED', true),
   },
   gpt: {
     enabled: readBool('GPT_ENABLED') || Boolean(readString('OPENAI_API_KEY')),
