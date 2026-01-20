@@ -12,6 +12,7 @@ export type EasyApplyJobResult = {
 
 export type SearchJobTagOptions = {
     location?: string
+    geoId?: string | number
     maxPages?: number
     maxResults?: number
 }
@@ -36,7 +37,7 @@ export class ScrapFeatures {
         for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
             if (this._page.isClosed()) break
             console.log(`Buscando jobs (Easy Apply): pagina ${pageIndex + 1}/${maxPages}`)
-            const searchUrl = this._buildSearchJobUrl(tag, options?.location, pageIndex * 25)
+            const searchUrl = this._buildSearchJobUrl(tag, options?.location, pageIndex * 25, options?.geoId)
             await this._navigator.goToLinkedinURL(searchUrl)
 
             const ready = await this._waitForJobResults()
@@ -63,10 +64,16 @@ export class ScrapFeatures {
         return Array.from(results.values())
     }
 
-    private _buildSearchJobUrl(tag: string, location?: string, start = 0) {
+    private _buildSearchJobUrl(tag: string, location?: string, start = 0, geoId?: string | number) {
         const params = new URLSearchParams()
         params.set('keywords', tag)
         params.set('f_AL', 'true')
+        if (geoId !== undefined && geoId !== null) {
+            const normalized = String(geoId).trim()
+            if (normalized) {
+                params.set('geoId', normalized)
+            }
+        }
         if (location && location.trim()) {
             params.set('location', location.trim())
         }

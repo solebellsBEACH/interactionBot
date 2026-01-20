@@ -60,17 +60,27 @@ export class EasyApplyFlow {
     async execute(jobURL: string): Promise<EasyApplyStepValues[]> {
         const stepsValues: EasyApplyStepValues[] = []
         const outcome: EasyApplyOutcome = { status: 'stopped', reason: 'unknown' }
+        const trace: string[] = []
+        const pushTrace = (entry: string) => {
+            if (trace.length >= 24) return
+            trace.push(entry)
+        }
 
         try {
+            pushTrace('start')
             await this._navigator.goToLinkedinURL(jobURL)
+            pushTrace('open-modal')
             await this._openEasyApplyModal()
+            pushTrace('modal-opened')
             let lastFingerprint = await this._waitForFormAndFingerprint()
             if (!lastFingerprint) {
                 console.warn('Easy Apply: form not found after opening modal')
                 outcome.status = 'no-form'
                 outcome.reason = 'form-not-found'
+                pushTrace('no-form')
                 return stepsValues
             }
+            pushTrace('form-visible')
 
             let step = 1
             let stagnantCount = 0
@@ -89,50 +99,67 @@ export class EasyApplyFlow {
                 }
                 if (values) stepsValues.push(values)
 
+                const inputCount = values?.inputValues?.length ?? 0
+                const selectCount = values?.selectValues?.length ?? 0
+                const stepSummary = values ? `step${step}:${inputCount}/${selectCount}` : `step${step}:no-values`
+
                 const { nextButtons, reviewButtons, submitButtons } = this._getButtonLocators()
                 const submit = await this._firstEnabled(submitButtons)
                 const review = await this._firstEnabled(reviewButtons)
                 const next = await this._firstEnabled(nextButtons)
 
                 let clicked = false
+                let action = 'none'
                 if (review) {
+                    action = 'review'
                     await this._clickAndWait(review)
                     clicked = true
                 } else if (next) {
+                    action = 'next'
                     await this._clickAndWait(next)
                     clicked = true
                 }
+                if (!clicked && submit) {
+                    action = 'submit'
+                }
+                pushTrace(`${stepSummary}:${action}`)
 
                 if (!clicked) {
                     if (submit) {
                         await this._finalizeSubmit(jobURL, stepsValues, submit)
                         outcome.status = 'submitted'
                         outcome.reason = 'submit'
+                        pushTrace('submitted')
                         break
                     }
 
                     if (!(await this._isModalOpen())) {
                         outcome.status = 'modal-closed'
+                        pushTrace('modal-closed')
                         break
                     }
 
                     console.warn('Easy Apply: no next/review/submit button found, stopping at step', step)
                     outcome.reason = 'no-action'
+                    pushTrace('no-action')
                     break
                 }
 
                 const nextFingerprint = await this._waitForFormChange(lastFingerprint)
                 if (!nextFingerprint || nextFingerprint === lastFingerprint) {
+                    pushTrace('form-unchanged')
                     const submitAfter = await this._firstEnabled(submitButtons)
                     if (submitAfter) {
                         await this._finalizeSubmit(jobURL, stepsValues, submitAfter)
                         outcome.status = 'submitted'
                         outcome.reason = 'submit-after'
+                        pushTrace('submitted')
                         break
                     }
 
                     if (!(await this._isModalOpen())) {
                         outcome.status = 'modal-closed'
+                        pushTrace('modal-closed')
                         break
                     }
 
@@ -140,32 +167,49 @@ export class EasyApplyFlow {
                     if (stagnantCount >= this._maxStagnantSteps) {
                         console.warn('Easy Apply: form did not change after click, stopping at step', step)
                         outcome.reason = 'stagnant'
+                        pushTrace('stagnant')
                         break
                     }
                     continue
                 }
 
                 lastFingerprint = nextFingerprint
+                pushTrace('form-changed')
                 stagnantCount = 0
                 step++
             }
 
             if (step > this._maxSteps && outcome.status !== 'submitted') {
                 outcome.reason = 'max-steps'
+                pushTrace('max-steps')
             }
+        } catch (error) {
+            outcome.status = 'stopped'
+            outcome.reason = this._formatErrorReason(error)
+            pushTrace('error')
+            throw error
         } finally {
-            await this._logResult(jobURL, stepsValues, outcome)
+            await this._logResult(jobURL, stepsValues, outcome, trace)
         }
 
         return stepsValues
     }
 
     private async _openEasyApplyModal() {
-        const easyApplyButton = this._page.getByRole('button', { name: EASY_APPLY_LABELS.easyApplyButton })
-        if (await easyApplyButton.count() === 0) {
-            throw new Error('Easy Apply button not found on job page')
+        const candidates = this._getOpenButtonLocators()
+        const deadline = Date.now() + EASY_APPLY_TIMEOUTS.openButton
+        let easyApplyButton = await this._firstEnabled(candidates)
+
+        while (!easyApplyButton && Date.now() < deadline) {
+            await this._page.waitForTimeout(EASY_APPLY_TIMEOUTS.openPoll)
+            easyApplyButton = await this._firstEnabled(candidates)
         }
-        await easyApplyButton.first().click()
+
+        if (!easyApplyButton) {
+            await this._logOpenButtonDiagnostics()
+            throw new Error('easy-apply-button-not-found')
+        }
+        await this._clickAndWait(easyApplyButton)
     }
 
     private async _waitForForm() {
@@ -176,7 +220,11 @@ export class EasyApplyFlow {
     }
 
     private async _waitForFormAndFingerprint() {
-        await this._waitForForm()
+        try {
+            await this._waitForForm()
+        } catch {
+            return null
+        }
         return this._getFormFingerprint()
     }
 
@@ -248,6 +296,57 @@ export class EasyApplyFlow {
         }
     }
 
+    private _getOpenButtonLocators() {
+        return [
+            this._page.getByRole('button', { name: EASY_APPLY_LABELS.easyApplyButton }),
+            this._page.getByRole('link', { name: EASY_APPLY_LABELS.easyApplyButton }),
+            ...EASY_APPLY_BUTTON_SELECTORS.open.map((selector) => this._page.locator(selector))
+        ]
+    }
+
+    private async _logOpenButtonDiagnostics() {
+        let candidates: Array<{ text: string; aria: string; data: string; testId: string }> = []
+        try {
+            candidates = await this._page.evaluate(() => {
+                const matcher = /(easy apply|candid|inscrever|solicitar|apply)/i
+                const elements = Array.from(document.querySelectorAll('button, [role="button"], a'))
+                const results: Array<{ text: string; aria: string; data: string; testId: string }> = []
+
+                for (const el of elements) {
+                    const text = (el.textContent || '').trim()
+                    const aria = el.getAttribute('aria-label') || ''
+                    const data = el.getAttribute('data-control-name') || ''
+                    const testId = el.getAttribute('data-test-id') || ''
+                    const combined = `${text} ${aria} ${data} ${testId}`.trim()
+                    if (!combined || !matcher.test(combined)) continue
+                    results.push({ text, aria, data, testId })
+                    if (results.length >= 8) break
+                }
+
+                return results
+            })
+        } catch {
+            return
+        }
+
+        if (candidates.length === 0) return
+
+        const normalize = (value: string) => value.replace(/\s+/g, ' ').trim().slice(0, 120)
+        const lines = candidates.map((candidate, index) => {
+            const text = normalize(candidate.text)
+            const aria = normalize(candidate.aria)
+            const data = normalize(candidate.data)
+            const testId = normalize(candidate.testId)
+            return `${index + 1}. text="${text}" aria="${aria}" data="${data}" testId="${testId}"`
+        })
+
+        const message = `Easy Apply debug: apply-like buttons found:\n${lines.join('\n')}`
+        console.warn(message)
+        if (this._discord) {
+            await this._discord.log(message)
+        }
+    }
+
     private async _finalizeSubmit(jobURL: string, stepsValues: EasyApplyStepValues[], submitButton: Locator) {
         await this._persistSteps(jobURL, stepsValues)
         await submitButton.click({ force: true })
@@ -267,13 +366,19 @@ export class EasyApplyFlow {
         }
     }
 
-    private async _logResult(jobURL: string, stepsValues: EasyApplyStepValues[], outcome: EasyApplyOutcome) {
+    private async _logResult(
+        jobURL: string,
+        stepsValues: EasyApplyStepValues[],
+        outcome: EasyApplyOutcome,
+        trace?: string[]
+    ) {
         if (!this._discord) return
         const inputCount = stepsValues.reduce((sum, step) => sum + (step.inputValues?.length || 0), 0)
         const selectCount = stepsValues.reduce((sum, step) => sum + (step.selectValues?.length || 0), 0)
         const totalFields = inputCount + selectCount
         const reason = outcome.reason ? ` | ${outcome.reason}` : ''
-        const message = `Easy Apply result: ${outcome.status}${reason} | steps: ${stepsValues.length} | fields: ${totalFields} | ${jobURL}`
+        const traceInfo = trace && trace.length > 0 ? ` | trace: ${trace.join(' > ')}` : ''
+        const message = `Easy Apply result: ${outcome.status}${reason} | steps: ${stepsValues.length} | fields: ${totalFields} | ${jobURL}${traceInfo}`
         await this._discord.log(message)
     }
 
@@ -311,5 +416,16 @@ export class EasyApplyFlow {
         const dataControl = await button.getAttribute('data-control-name').catch(() => '')
         const combined = `${text} ${ariaLabel} ${dataControl}`.toLowerCase()
         return EASY_APPLY_FORBIDDEN_REGEX.test(combined)
+    }
+
+    private _formatErrorReason(error: unknown) {
+        if (error instanceof Error) {
+            const message = error.message || error.name || 'error'
+            return message.replace(/\s+/g, ' ').trim().slice(0, 120)
+        }
+        if (typeof error === 'string') {
+            return error.replace(/\s+/g, ' ').trim().slice(0, 120)
+        }
+        return 'error'
     }
 }

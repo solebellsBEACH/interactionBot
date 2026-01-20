@@ -190,14 +190,28 @@ export class ElementHandle {
             const id = (el as HTMLInputElement).id || null
 
             const getText = (node: Element | null) => node?.textContent?.trim() || null
+            const findIn = (root: Element | null, selector: string) => {
+                if (!root) return null
+                if (root.matches(selector)) return root
+                return root.querySelector(selector)
+            }
+            const getTextFromSelectors = (root: Element | null, selectors: string[]) => {
+                if (!root) return null
+                for (const selector of selectors) {
+                    const node = findIn(root, selector)
+                    const text = getText(node)
+                    if (text) return text
+                }
+                return null
+            }
             let labelText: string | null = null
 
             if (ariaLabelledBy) {
-                for (const ref of ariaLabelledBy.split(' ')) {
-                    const labelEl = document.getElementById(ref)
-                    labelText = getText(labelEl)
-                    if (labelText) break
-                }
+                const parts = ariaLabelledBy
+                    .split(' ')
+                    .map((ref) => getText(document.getElementById(ref)))
+                    .filter(Boolean) as string[]
+                if (parts.length) labelText = parts.join(' ')
             }
 
             if (!labelText && id) {
@@ -208,6 +222,19 @@ export class ElementHandle {
             if (!labelText) {
                 const closestLabel = el.closest('label')
                 labelText = getText(closestLabel)
+            }
+
+            if (!labelText) {
+                const container = el.closest(
+                    '[data-test-form-element], [data-test-form-element-label], [data-test-form-element-title], .jobs-easy-apply-form-element, .fb-dash-form-element, fieldset'
+                ) || el.parentElement
+                labelText = getTextFromSelectors(container, [
+                    '[data-test-form-element-label]',
+                    '[data-test-form-element-title]',
+                    '.jobs-easy-apply-form-element__label',
+                    'label',
+                    'legend'
+                ])
             }
 
             return {

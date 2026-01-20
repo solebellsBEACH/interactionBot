@@ -274,7 +274,7 @@ export class DiscordClient {
             'Comandos disponiveis:',
             `${prefix}help - mostra esta mensagem`,
             `${prefix}easy-apply [jobUrl] - inicia o Easy Apply`,
-            `${prefix}catch-jobs - pergunta tag e quantidade`,
+            `${prefix}catch-jobs [tag] [max] --loc <local> --pages <n> - pergunta tag/quantidade e opcionalmente local/paginas`,
             `${prefix}connect <profileUrl> [mensagem] - envia convite`,
             `${prefix}upvote-posts - curte posts (pede quantidade e tag)`,
             'Se houver pergunta pendente, responda sem prefixo.'

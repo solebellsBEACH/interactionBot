@@ -14,10 +14,26 @@ const registerDiscordCommands = (discord: DiscordClient, linkedinFeatures: Linke
       .join('\n')
   }
 
+  const GLOBAL_GEO_ID = '92000000'
+
+  const normalizeAnswer = (value: string) => {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase()
+  }
+
   const isAffirmative = (value: string) => {
-    const normalized = value.trim().toLowerCase()
+    const normalized = normalizeAnswer(value)
     if (!normalized) return false
     return /^(s|sim|y|yes|ok|1|aplicar|aplica|apply)\b/.test(normalized)
+  }
+
+  const isNegative = (value: string) => {
+    const normalized = normalizeAnswer(value)
+    if (!normalized) return false
+    return /^(n|nao|no)\b/.test(normalized)
   }
 
   const parseQuantityAndTag = (value: string) => {
@@ -35,24 +51,130 @@ const registerDiscordCommands = (discord: DiscordClient, linkedinFeatures: Linke
     }
   }
 
+  const normalizeArgValue = (value?: string) => {
+    if (!value) return undefined
+    return value.replace(/[+_]/g, ' ').trim()
+  }
+
+  const parseArgNumber = (value?: string) => {
+    if (!value) return undefined
+    const parsed = Number(value)
+    return Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed
+  }
+
   const parseCatchJobsArgs = (args: string[]) => {
     const parts = [...args]
-    const numberIndex = parts.findIndex((part) => /^\d+$/.test(part))
+    const leftover: string[] = []
     let maxResults: number | undefined
-    if (numberIndex >= 0) {
-      maxResults = Number(parts[numberIndex])
-      parts.splice(numberIndex, 1)
+    let maxPages: number | undefined
+    let location: string | undefined
+
+    const parseInline = (rawValue: string, normalizedValue: string, keys: string[]) => {
+      for (const key of keys) {
+        if (normalizedValue.startsWith(`${key}:`)) {
+          const idx = rawValue.indexOf(':')
+          return normalizeArgValue(rawValue.slice(idx + 1))
+        }
+        if (normalizedValue.startsWith(`${key}=`)) {
+          const idx = rawValue.indexOf('=')
+          return normalizeArgValue(rawValue.slice(idx + 1))
+        }
+      }
+      return undefined
     }
-    const tag = parts.join(' ').trim() || undefined
+
+    const isBoundaryToken = (value: string) => {
+      if (!value) return true
+      const lowered = value.toLowerCase()
+      if (lowered.startsWith('--')) return true
+      const match = lowered.match(/^([a-z0-9_-]+)[:=]/)
+      if (!match) return false
+      const key = match[1]
+      return [
+        'loc',
+        'location',
+        'local',
+        'localizacao',
+        'pages',
+        'page',
+        'paginas',
+        'pagina',
+        'max',
+        'limit',
+        'results',
+        'vagas'
+      ].includes(key)
+    }
+
+    const collectValue = (startIndex: number) => {
+      const tokens: string[] = []
+      let idx = startIndex
+      while (idx < parts.length && !isBoundaryToken(parts[idx])) {
+        tokens.push(parts[idx])
+        idx++
+      }
+      return {
+        value: normalizeArgValue(tokens.join(' ')),
+        endIndex: idx - 1
+      }
+    }
+
+    for (let i = 0; i < parts.length; i++) {
+      const raw = parts[i]
+      const normalized = raw.toLowerCase()
+      if (normalized === '--loc' || normalized === '--location' || normalized === '--local' || normalized === '--localizacao') {
+        const collected = collectValue(i + 1)
+        location = collected.value
+        i = collected.endIndex
+        continue
+      }
+      if (normalized === '--pages' || normalized === '--page' || normalized === '--paginas' || normalized === '--pagina' || normalized === '--max-pages') {
+        maxPages = parseArgNumber(parts[i + 1])
+        i++
+        continue
+      }
+      if (normalized === '--max' || normalized === '--limit' || normalized === '--results' || normalized === '--max-results' || normalized === '--max-vagas') {
+        maxResults = parseArgNumber(parts[i + 1])
+        i++
+        continue
+      }
+
+      const inlineLocation = parseInline(raw, normalized, ['loc', 'location', 'local', 'localizacao'])
+      if (inlineLocation) {
+        location = inlineLocation
+        continue
+      }
+      const inlinePages = parseInline(raw, normalized, ['pages', 'page', 'paginas', 'pagina'])
+      if (inlinePages) {
+        maxPages = parseArgNumber(inlinePages)
+        continue
+      }
+      const inlineMax = parseInline(raw, normalized, ['max', 'limit', 'results', 'vagas'])
+      if (inlineMax) {
+        maxResults = parseArgNumber(inlineMax)
+        continue
+      }
+
+      if (!maxResults && /^\d+$/.test(raw)) {
+        maxResults = Number(raw)
+        continue
+      }
+
+      leftover.push(raw)
+    }
+
+    const tag = leftover.join(' ').trim() || undefined
     return {
       tag,
-      maxResults: maxResults && maxResults > 0 ? maxResults : undefined
+      location,
+      maxPages,
+      maxResults
     }
   }
 
   const parseMaxResultsAnswer = (value: string | null) => {
     if (!value) return undefined
-    const normalized = value.trim().toLowerCase()
+    const normalized = normalizeAnswer(value)
     if (!normalized) return undefined
     if (/^(todas|todos|all|tudo)$/.test(normalized)) return undefined
     const match = normalized.match(/(\d+)/)
@@ -61,14 +183,34 @@ const registerDiscordCommands = (discord: DiscordClient, linkedinFeatures: Linke
     return parsed > 0 ? parsed : undefined
   }
 
+  const parseLocationAnswer = (value: string | null) => {
+    if (!value) return undefined
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+    const normalized = normalizeAnswer(trimmed)
+    if (/^(skip|pular|nao|n)$/.test(normalized)) return undefined
+    return trimmed
+  }
+
+  const parseMaxPagesAnswer = (value: string | null) => {
+    if (!value) return undefined
+    const normalized = normalizeAnswer(value)
+    if (!normalized) return undefined
+    if (/^(pular|skip|padrao|default|nao|n)$/.test(normalized)) return undefined
+    const match = normalized.match(/(\d+)/)
+    if (!match) return undefined
+    const parsed = Number(match[1])
+    return parsed > 0 ? parsed : undefined
+  }
+
   const isStop = (value: string) => {
-    const normalized = value.trim().toLowerCase()
+    const normalized = normalizeAnswer(value)
     if (!normalized) return false
     return /^(parar|stop|sair|cancelar)\b/.test(normalized)
   }
 
   const isSkip = (value: string) => {
-    const normalized = value.trim().toLowerCase()
+    const normalized = normalizeAnswer(value)
     if (!normalized) return false
     return /^(skip|pular|nao|não|n)\b/.test(normalized)
   }
@@ -90,6 +232,9 @@ const registerDiscordCommands = (discord: DiscordClient, linkedinFeatures: Linke
       const parsedArgs = parseCatchJobsArgs(args)
       let tag = parsedArgs.tag
       let maxResults = parsedArgs.maxResults
+      let location = parsedArgs.location
+      let maxPages = parsedArgs.maxPages
+      let geoId: string | undefined
 
       if (!tag) {
         const tagAnswer = await discord.ask('Qual tag de busca? (ex: react+next)')
@@ -106,10 +251,56 @@ const registerDiscordCommands = (discord: DiscordClient, linkedinFeatures: Linke
         maxResults = parseMaxResultsAnswer(quantityAnswer)
       }
 
-      await discord.sendMessage(`Buscando vagas Easy Apply para "${tag}"...`)
+      if (!location) {
+        const wantsLocation = await discord.ask('Deseja filtrar por localizacao? (sim/nao ou informe a localizacao)')
+        if (wantsLocation) {
+          if (isAffirmative(wantsLocation)) {
+            const locationAnswer = await discord.ask('Localizacao (ex: Sao Paulo, Remote)')
+            location = parseLocationAnswer(locationAnswer)
+            if (location) {
+              geoId = undefined
+            }
+          } else if (isNegative(wantsLocation)) {
+            geoId = GLOBAL_GEO_ID
+          } else if (!isSkip(wantsLocation)) {
+            location = parseLocationAnswer(wantsLocation)
+            if (location) {
+              geoId = undefined
+            }
+          }
+        }
+      }
+
+      if (!maxPages) {
+        const wantsPages = await discord.ask('Deseja limitar paginas? (sim/nao ou informe o numero)')
+        if (wantsPages) {
+          const directPages = parseMaxPagesAnswer(wantsPages)
+          if (directPages) {
+            maxPages = directPages
+          } else if (isAffirmative(wantsPages)) {
+            const pagesAnswer = await discord.ask('Quantas paginas deseja percorrer? (ex: 2)')
+            maxPages = parseMaxPagesAnswer(pagesAnswer)
+          }
+        }
+      }
+
+      const filterSummary = [
+        maxResults ? `max: ${maxResults}` : undefined,
+        location ? `local: ${location}` : (geoId ? `geoId: ${geoId}` : undefined),
+        maxPages ? `paginas: ${maxPages}` : undefined
+      ].filter(Boolean).join(' | ')
+      const searchMessage = filterSummary
+        ? `Buscando vagas Easy Apply para "${tag}" (${filterSummary})...`
+        : `Buscando vagas Easy Apply para "${tag}"...`
+      await discord.sendMessage(searchMessage)
       const results = await linkedinFeatures.searchJobTag(
         tag,
-        maxResults ? { maxResults } : undefined
+        {
+          ...(maxResults ? { maxResults } : {}),
+          ...(location ? { location } : {}),
+          ...(geoId ? { geoId } : {}),
+          ...(maxPages ? { maxPages } : {})
+        }
       )
       if (results.length === 0) {
         await discord.sendMessage('Nenhuma vaga Easy Apply encontrada.')

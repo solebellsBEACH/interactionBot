@@ -4,19 +4,28 @@ export const EASY_APPLY_SELECTORS = {
 }
 
 export const EASY_APPLY_TIMEOUTS = {
+    openButton: 12_000,
+    openPoll: 400,
     formVisible: 10_000,
     formChange: 8_000,
     formPoll: 400
 }
 
 export const EASY_APPLY_LABELS = {
-    easyApplyButton: /candidatura simplificada|easy apply/i,
+    easyApplyButton: /candidatura simplificada|candidatar-se facilmente|easy apply/i,
     submit: /enviar candidatura|submit application/i,
     next: /proximo|próximo|continuar|next|avancar|avançar|seguinte/i,
     review: /revisar candidatura|review application|revisar|review/i
 }
 
 export const EASY_APPLY_BUTTON_SELECTORS = {
+    open: [
+        'button[data-control-name*="inapply" i], [role="button"][data-control-name*="inapply" i], button[data-control-name*="easy-apply" i], [role="button"][data-control-name*="easy-apply" i]',
+        'button.jobs-apply-button, [role="button"].jobs-apply-button',
+        'button[aria-label*="Easy Apply" i], [role="button"][aria-label*="Easy Apply" i], button[aria-label*="Candidatura simplificada" i], [role="button"][aria-label*="Candidatura simplificada" i], button[aria-label*="Candidatar-se facilmente" i], [role="button"][aria-label*="Candidatar-se facilmente" i]',
+        'button:has-text("Candidatura simplificada"), [role="button"]:has-text("Candidatura simplificada"), button:has-text("Candidatar-se facilmente"), [role="button"]:has-text("Candidatar-se facilmente"), button:has-text("Easy Apply"), [role="button"]:has-text("Easy Apply")',
+        'button[data-test-id*="jobs-apply" i], [role="button"][data-test-id*="jobs-apply" i], button[data-test-id*="easy-apply" i], [role="button"][data-test-id*="easy-apply" i]'
+    ],
     submit: [
         'button:has-text("Enviar candidatura"), button:has-text("Submit application")',
         'button[aria-label*="Submit application" i], button[aria-label*="Enviar candidatura" i]',
