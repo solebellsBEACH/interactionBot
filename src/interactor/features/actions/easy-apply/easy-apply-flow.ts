@@ -1,12 +1,12 @@
 import { Locator, Page } from "playwright";
-import { LinkedinCoreFeatures } from "./linkedin-core";
+import { LinkedinCoreFeatures } from "../../linkedin-core";
 
-import { saveEasyApplyResponses } from "../../api/controllers/easy-apply-responses";
-import { ElementHandle, FormFieldValue } from "../shared/utils/element-handle";
-import { DiscordClient } from "../shared/discord/discord-client";
-import { env } from "../shared/env";
-import { GptClient } from "../shared/ai/gpt-client";
-import { userProfile } from "../shared/user-profile";
+import { saveEasyApplyResponses } from "../../../../api/controllers/easy-apply-responses";
+import { ElementHandle, FormFieldValue } from "../../../shared/utils/element-handle";
+import { DiscordClient } from "../../../shared/discord/discord-client";
+import { env } from "../../../shared/env";
+import { GptClient } from "../../../shared/ai/gpt-client";
+import { userProfile } from "../../../shared/user-profile";
 import { EasyApplyAnswerResolver, EasyApplyAbortError } from "./easy-apply-answer-resolver";
 import {
     EASY_APPLY_BUTTON_SELECTORS,
@@ -91,7 +91,7 @@ export class EasyApplyFlow {
                 } catch (error) {
                     if (error instanceof EasyApplyAbortError) {
                         outcome.status = 'stopped'
-                        outcome.reason = error.message || 'standalone-missing'
+                        outcome.reason = (error as any)?.message || 'standalone-missing'
                         await this._closeModalIfOpen()
                         break
                     }

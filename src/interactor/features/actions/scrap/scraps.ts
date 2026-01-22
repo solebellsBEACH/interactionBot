@@ -1,7 +1,7 @@
 import { Locator, Page } from "playwright";
 
-import { LinkedinCoreFeatures } from "./linkedin-core";
-import { SCRAP_SELECTORS } from "../shared/constants/scrap";
+import { LinkedinCoreFeatures } from "../../linkedin-core";
+import { SCRAP_SELECTORS } from "../../../shared/constants/scrap";
 
 export type EasyApplyJobResult = {
     title: string

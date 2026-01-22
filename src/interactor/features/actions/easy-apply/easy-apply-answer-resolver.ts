@@ -1,10 +1,10 @@
 import readline from "readline";
 
-import { getFieldAnswer } from "../../api/controllers/field-answers";
-import { DiscordClient } from "../shared/discord/discord-client";
-import { GptClient } from "../shared/ai/gpt-client";
-import { FormPromptField } from "../shared/utils/element-handle";
-import { UserProfile } from "../shared/user-profile";
+import { getFieldAnswer } from "../../../../api/controllers/field-answers";
+import { DiscordClient } from "../../../shared/discord/discord-client";
+import { GptClient } from "../../../shared/ai/gpt-client";
+import { FormPromptField } from "../../../shared/utils/element-handle";
+import { UserProfile } from "../../../shared/user-profile";
 
 export class EasyApplyAbortError extends Error {
     constructor(message: string) {

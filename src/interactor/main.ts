@@ -2,7 +2,6 @@ import { BrowserContext, chromium } from 'playwright';
 import { env } from './shared/env';
 import { LinkedinFeatures } from './features/linkedin';
 import { DiscordClient } from './shared/discord/discord-client';
-import { registerDiscordCommands } from './commands/register-discord-commands';
 
 let browser: BrowserContext | undefined
 let shuttingDown = false
@@ -30,7 +29,7 @@ async function main(): Promise<void> {
 
   const page = await browser.pages()[0]
   const linkedinFeatures = new LinkedinFeatures(page, discord)
-  registerDiscordCommands(discord, linkedinFeatures)
+  linkedinFeatures.registerDiscordCommands(discord)
   await discord.init()
   console.log('LinkedIn aberto. Feche a janela para encerrar.');
 
