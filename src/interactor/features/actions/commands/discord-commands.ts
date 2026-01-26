@@ -1,11 +1,21 @@
 import { CommandName, DiscordClient } from "../../../shared/discord/discord-client";
-import { env } from "../../../shared/env";
 import type { EasyApplyStepValues } from "../easy-apply/easy-apply-flow";
 import type { EasyApplyJobResult, SearchJobTagOptions } from "../scrap/scraps";
 
 type UpvoteOptions = {
     maxLikes?: number
     tag?: string
+}
+
+type SearchFilters = {
+    tag: string
+    maxResults?: number
+    location?: string
+    geoId?: string
+    maxPages?: number
+    onlyNonPromoted: boolean
+    maxApplicants?: number
+    easyApplyOnly: boolean
 }
 
 type LinkedinCommandActions = {
@@ -26,140 +36,14 @@ export class LinkedinDiscordCommands {
     register(discord: DiscordClient) {
         discord.setCommandHandlers({
             [CommandName.EasyApply]: async ({ args }) => {
-                const jobUrl = args[0] || env.linkedinURLs.jobURL
-                if (!jobUrl) {
-                    await discord.sendMessage('Informe a URL do job. Ex: !easy-apply https://...')
-                    return
-                }
-                await discord.sendMessage(`Iniciando Easy Apply: ${jobUrl}`)
-                const steps = await this._actions.easyApply(jobUrl)
-                await discord.sendMessage(`Easy Apply finalizado. Passos preenchidos: ${steps.length}`)
+                await this._handleSearchCommand(discord, args, true)
             },
             [CommandName.CatchJobs]: async ({ args }) => {
-                const parsedArgs = this._parseCatchJobsArgs(args)
-                let tag = parsedArgs.tag
-                let maxResults = parsedArgs.maxResults
-                let location = parsedArgs.location
-                let maxPages = parsedArgs.maxPages
-                let geoId: string | undefined
-
-                if (!tag) {
-                    const tagAnswer = await discord.ask('Qual tag de busca? (ex: react+next)')
-                    tag = tagAnswer?.trim() || undefined
-                }
-
-                if (!tag) {
-                    await discord.sendMessage('Sem tag. Operacao cancelada.')
-                    return
-                }
-
-                if (!maxResults) {
-                    const quantityAnswer = await discord.ask('Quantas vagas deseja buscar? (ex: 20 ou "todas")')
-                    maxResults = this._parseMaxResultsAnswer(quantityAnswer)
-                }
-
-                if (!location) {
-                    const wantsLocation = await discord.ask('Deseja filtrar por localizacao? (sim/nao ou informe a localizacao)')
-                    if (wantsLocation) {
-                        if (this._isAffirmative(wantsLocation)) {
-                            const locationAnswer = await discord.ask('Localizacao (ex: Sao Paulo, Remote)')
-                            location = this._parseLocationAnswer(locationAnswer)
-                            if (location) {
-                                geoId = undefined
-                            }
-                        } else if (this._isNegative(wantsLocation)) {
-                            geoId = this._globalGeoId
-                        } else if (!this._isSkip(wantsLocation)) {
-                            location = this._parseLocationAnswer(wantsLocation)
-                            if (location) {
-                                geoId = undefined
-                            }
-                        }
-                    }
-                }
-
-                if (!maxPages) {
-                    const wantsPages = await discord.ask('Deseja limitar paginas? (sim/nao ou informe o numero)')
-                    if (wantsPages) {
-                        const directPages = this._parseMaxPagesAnswer(wantsPages)
-                        if (directPages) {
-                            maxPages = directPages
-                        } else if (this._isAffirmative(wantsPages)) {
-                            const pagesAnswer = await discord.ask('Quantas paginas deseja percorrer? (ex: 2)')
-                            maxPages = this._parseMaxPagesAnswer(pagesAnswer)
-                        }
-                    }
-                }
-
-                const filterSummary = [
-                    maxResults ? `max: ${maxResults}` : undefined,
-                    location ? `local: ${location}` : (geoId ? `geoId: ${geoId}` : undefined),
-                    maxPages ? `paginas: ${maxPages}` : undefined
-                ].filter(Boolean).join(' | ')
-                const searchMessage = filterSummary
-                    ? `Buscando vagas Easy Apply para "${tag}" (${filterSummary})...`
-                    : `Buscando vagas Easy Apply para "${tag}"...`
-                await discord.sendMessage(searchMessage)
-                const results = await this._actions.searchJobTag(
-                    tag,
-                    {
-                        ...(maxResults ? { maxResults } : {}),
-                        ...(location ? { location } : {}),
-                        ...(geoId ? { geoId } : {}),
-                        ...(maxPages ? { maxPages } : {})
-                    }
-                )
-                if (results.length === 0) {
-                    await discord.sendMessage('Nenhuma vaga Easy Apply encontrada.')
-                    return
-                }
-                await discord.sendMessage(`Encontradas ${results.length} vagas.`)
-                await discord.sendMessage(this._formatJobs(results))
-                const autoAnswer = await discord.ask('Quer candidatar automaticamente? (sim/nao)')
-                if (!autoAnswer) {
-                    await discord.sendMessage('Sem resposta. Aplicacao cancelada.')
-                    return
-                }
-                const autoApply = this._isAffirmative(autoAnswer)
-                if (!autoApply) {
-                    await discord.sendMessage('Modo manual: voce pode pular vagas.')
-                }
-                await discord.sendMessage(`Iniciando Easy Apply em ${results.length} vagas...`)
-                for (let index = 0; index < results.length; index++) {
-                    const job = results[index]
-                    if (!autoApply) {
-                        await discord.sendMessage(
-                            `Vaga ${index + 1}/${results.length}:\n${job.title} | ${job.company} | ${job.location}\n${job.url}`
-                        )
-                        const decision = await discord.ask('Aplicar esta vaga? (sim/skip/parar)')
-                        if (!decision) {
-                            await discord.sendMessage('Sem resposta. Vaga pulada.')
-                            continue
-                        }
-                        if (this._isStop(decision)) {
-                            await discord.sendMessage('Aplicacao interrompida.')
-                            break
-                        }
-                        if (!this._isAffirmative(decision) && this._isSkip(decision)) {
-                            await discord.sendMessage('Vaga pulada.')
-                            continue
-                        }
-                        if (!this._isAffirmative(decision)) {
-                            await discord.sendMessage('Vaga pulada.')
-                            continue
-                        }
-                    }
-                    try {
-                        await this._actions.easyApply(job.url)
-                    } catch {
-                        await discord.sendMessage(`Falha no Easy Apply: ${job.url}`)
-                    }
-                    if ((index + 1) % 5 === 0 || index === results.length - 1) {
-                        await discord.sendMessage(`Progresso: ${index + 1}/${results.length}`)
-                    }
-                    await this._wait(1500)
-                }
-                await discord.sendMessage('Easy Apply finalizado.')
+                await discord.sendMessage('Comando renomeado para !easy-apply.')
+                await this._handleSearchCommand(discord, args, true)
+            },
+            [CommandName.SearchJobs]: async ({ args }) => {
+                await this._handleSearchCommand(discord, args, false)
             },
             [CommandName.Connect]: async ({ args }) => {
                 const profileUrl = args[0]
@@ -212,9 +96,221 @@ export class LinkedinDiscordCommands {
         })
     }
 
+    private async _handleSearchCommand(discord: DiscordClient, args: string[], applyMode: boolean) {
+        const filters = await this._resolveSearchFilters(discord, args)
+        if (!filters) return
+
+        const searchOptions = this._buildSearchOptions(filters)
+        const summary = this._buildSearchSummary(filters)
+        await discord.sendMessage(`Buscando vagas para "${filters.tag}"${summary ? ` (${summary})` : ''}...`)
+        const results = await this._actions.searchJobTag(filters.tag, searchOptions)
+        if (results.length === 0) {
+            await discord.sendMessage('Nenhuma vaga encontrada.')
+            return
+        }
+
+        await discord.sendMessage(`Encontradas ${results.length} vagas.`)
+        await discord.sendMessage(this._formatJobs(results))
+
+        if (!applyMode) return
+
+        let applyJobs = results
+        if (!filters.easyApplyOnly) {
+            applyJobs = results.filter((job) => job.easyApply)
+            await discord.sendMessage(`Vagas com Easy Apply: ${applyJobs.length}/${results.length}.`)
+        }
+
+        if (applyJobs.length === 0) {
+            await discord.sendMessage('Nenhuma vaga com Easy Apply para aplicar.')
+            return
+        }
+
+        const autoAnswer = await discord.ask('Quer candidatar automaticamente? (sim/nao)')
+        if (!autoAnswer) {
+            await discord.sendMessage('Sem resposta. Aplicacao cancelada.')
+            return
+        }
+
+        const autoApply = this._isAffirmative(autoAnswer)
+        if (!autoApply) {
+            await discord.sendMessage('Modo manual: voce pode pular vagas.')
+        }
+
+        await discord.sendMessage(`Iniciando Easy Apply em ${applyJobs.length} vagas...`)
+        for (let index = 0; index < applyJobs.length; index++) {
+            const job = applyJobs[index]
+            if (!autoApply) {
+                await discord.sendMessage(
+                    `Vaga ${index + 1}/${applyJobs.length}:\n${job.title} | ${job.company} | ${job.location}\n${job.url}`
+                )
+                const decision = await discord.ask('Aplicar esta vaga? (sim/skip/parar)')
+                if (!decision) {
+                    await discord.sendMessage('Sem resposta. Vaga pulada.')
+                    continue
+                }
+                if (this._isStop(decision)) {
+                    await discord.sendMessage('Aplicacao interrompida.')
+                    break
+                }
+                if (!this._isAffirmative(decision) && this._isSkip(decision)) {
+                    await discord.sendMessage('Vaga pulada.')
+                    continue
+                }
+                if (!this._isAffirmative(decision)) {
+                    await discord.sendMessage('Vaga pulada.')
+                    continue
+                }
+            }
+            try {
+                await this._actions.easyApply(job.url)
+            } catch {
+                await discord.sendMessage(`Falha no Easy Apply: ${job.url}`)
+            }
+            if ((index + 1) % 5 === 0 || index === applyJobs.length - 1) {
+                await discord.sendMessage(`Progresso: ${index + 1}/${applyJobs.length}`)
+            }
+            await this._wait(1500)
+        }
+
+        await discord.sendMessage('Easy Apply finalizado.')
+    }
+
+    private async _resolveSearchFilters(discord: DiscordClient, args: string[]): Promise<SearchFilters | null> {
+        const parsed = this._parseSearchArgs(args)
+        let tag = parsed.tag
+        let maxResults = parsed.maxResults
+        let location = parsed.location
+        let maxPages = parsed.maxPages
+        let geoId: string | undefined
+        let onlyNonPromoted = parsed.onlyNonPromoted
+        let maxApplicants = parsed.maxApplicants
+        let easyApplyOnly = parsed.easyApplyOnly
+
+        if (!tag) {
+            const tagAnswer = await discord.ask('Qual tag de busca? (ex: react+next)')
+            tag = tagAnswer?.trim() || undefined
+        }
+
+        if (!tag) {
+            await discord.sendMessage('Sem tag. Operacao cancelada.')
+            return null
+        }
+        if (/linkedin\.com\/jobs\/view/i.test(tag)) {
+            await discord.sendMessage('Modo por URL removido. Informe uma tag ou use !search-jobs.')
+            return null
+        }
+
+        if (!maxResults) {
+            const quantityAnswer = await discord.ask('Quantas vagas deseja buscar? (ex: 20 ou "todas")')
+            maxResults = this._parseMaxResultsAnswer(quantityAnswer)
+        }
+
+        if (!location) {
+            const wantsLocation = await discord.ask('Deseja filtrar por localizacao? (sim/nao ou informe a localizacao)')
+            if (wantsLocation) {
+                if (this._isAffirmative(wantsLocation)) {
+                    const locationAnswer = await discord.ask('Localizacao (ex: Sao Paulo, Remote)')
+                    location = this._parseLocationAnswer(locationAnswer)
+                    if (location) {
+                        geoId = undefined
+                    }
+                } else if (this._isNegative(wantsLocation)) {
+                    geoId = this._globalGeoId
+                } else if (!this._isSkip(wantsLocation)) {
+                    location = this._parseLocationAnswer(wantsLocation)
+                    if (location) {
+                        geoId = undefined
+                    }
+                }
+            }
+        }
+
+        if (!maxPages) {
+            const wantsPages = await discord.ask('Deseja limitar paginas? (sim/nao ou informe o numero)')
+            if (wantsPages) {
+                const directPages = this._parseMaxPagesAnswer(wantsPages)
+                if (directPages) {
+                    maxPages = directPages
+                } else if (this._isAffirmative(wantsPages)) {
+                    const pagesAnswer = await discord.ask('Quantas paginas deseja percorrer? (ex: 2)')
+                    maxPages = this._parseMaxPagesAnswer(pagesAnswer)
+                }
+            }
+        }
+
+        if (onlyNonPromoted === undefined) {
+            const promotedAnswer = await discord.ask('Incluir vagas promovidas? (sim/nao)')
+            if (promotedAnswer) {
+                if (this._isNegative(promotedAnswer)) {
+                    onlyNonPromoted = true
+                } else if (this._isAffirmative(promotedAnswer)) {
+                    onlyNonPromoted = false
+                }
+            }
+        }
+
+        if (maxApplicants === undefined) {
+            const applicantsAnswer = await discord.ask('Limitar numero de candidaturas? (sim/nao ou informe o max)')
+            const parsedApplicants = this._parseApplicantsAnswer(applicantsAnswer)
+            if (parsedApplicants !== undefined) {
+                maxApplicants = parsedApplicants
+            } else if (applicantsAnswer && this._isAffirmative(applicantsAnswer)) {
+                const limitAnswer = await discord.ask('Maximo de candidaturas? (ex: 50)')
+                maxApplicants = this._parseApplicantsAnswer(limitAnswer)
+            }
+        }
+
+        if (easyApplyOnly === undefined) {
+            const easyApplyAnswer = await discord.ask('Somente Easy Apply? (sim/nao)')
+            if (easyApplyAnswer) {
+                easyApplyOnly = this._isAffirmative(easyApplyAnswer)
+            }
+        }
+
+        return {
+            tag,
+            maxResults,
+            location,
+            geoId,
+            maxPages,
+            onlyNonPromoted: onlyNonPromoted ?? false,
+            maxApplicants,
+            easyApplyOnly: easyApplyOnly ?? true
+        }
+    }
+
+    private _buildSearchOptions(filters: SearchFilters): SearchJobTagOptions {
+        return {
+            ...(filters.maxResults ? { maxResults: filters.maxResults } : {}),
+            ...(filters.location ? { location: filters.location } : {}),
+            ...(filters.geoId ? { geoId: filters.geoId } : {}),
+            ...(filters.maxPages ? { maxPages: filters.maxPages } : {}),
+            easyApplyOnly: filters.easyApplyOnly,
+            onlyNonPromoted: filters.onlyNonPromoted,
+            maxApplicants: filters.maxApplicants,
+            includeDetails: true
+        }
+    }
+
+    private _buildSearchSummary(filters: SearchFilters) {
+        return [
+            filters.maxResults ? `max: ${filters.maxResults}` : undefined,
+            filters.location ? `local: ${filters.location}` : (filters.geoId ? `geoId: ${filters.geoId}` : undefined),
+            filters.maxPages ? `paginas: ${filters.maxPages}` : undefined,
+            `promovidas: ${filters.onlyNonPromoted ? 'nao' : 'sim'}`,
+            filters.maxApplicants !== undefined ? `candidaturas <= ${filters.maxApplicants}` : undefined,
+            `easy apply: ${filters.easyApplyOnly ? 'sim' : 'tudo'}`
+        ].filter(Boolean).join(' | ')
+    }
+
     private _formatJobs(jobs: EasyApplyJobResult[]) {
         return jobs
-            .map((job, idx) => `${idx + 1}. ${job.title} | ${job.company} | ${job.location} | ${job.url}`)
+            .map((job, idx) => {
+                const promotedLabel = job.promoted ? 'sim' : 'nao'
+                const easyApplyLabel = job.easyApply ? 'sim' : 'nao'
+                const applicantsLabel = job.applicants === null ? '-' : String(job.applicants)
+                return `${idx + 1}. ${job.title} | ${job.company} | ${job.location} | easy apply: ${easyApplyLabel} | promovida: ${promotedLabel} | candidaturas: ${applicantsLabel} | ${job.url}`
+            })
             .join('\n')
     }
 
@@ -264,12 +360,15 @@ export class LinkedinDiscordCommands {
         return Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed
     }
 
-    private _parseCatchJobsArgs(args: string[]) {
+    private _parseSearchArgs(args: string[]) {
         const parts = [...args]
         const leftover: string[] = []
         let maxResults: number | undefined
         let maxPages: number | undefined
         let location: string | undefined
+        let onlyNonPromoted: boolean | undefined
+        let maxApplicants: number | undefined
+        let easyApplyOnly: boolean | undefined
 
         const parseInline = (rawValue: string, normalizedValue: string, keys: string[]) => {
             for (const key of keys) {
@@ -304,7 +403,10 @@ export class LinkedinDiscordCommands {
                 'max',
                 'limit',
                 'results',
-                'vagas'
+                'vagas',
+                'applicants',
+                'candidaturas',
+                'candidatos'
             ].includes(key)
         }
 
@@ -324,6 +426,24 @@ export class LinkedinDiscordCommands {
         for (let i = 0; i < parts.length; i++) {
             const raw = parts[i]
             const normalized = raw.toLowerCase()
+            if (
+                normalized === '--only-non-promoted' ||
+                normalized === '--non-promoted' ||
+                normalized === '--no-promoted' ||
+                normalized === '--nao-promovidas' ||
+                normalized === '--sem-promocao'
+            ) {
+                onlyNonPromoted = true
+                continue
+            }
+            if (normalized === '--all-jobs' || normalized === '--all' || normalized === '--tudo') {
+                easyApplyOnly = false
+                continue
+            }
+            if (normalized === '--easy-apply-only' || normalized === '--only-easy-apply' || normalized === '--easy-apply') {
+                easyApplyOnly = true
+                continue
+            }
             if (normalized === '--loc' || normalized === '--location' || normalized === '--local' || normalized === '--localizacao') {
                 const collected = collectValue(i + 1)
                 location = collected.value
@@ -337,6 +457,11 @@ export class LinkedinDiscordCommands {
             }
             if (normalized === '--max' || normalized === '--limit' || normalized === '--results' || normalized === '--max-results' || normalized === '--max-vagas') {
                 maxResults = this._parseArgNumber(parts[i + 1])
+                i++
+                continue
+            }
+            if (normalized === '--max-applicants' || normalized === '--applicants' || normalized === '--max-candidaturas' || normalized === '--candidaturas') {
+                maxApplicants = this._parseArgNumber(parts[i + 1])
                 i++
                 continue
             }
@@ -356,6 +481,11 @@ export class LinkedinDiscordCommands {
                 maxResults = this._parseArgNumber(inlineMax)
                 continue
             }
+            const inlineApplicants = parseInline(raw, normalized, ['applicants', 'candidaturas', 'candidatos'])
+            if (inlineApplicants) {
+                maxApplicants = this._parseArgNumber(inlineApplicants)
+                continue
+            }
 
             if (!maxResults && /^\d+$/.test(raw)) {
                 maxResults = Number(raw)
@@ -370,7 +500,10 @@ export class LinkedinDiscordCommands {
             tag,
             location,
             maxPages,
-            maxResults
+            maxResults,
+            onlyNonPromoted,
+            maxApplicants,
+            easyApplyOnly
         }
     }
 
@@ -379,6 +512,17 @@ export class LinkedinDiscordCommands {
         const normalized = this._normalizeAnswer(value)
         if (!normalized) return undefined
         if (/^(todas|todos|all|tudo)$/.test(normalized)) return undefined
+        const match = normalized.match(/(\d+)/)
+        if (!match) return undefined
+        const parsed = Number(match[1])
+        return parsed > 0 ? parsed : undefined
+    }
+
+    private _parseApplicantsAnswer(value: string | null) {
+        if (!value) return undefined
+        const normalized = this._normalizeAnswer(value)
+        if (!normalized) return undefined
+        if (/^(skip|pular|nao|n|tudo|todas|todos|all)$/.test(normalized)) return undefined
         const match = normalized.match(/(\d+)/)
         if (!match) return undefined
         const parsed = Number(match[1])

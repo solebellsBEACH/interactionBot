@@ -18,6 +18,7 @@ export enum CommandName {
     Help = 'help',
     EasyApply = 'easy-apply',
     CatchJobs = 'catch-jobs',
+    SearchJobs = 'search-jobs',
     Connect = 'connect',
     UpvotePosts = 'upvote-posts',
     Unknown = 'unknown'
@@ -273,8 +274,8 @@ export class DiscordClient {
         return [
             'Comandos disponiveis:',
             `${prefix}help - mostra esta mensagem`,
-            `${prefix}easy-apply [jobUrl] - inicia o Easy Apply`,
-            `${prefix}catch-jobs [tag] [max] --loc <local> --pages <n> - pergunta tag/quantidade e opcionalmente local/paginas`,
+            `${prefix}easy-apply [tag] [max] --loc <local> --pages <n> - busca vagas e aplica`,
+            `${prefix}search-jobs [tag] [max] --loc <local> --pages <n> - busca vagas com filtros`,
             `${prefix}connect <profileUrl> [mensagem] - envia convite`,
             `${prefix}upvote-posts - curte posts (pede quantidade e tag)`,
             'Se houver pergunta pendente, responda sem prefixo.'

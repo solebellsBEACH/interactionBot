@@ -8,6 +8,9 @@ export type EasyApplyJobResult = {
     company: string
     location: string
     url: string
+    promoted: boolean
+    easyApply: boolean
+    applicants: number | null
 }
 
 export type SearchJobTagOptions = {
@@ -15,6 +18,10 @@ export type SearchJobTagOptions = {
     geoId?: string | number
     maxPages?: number
     maxResults?: number
+    easyApplyOnly?: boolean
+    onlyNonPromoted?: boolean
+    maxApplicants?: number
+    includeDetails?: boolean
 }
 
 export class ScrapFeatures {
@@ -32,26 +39,34 @@ export class ScrapFeatures {
 
         const maxPages = options?.maxPages ?? 10
         const maxResults = options?.maxResults ?? Number.POSITIVE_INFINITY
+        const easyApplyOnly = options?.easyApplyOnly !== false
+        const onlyNonPromoted = options?.onlyNonPromoted === true
+        const maxApplicants = options?.maxApplicants
+        const includeDetails = options?.includeDetails ?? maxApplicants !== undefined
         const results = new Map<string, EasyApplyJobResult>()
 
         for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
             if (this._page.isClosed()) break
-            console.log(`Buscando jobs (Easy Apply): pagina ${pageIndex + 1}/${maxPages}`)
-            const searchUrl = this._buildSearchJobUrl(tag, options?.location, pageIndex * 25, options?.geoId)
+            console.log(`Buscando jobs: pagina ${pageIndex + 1}/${maxPages}`)
+            const searchUrl = this._buildSearchJobUrl(tag, options?.location, pageIndex * 25, options?.geoId, easyApplyOnly)
             await this._navigator.goToLinkedinURL(searchUrl)
 
             const ready = await this._waitForJobResults()
             let pageResults: EasyApplyJobResult[] = []
             if (!ready) {
-                pageResults = await this._collectEasyApplyFromPage()
+                pageResults = await this._collectEasyApplyFromPage(includeDetails, easyApplyOnly)
                 if (pageResults.length === 0) break
             } else {
                 await this._scrollResultsList()
-                pageResults = await this._collectEasyApplyFromPage()
+                pageResults = await this._collectEasyApplyFromPage(includeDetails, easyApplyOnly)
             }
 
             const beforeCount = results.size
-            for (const job of pageResults) {
+            for (const job of this._filterResults(pageResults, {
+                onlyNonPromoted,
+                maxApplicants,
+                easyApplyOnly
+            })) {
                 if (results.size >= maxResults) break
                 results.set(job.url, job)
             }
@@ -64,10 +79,18 @@ export class ScrapFeatures {
         return Array.from(results.values())
     }
 
-    private _buildSearchJobUrl(tag: string, location?: string, start = 0, geoId?: string | number) {
+    private _buildSearchJobUrl(
+        tag: string,
+        location?: string,
+        start = 0,
+        geoId?: string | number,
+        easyApplyOnly = true
+    ) {
         const params = new URLSearchParams()
         params.set('keywords', tag)
-        params.set('f_AL', 'true')
+        if (easyApplyOnly) {
+            params.set('f_AL', 'true')
+        }
         if (geoId !== undefined && geoId !== null) {
             const normalized = String(geoId).trim()
             if (normalized) {
@@ -118,7 +141,7 @@ export class ScrapFeatures {
         }
     }
 
-    private async _collectEasyApplyFromPage(): Promise<EasyApplyJobResult[]> {
+    private async _collectEasyApplyFromPage(includeDetails: boolean, easyApplyOnly: boolean): Promise<EasyApplyJobResult[]> {
         if (this._page.isClosed()) return []
         const cards = this._page.locator(SCRAP_SELECTORS.jobCard)
         const count = await cards.count().catch(() => 0)
@@ -134,12 +157,33 @@ export class ScrapFeatures {
             const title = await this._safeInnerText(link.first())
             const company = await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobCompany))
             const location = await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobLocation))
+            const cardText = await this._safeInnerText(card)
+            let promoted = this._hasPromotedLabel(cardText)
+            let applicants = this._parseApplicantsCount(cardText)
+            let easyApply = easyApplyOnly || this._hasEasyApplyLabel(cardText)
+            if (includeDetails && (applicants === null || !promoted || !easyApply)) {
+                const detailText = await this._getDetailTextFromCard(card)
+                if (detailText) {
+                    if (applicants === null) {
+                        applicants = this._parseApplicantsCount(detailText)
+                    }
+                    if (!promoted) {
+                        promoted = this._hasPromotedLabel(detailText)
+                    }
+                    if (!easyApply) {
+                        easyApply = this._hasEasyApplyLabel(detailText)
+                    }
+                }
+            }
 
             results.push({
                 title,
                 company,
                 location,
-                url
+                url,
+                promoted,
+                easyApply,
+                applicants
             })
         }
 
@@ -164,5 +208,79 @@ export class ScrapFeatures {
         } catch {
             return ''
         }
+    }
+
+    private async _getDetailTextFromCard(card: Locator) {
+        const detail = this._page.locator(SCRAP_SELECTORS.jobDetailContainer).first()
+        if ((await detail.count().catch(() => 0)) === 0) return ''
+        try {
+            await card.click({ timeout: 3_000 })
+        } catch {
+            return ''
+        }
+        await detail.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined)
+        await this._page.waitForTimeout(250)
+        const parts = await this._safeInnerText(detail)
+        if (parts) return parts
+        const detailTextSelectors = SCRAP_SELECTORS.jobDetailText.join(', ')
+        const detailText = await this._safeInnerText(this._page.locator(detailTextSelectors))
+        return detailText
+    }
+
+    private _filterResults(
+        jobs: EasyApplyJobResult[],
+        options: { onlyNonPromoted: boolean; maxApplicants?: number; easyApplyOnly: boolean }
+    ) {
+        return jobs.filter((job) => {
+            if (options.onlyNonPromoted && job.promoted) return false
+            if (options.easyApplyOnly && !job.easyApply) return false
+            if (options.maxApplicants !== undefined) {
+                if (job.applicants === null) return false
+                if (job.applicants > options.maxApplicants) return false
+            }
+            return true
+        })
+    }
+
+    private _parseApplicantsCount(text: string) {
+        const normalized = this._normalizeText(text)
+        if (!normalized) return null
+        const patterns = [
+            /(?:over|more than|mais de)\s*([\d.,]+)\s*(?:applicants?|applications?|candidatos?|candidaturas?)/,
+            /([\d.,]+)\s*(?:applicants?|applications?|candidatos?|candidaturas?)/,
+            /be among the first\s*([\d.,]+)/,
+            /seja um dos primeiros\s*([\d.,]+)/
+        ]
+        for (const pattern of patterns) {
+            const match = normalized.match(pattern)
+            if (match) {
+                const raw = match[1].replace(/[^\d]/g, '')
+                if (!raw) continue
+                const value = Number(raw)
+                return Number.isNaN(value) ? null : value
+            }
+        }
+        return null
+    }
+
+    private _hasPromotedLabel(text: string) {
+        const normalized = this._normalizeText(text)
+        if (!normalized) return false
+        return /(promoted|promovida|promovido|patrocinada|patrocinado|sponsored)/.test(normalized)
+    }
+
+    private _hasEasyApplyLabel(text: string) {
+        const normalized = this._normalizeText(text)
+        if (!normalized) return false
+        return /(easy apply|candidatura simplificada|candidatar[- ]se facilmente|candidatura facil|aplicar facilmente)/.test(normalized)
+    }
+
+    private _normalizeText(text: string) {
+        return text
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase()
     }
 }
