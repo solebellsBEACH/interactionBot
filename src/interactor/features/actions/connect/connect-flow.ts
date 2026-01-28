@@ -14,6 +14,14 @@ export class LinkedinConnectFlow {
     }
 
     async sendConnection(profileURL: string, inMailOptions?: { message: string }) {
+        await this._handleConnection(profileURL)
+    }
+
+    private async _searchConnections(){
+
+    }
+
+    private async  _handleConnection(profileURL:string, inMailOptions?: { message: string }){
         await this._navigator.goToLinkedinURL(profileURL)
 
         await this._elementHandle.handleByRole(HandleActions.click, 'button', {

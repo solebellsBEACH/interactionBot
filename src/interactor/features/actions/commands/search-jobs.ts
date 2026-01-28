@@ -1,5 +1,5 @@
 import type { DiscordClient } from "../../../shared/discord/discord-client";
-import type { EasyApplyJobResult, SearchJobTagOptions } from "../scrap/scraps";
+import type { EasyApplyJobResult, SearchJobTagOptions } from "../scrap/jobs";
 import type { LinkedinCommandActions, SearchFilters } from "./types";
 import {
     isAffirmative,
