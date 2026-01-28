@@ -17,9 +17,8 @@ export class LinkedinConnectFlow {
         await this._navigator.goToLinkedinURL(profileURL)
 
         await this._elementHandle.handleByRole(HandleActions.click, 'button', {
-            name: env.linkedinURLs.message
+            name: LINKEDIN_ACTION_LABELS.connect
         })
-
         if (inMailOptions) {
             await this._sendInMail(inMailOptions.message)
         } else {

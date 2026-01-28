@@ -1,7 +1,8 @@
 export const LINKEDIN_ACTION_LABELS = {
-    sendWithoutNote: 'Enviar sem nota',
+    sendWithoutNote: /Enviar sem nota|Send without a note/i,
     addNote: 'Adicionar nota',
-    send: 'Enviar'
+    send: 'Enviar',
+    connect: /Conectar|Connect/i
 }
 
 export const LINKEDIN_SELECTORS = {

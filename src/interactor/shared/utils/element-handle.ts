@@ -32,10 +32,12 @@ export class ElementHandle {
         this.DEFAULT_TIMEOUT = timeout || 5_000
     }
 
-    async handleByRole(handle: HandleActions, role: Role, options: { name?: string }, contentText?: string) {
+    async handleByRole(handle: HandleActions, role: Role, options: { name?: string | RegExp }, contentText?: string) {
         try {
             const element = this._page.getByRole(role, options);
+            await element.allInnerTexts().then(console.log)
             await element.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT });
+            
             return this._runHandleActions(handle, element, contentText) || element
         } catch (error) {
             console.error({

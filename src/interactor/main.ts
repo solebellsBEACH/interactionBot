@@ -29,10 +29,12 @@ async function main(): Promise<void> {
 
   const page = await browser.pages()[0]
   const linkedinFeatures = new LinkedinFeatures(page, discord)
-  linkedinFeatures.registerDiscordCommands(discord)
-  await discord.init()
-  console.log('LinkedIn aberto. Feche a janela para encerrar.');
 
+  // linkedinFeatures.registerDiscordCommands(discord)
+  await discord.init()
+   console.log('LinkedIn aberto. Feche a janela para encerrar.');
+
+  linkedinFeatures.sendConnection('https://www.linkedin.com/in/rafaela-guimar%C3%A3es-a09589133/')
 }
 
 main().catch((error) => {
