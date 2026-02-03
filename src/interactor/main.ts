@@ -31,10 +31,10 @@ async function main(): Promise<void> {
   const linkedinFeatures = new LinkedinFeatures(page, discord)
 
   // linkedinFeatures.registerDiscordCommands(discord)
-  await discord.init()
-  console.log('LinkedIn aberto. Feche a janela para encerrar.');
+  // await discord.init()
 
-  linkedinFeatures.sendConnection('https://www.linkedin.com/in/gabriela-luz-b584a3143/')
+  linkedinFeatures.profile()
+  console.log('LinkedIn aberto. Feche a janela para encerrar.');
 }
 
 main().catch((error) => {

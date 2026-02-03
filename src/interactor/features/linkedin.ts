@@ -12,6 +12,7 @@ import { LinkedinUpvotePostsFlow } from "./actions/upvote-posts/upvote-posts-flo
 import { LinkedinDiscordCommands } from "./actions/commands/discord-commands";
 import { LinkedinJobsFlow } from "./actions/jobs";
 import { EasyApplyJobResult, SearchJobTagOptions } from "./actions/scrap/jobs";
+import { ProfileFlow } from "./actions/profile/profile-flow";
 
 
 type UpvoteOptions = {
@@ -29,6 +30,7 @@ export class LinkedinFeatures {
     private _upvoteFlow: LinkedinUpvotePostsFlow
     private _discord?: DiscordClient
     private _commands: LinkedinDiscordCommands
+    private _profileFlow: ProfileFlow
 
     constructor(page: Page, discord?: DiscordClient) {
         this._elementHandle = new ElementHandle(page)
@@ -43,6 +45,8 @@ export class LinkedinFeatures {
         this._connectFlow = new LinkedinConnectFlow(this._elementHandle, this._linkedinCoreFeatures)
         this._upvoteFlow = new LinkedinUpvotePostsFlow(page, this._linkedinCoreFeatures)
         this._discord = discord
+
+        this._profileFlow= new  ProfileFlow(page)
         this._commands = new LinkedinDiscordCommands({
             easyApply: this.easyApply.bind(this),
             searchJobTag: this.searchJobTag.bind(this),
@@ -75,6 +79,10 @@ export class LinkedinFeatures {
 
     async upvoteOnPosts(options?: UpvoteOptions): Promise<string[]> {
         return this._upvoteFlow.upvoteOnPosts(options)
+    }
+
+    async profile(){
+        return this._profileFlow.main()
     }
 
 }
