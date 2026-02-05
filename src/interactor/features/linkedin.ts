@@ -82,7 +82,7 @@ export class LinkedinFeatures {
     }
 
     async profile(){
-        return this._profileFlow.main()
+        return await this._profileFlow.main()
     }
 
 }

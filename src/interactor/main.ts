@@ -33,7 +33,7 @@ async function main(): Promise<void> {
   // linkedinFeatures.registerDiscordCommands(discord)
   // await discord.init()
 
-  linkedinFeatures.profile()
+  await linkedinFeatures.profile()
   console.log('LinkedIn aberto. Feche a janela para encerrar.');
 }
 

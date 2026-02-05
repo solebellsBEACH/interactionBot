@@ -47,6 +47,25 @@ export class ElementHandle {
         }
     }
 
+    async handleByLocator(handle: HandleActions, selector: string, options?: {
+            has?: Locator | undefined;
+            hasNot?: Locator;
+            hasNotText?: string | RegExp;
+            hasText?: string | RegExp;
+        } , contentText?: string) {
+        try {
+            const element = this._page.locator(selector,  options);
+            await element.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT });
+            
+            return this._runHandleActions(handle, element, contentText) || element
+        } catch (error) {
+            console.error({
+                label: selector,
+                error
+            })
+        }
+    }
+
     async handleByPlaceholder(handle: HandleActions, placeholder: string | RegExp, contentText: string) {
         try {
             const element = this._page.getByPlaceholder(placeholder);
