@@ -5,7 +5,6 @@ import { saveEasyApplyResponses } from "../../../../api/controllers/easy-apply-r
 import { ElementHandle, FormFieldValue } from "../../../shared/utils/element-handle";
 import { DiscordClient } from "../../../shared/discord/discord-client";
 import { env } from "../../../shared/env";
-import { GptClient } from "../../../shared/ai/gpt-client";
 import { userProfile } from "../../../shared/user-profile";
 import { EasyApplyAnswerResolver, EasyApplyAbortError } from "./easy-apply-answer-resolver";
 import {
@@ -47,10 +46,8 @@ export class EasyApplyFlow {
         this._elementHandle = elementHandle
         this._navigator = navigator
         this._discord = discord
-        const gpt = env.gpt.enabled ? new GptClient(env.gpt) : undefined
         this._answerResolver = new EasyApplyAnswerResolver({
             discord,
-            gpt,
             profile: userProfile,
             isStandalone: env.easyApply.isStandalone,
             promptTimeoutMs: env.discord.requestTimeoutMs

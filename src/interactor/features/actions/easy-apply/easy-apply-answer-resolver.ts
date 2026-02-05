@@ -27,14 +27,12 @@ export class EasyApplyAnswerResolver {
     private _historyAvailable = true
     private readonly _profile: UserProfile
     private readonly _discord?: DiscordClient
-    private readonly _gpt?: GptClient
     private readonly _isStandalone: boolean
     private readonly _promptTimeoutMs: number
 
     constructor(options: AnswerResolverOptions) {
         this._profile = options.profile
         this._discord = options.discord
-        this._gpt = options.gpt
         this._isStandalone = options.isStandalone
         this._promptTimeoutMs = options.promptTimeoutMs
     }
@@ -54,14 +52,6 @@ export class EasyApplyAnswerResolver {
             this._storeCachedAnswer(field, historyAnswer)
             return historyAnswer
         }
-
-        const historyContext = await this._historyContext(field)
-        const gptAnswer = this._coerceSelectAnswer(field, await this._askWithGpt(field, historyContext))
-        if (gptAnswer) {
-            this._storeCachedAnswer(field, gptAnswer)
-            return gptAnswer
-        }
-
         if (this._isStandalone) {
             const label = field.label || field.key || 'field'
             throw new EasyApplyAbortError(`standalone-missing:${label}`)
@@ -114,37 +104,6 @@ export class EasyApplyAnswerResolver {
 
         return null
     }
-
-    private async _historyContext(field: FormPromptField): Promise<Record<string, string>> {
-        const context: Record<string, string> = {}
-        if (!this._historyAvailable) return context
-
-        for (const candidate of this._buildAnswerCandidates(field)) {
-            const cached = this._historyCache.get(candidate)
-            if (cached) {
-                context[candidate] = cached
-                continue
-            }
-            try {
-                const record = await getFieldAnswer(candidate, field.label)
-                if (record?.value) {
-                    this._historyCache.set(candidate, record.value)
-                    context[candidate] = record.value
-                }
-            } catch {
-                this._historyAvailable = false
-                break
-            }
-        }
-
-        return context
-    }
-
-    private async _askWithGpt(field: FormPromptField, historyAnswers?: Record<string, string>) {
-        if (!this._gpt) return null
-        return this._gpt.answerField(field, this._profile, historyAnswers)
-    }
-
     private async _askForField(field: FormPromptField, step: number, forcePrompt = false) {
         const label = field.label || field.key || 'field'
         if (field.type === 'select') {
