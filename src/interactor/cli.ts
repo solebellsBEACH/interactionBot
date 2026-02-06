@@ -5,6 +5,9 @@ import { DiscordClient } from './shared/discord/discord-client';
 
 type Action =
   | 'profile'
+  | 'dashboard'
+  | 'dashboard-profile'
+  | 'dashboard-network'
   | 'easy-apply'
   | 'search-jobs'
   | 'catch-jobs'
@@ -79,6 +82,12 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
         if (!profileUrl) throw new Error('missing-profile-url')
         return features.profile(profileUrl)
       }
+    case 'dashboard':
+      return features.dashboard(args.profileUrl)
+    case 'dashboard-profile':
+      return features.dashboardProfile(args.profileUrl)
+    case 'dashboard-network':
+      return features.dashboardNetwork()
     case 'easy-apply':
       return features.easyApply(args.jobUrl)
     case 'search-jobs':

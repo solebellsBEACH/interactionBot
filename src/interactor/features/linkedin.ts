@@ -13,6 +13,7 @@ import { LinkedinDiscordCommands } from "./actions/commands/discord-commands";
 import { LinkedinJobsFlow } from "./actions/jobs";
 import { EasyApplyJobResult, SearchJobTagOptions } from "./actions/scrap/jobs";
 import { ProfileFlow } from "./actions/profile/profile-flow";
+import { DashboardFlow } from "./actions/dashboard/dashboard-flow";
 
 
 type UpvoteOptions = {
@@ -31,6 +32,7 @@ export class LinkedinFeatures {
     private _discord?: DiscordClient
     private _commands: LinkedinDiscordCommands
     private _profileFlow: ProfileFlow
+    private _dashboardFlow: DashboardFlow
 
     constructor(page: Page, discord?: DiscordClient) {
         this._elementHandle = new ElementHandle(page)
@@ -47,6 +49,7 @@ export class LinkedinFeatures {
         this._discord = discord
 
         this._profileFlow= new  ProfileFlow(page)
+        this._dashboardFlow = new DashboardFlow(page, this._linkedinCoreFeatures)
         this._commands = new LinkedinDiscordCommands({
             easyApply: this.easyApply.bind(this),
             searchJobTag: this.searchJobTag.bind(this),
@@ -83,6 +86,18 @@ export class LinkedinFeatures {
 
     async profile(profileUrl?: string){
         return await this._profileFlow.main(profileUrl)
+    }
+
+    async dashboard(profileUrl?: string) {
+        return await this._dashboardFlow.main(profileUrl)
+    }
+
+    async dashboardProfile(profileUrl?: string) {
+        return await this._dashboardFlow.profileOnly(profileUrl)
+    }
+
+    async dashboardNetwork() {
+        return await this._dashboardFlow.networkOnly()
     }
 
 }

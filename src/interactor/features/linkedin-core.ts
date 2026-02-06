@@ -32,6 +32,29 @@ export class LinkedinCoreFeatures {
     });
   }
 
+  async getOwnProfileUrl(): Promise<string | null> {
+    await this.auth()
+
+    const current = this._normalizeProfileUrl(this._page.url())
+    if (current) return current
+
+    await this._page.goto(env.linkedinURLs.feedURL, {
+      waitUntil: 'domcontentloaded'
+    }).catch(() => undefined)
+
+    const fromNav = await this._findProfileUrlFromNav()
+    if (fromNav) return fromNav
+
+    await this._page.goto('https://www.linkedin.com/in/me/', {
+      waitUntil: 'domcontentloaded'
+    }).catch(() => undefined)
+
+    const redirected = this._normalizeProfileUrl(this._page.url())
+    if (redirected) return redirected
+
+    return null
+  }
+
   private async _isLoggedIn() {
     const selectors = [
       '#global-nav',
@@ -76,6 +99,67 @@ export class LinkedinCoreFeatures {
     }
 
     await this._page.keyboard.press('Enter')
+  }
+
+  private async _findProfileUrlFromNav() {
+    const nav = this._page.locator('#global-nav, nav.global-nav').first()
+
+    const meTrigger = this._page
+      .locator(
+        [
+          'button[aria-label*="Me"]',
+          'button[aria-label*="Eu"]',
+          'button.global-nav__primary-link-me-menu-trigger',
+          'a.global-nav__primary-link-me-menu-trigger',
+          '#global-nav .global-nav__primary-link-me-menu-trigger'
+        ].join(',')
+      )
+      .first()
+
+    if ((await meTrigger.count()) > 0) {
+      await meTrigger.click().catch(() => undefined)
+      await this._page.waitForTimeout(300)
+    }
+
+    const directSelectors = [
+      'a[data-control-name="nav.settings_view_profile"]',
+      'a[href*="/in/"][data-control-name*="view_profile"]',
+      'a[href*="/in/"][data-control-name*="view"]'
+    ]
+
+    for (const selector of directSelectors) {
+      const link = this._page.locator(selector).first()
+      if ((await link.count()) > 0) {
+        const href = await link.getAttribute('href')
+        const normalized = this._normalizeProfileUrl(href || '')
+        if (normalized) return normalized
+      }
+    }
+
+    if ((await nav.count()) > 0) {
+      const fallback = nav.locator('a[href*="/in/"]').first()
+      if ((await fallback.count()) > 0) {
+        const href = await fallback.getAttribute('href')
+        const normalized = this._normalizeProfileUrl(href || '')
+        if (normalized) return normalized
+      }
+    }
+
+    return null
+  }
+
+  private _normalizeProfileUrl(raw: string) {
+    if (!raw) return null
+    try {
+      const url = new URL(raw, 'https://www.linkedin.com')
+      if (!url.pathname.includes('/in/')) return null
+      url.search = ''
+      url.hash = ''
+      return url.toString()
+    } catch {
+      if (!raw.includes('/in/')) return null
+      return raw.split('#')[0].split('?')[0]
+    }
   }
 
 }

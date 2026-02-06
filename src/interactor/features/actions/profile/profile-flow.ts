@@ -2,16 +2,19 @@ import { Page } from "playwright"
 import { env } from "../../../shared/env"
 import { LinkedinCoreFeatures } from "../../linkedin-core"
 import { ProfileScraps } from "../scrap/profile"
+import { MyNetworkScrap } from "../scrap/my-network"
 
 export class ProfileFlow{
 
         private readonly _page: Page
         private readonly _navigator: LinkedinCoreFeatures
         private readonly _profileScrap: ProfileScraps
+        private readonly _myNetworkScrap: MyNetworkScrap
         constructor(page: Page){
             this._page = page
             this._navigator = new LinkedinCoreFeatures(page)
             this._profileScrap = new ProfileScraps(page, this._navigator)
+            this._myNetworkScrap = new MyNetworkScrap(page, this._navigator)
         }
         
 
@@ -23,9 +26,9 @@ export class ProfileFlow{
 
             await this._navigator.auth()
             console.log(`[profile] iniciando scrape: ${targetUrl}`)
-            const result = await this._profileScrap.scrapeProfile(targetUrl)
-            console.log(result)
-            this._logWordRanking(result)
+            // const result = await this._profileScrap.scrapeProfile(targetUrl)
+            // console.log(result)
+            // this._logWordRanking(result)
 
             
             // console.log(`[profile] about chars: ${result.about.length}`)
@@ -43,6 +46,8 @@ export class ProfileFlow{
             //     }
             // }
         }
+
+
 
         private _logWordRanking(result: { about: string; experiences: Array<{ title: string; company: string; dates: string; location: string; description: string }> }, top = 20) {
             const parts: string[] = []

@@ -44,6 +44,15 @@ export class ProfileScraps {
     const scope = this.page.locator('main')
     const selectors = [
       'button:has-text("See more")',
+      'button:has-text("Show more")',
+      'button:has-text("Mostrar mais")',
+      'button:has-text("Ver mais")',
+      'button:has-text("Exibir mais")',
+      'a:has-text("See more")',
+      'a:has-text("Show more")',
+      'a:has-text("Mostrar mais")',
+      'a:has-text("Ver mais")',
+      'a:has-text("Exibir mais")'
     ]
 
     const target = scope.locator(selectors.join(','))
@@ -65,6 +74,19 @@ export class ProfileScraps {
         const label = rawLabel.trim().toLowerCase()
 
         if (!label) continue
+        if (
+          label.includes('see less') ||
+          label.includes('show less') ||
+          label.includes('mostrar menos') ||
+          label.includes('ver menos') ||
+          label.includes('see all') ||
+          label.includes('show all') ||
+          label.includes('ver tudo') ||
+          label.includes('mostrar tudo') ||
+          label.includes('exibir tudo')
+        ) {
+          continue
+        }
         try {
           await node.scrollIntoViewIfNeeded()
           await node.click({ timeout: 2000 })
