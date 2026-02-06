@@ -74,7 +74,11 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
 
   switch (action) {
     case 'profile':
-      return features.profile()
+      {
+        const profileUrl = args.profileUrl?.trim()
+        if (!profileUrl) throw new Error('missing-profile-url')
+        return features.profile(profileUrl)
+      }
     case 'easy-apply':
       return features.easyApply(args.jobUrl)
     case 'search-jobs':

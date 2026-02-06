@@ -40,7 +40,7 @@ export class LinkedinCoreFeatures {
     ]
 
     for (const selector of selectors) {
-      if (await this._page.locator(selector).first().count() > 0) return true
+      if (await this._page.locator(selector)?.first()?.count() > 0) return true
     }
 
     return false

@@ -42,7 +42,7 @@ export class LinkedinFeatures {
             this._linkedinCoreFeatures,
             discord
         )
-        this._connectFlow = new LinkedinConnectFlow(this._elementHandle, this._linkedinCoreFeatures)
+        this._connectFlow = new LinkedinConnectFlow(page, this._elementHandle, this._linkedinCoreFeatures)
         this._upvoteFlow = new LinkedinUpvotePostsFlow(page, this._linkedinCoreFeatures)
         this._discord = discord
 
@@ -81,8 +81,8 @@ export class LinkedinFeatures {
         return this._upvoteFlow.upvoteOnPosts(options)
     }
 
-    async profile(){
-        return await this._profileFlow.main()
+    async profile(profileUrl?: string){
+        return await this._profileFlow.main(profileUrl)
     }
 
 }

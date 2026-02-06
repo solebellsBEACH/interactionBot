@@ -1,4 +1,5 @@
 import { Locator, Page } from "playwright"
+import { LinkedinCoreFeatures } from "../../linkedin-core"
 
 type Experience = {
   label: string
@@ -12,346 +13,288 @@ type Experience = {
 export class ProfileScraps {
   private page: Page
   private profileUrl?: string
+  private  _navigator: LinkedinCoreFeatures
 
-  constructor(page: Page) {
+  constructor(page: Page, navigator:LinkedinCoreFeatures) {
     this.page = page
+    this._navigator = navigator
   }
 
-  async scrapeProfile(url: string) {
-    this.log(`Abrindo perfil: ${url}`)
-    await this.page.goto(url, { waitUntil: "domcontentloaded" })
-    this.log(`URL atual: ${this.page.url()}`)
-    this.profileUrl = this.normalizeProfileUrl(this.page.url() || url)
-    this.log(`Perfil normalizado: ${this.profileUrl}`)
-    await this.ensureProfileLoaded()
+  async scrapeProfile(url:string){
+    await this._prepareToScrap(url)
 
-    this.log("Lendo seção About")
-    const aboutSection = await this.getSection("about")
-    await this.expandInlineShowMore(aboutSection)
-    const aboutText = await this.readAboutText(aboutSection)
-    this.log(`About carregado (${aboutText.length} chars)`)
+    const about = await this._catchAboutContent()
+    const experiences = await this._catchExperienceContent()
 
-    this.log("Abrindo detalhes de Experience (se houver)")
-    await this.openExperienceDetails()
-    this.log(`URL após abrir Experience: ${this.page.url()}`)
-    this.log("Lendo seção Experience")
-    const experienceSection = await this.getSection("experience")
-    const experiences = await this.getExperiences(experienceSection)
-    this.log(`Experience final: ${experiences.length} itens`)
 
-    return {
-      about: aboutText,
-      experiences
-    }
+    return { about, experiences }
   }
 
-  private async getSection(anchorId: string) {
-    this.log(`Buscando seção: ${anchorId}`)
-    if (anchorId === "experience" && this.page.url().includes("/details/experience")) {
-      this.log("Página de detalhes de Experience detectada.")
-      const detailsSection =
-        (await this.findSectionByHeading(["experience", "experiência", "experiencia"])) ||
-        this.page.locator("main")
-      await detailsSection.waitFor({ state: "visible", timeout: 5000 })
-      await this.expandSeeMore(detailsSection)
-      return detailsSection
-    }
 
-    const anchor = this.page.locator(`#${anchorId}`)
-    const hasAnchor = await anchor
-      .first()
-      .waitFor({ state: "attached", timeout: 5000 })
-      .then(() => true)
-      .catch(() => false)
 
-    if (hasAnchor) {
-      this.log(`Seção encontrada por âncora: #${anchorId}`)
-      await anchor.scrollIntoViewIfNeeded().catch(() => {})
-      const section = anchor.locator("xpath=ancestor::section[1]")
-      await section.waitFor({ state: "visible", timeout: 5000 })
-      await this.expandSeeMore(section)
-      return section
-    }
-
-    this.log(`Âncora #${anchorId} não encontrada, usando fallback por heading`)
-    const fallbackLabels =
-      anchorId === "experience"
-        ? ["experience", "experiência", "experiencia"]
-        : ["about", "sobre"]
-
-    const fallbackSection = await this.findSectionByHeading(fallbackLabels)
-    if (fallbackSection) {
-      this.log(`Seção encontrada por heading: ${fallbackLabels.join(", ")}`)
-      await this.expandSeeMore(fallbackSection)
-      return fallbackSection
-    }
-
-    this.log(`Seção não encontrada. Usando <main> como fallback.`)
-    const main = this.page.locator("main")
-    await main.waitFor({ state: "visible", timeout: 5000 })
-    await this.expandSeeMore(main)
-    return main
+   private async _prepareToScrap(url:string){
+    this.profileUrl = url
+    await this._navigator.goToLinkedinURL(url)
+    await this._expandAllSeeMore()
+    await this._scrollToBottom()
+    await this._expandAllSeeMore()
   }
 
-  private async expandSeeMore(section: Locator) {
-    const btns = section.locator(
-      [
-        "button.inline-show-more-text__button",
-        "button[aria-label*='see more' i]",
-        "button[aria-label*='ver mais' i]",
-        "button[aria-label*='mostrar mais' i]",
-        "[role='button'].inline-show-more-text__button",
-        "[role='button'][aria-label*='see more' i]",
-        "[role='button'][aria-label*='ver mais' i]",
-        "[role='button'][aria-label*='mostrar mais' i]"
-      ].join(", ")
-    )
-    let attempts = 0
-    while (attempts < 10) {
-      const count = await btns.count()
+  private async _expandAllSeeMore() {
+    const scope = this.page.locator('main')
+    const selectors = [
+      'button:has-text("See more")',
+    ]
 
-      if (count === 0) {
-        this.log(`See more: nenhum botão encontrado (tentativa ${attempts + 1}/10)`)
-        if (attempts === 0) {
-          await this.logSeeMoreCandidates(section, btns)
-        }
-        await this.page.mouse.wheel(0, 800)
-        await this.page.waitForTimeout(200)
-        attempts++
-        continue
-      }
+    const target = scope.locator(selectors.join(','))
+    const maxRounds = 10
 
-      if (attempts === 0) {
-        await this.logSeeMoreCandidates(section, btns)
-      }
+    for (let round = 0; round < maxRounds; round++) {
+      const count = await target.count()
+      if (count === 0) return
 
       let clicked = 0
       for (let i = 0; i < count; i++) {
-        const b = btns.nth(i)
-        const visible = await b.isVisible().catch(() => false)
-        if (!visible) continue
+        const node = target.nth(i)
+        if (!(await node.isVisible())) continue
 
-        const label = await b
-          .innerText()
-          .then((text) => text.toLowerCase())
-          .catch(() => "")
-        const isSeeMore =
-          label.includes("see more") ||
-          label.includes("ver mais") ||
-          label.includes("mostrar mais") ||
-          label.includes("show more") ||
-          label.includes("see all")
-        const ariaLabel = await b.getAttribute("aria-label").catch(() => "")
-        const ariaMatches =
-          (ariaLabel || "").toLowerCase().includes("see more") ||
-          (ariaLabel || "").toLowerCase().includes("ver mais") ||
-          (ariaLabel || "").toLowerCase().includes("mostrar mais") ||
-          (ariaLabel || "").toLowerCase().includes("show more") ||
-          (ariaLabel || "").toLowerCase().includes("see all")
-        const className = (await b.getAttribute("class").catch(() => "")) || ""
-        const classMatches = className.includes("inline-show-more-text__button")
-        const shouldClick = isSeeMore || ariaMatches || classMatches
+        const rawLabel =
+          (await node.getAttribute('aria-label')) ||
+          (await node.textContent()) ||
+          ''
+        const label = rawLabel.trim().toLowerCase()
 
-        if (!shouldClick) continue
-        await b.scrollIntoViewIfNeeded({ timeout: 1500 }).catch(() => {})
-        await b.click({ timeout: 1500, force: true }).then(() => {
-          clicked++
-        }).catch(() => {})
+        if (!label) continue
+        try {
+          await node.scrollIntoViewIfNeeded()
+          await node.click({ timeout: 2000 })
+          clicked += 1
+          await this.page.waitForTimeout(120)
+        } catch {
+          // Ignore clicks on detached/covered elements
+        }
       }
 
-      this.log(`See more: ${clicked}/${count} clicados (tentativa ${attempts + 1}/10)`)
-      if (clicked === 0) break
-      await this.page.waitForTimeout(200)
-      attempts++
+      if (clicked === 0) return
     }
   }
 
-  private async getExperiences(section: Locator): Promise<Experience[]> {
-    await this.loadSectionItems(section)
+  private async _scrollToBottom() {
+  await this.page.evaluate(async () => {
+    await new Promise<void>((resolve) => {
+      let totalHeight = 0
+      const distance = 500
 
-    const items = section.locator("li.pvs-list__paged-list-item, li.artdeco-list__item")
-    const count = await items.count()
-    this.log(`Experiências: itens encontrados = ${count}`)
+      const timer = setInterval(() => {
+        const scrollHeight = document.body.scrollHeight
+        window.scrollBy(0, distance)
+        totalHeight += distance
 
-    const result: Experience[] = []
+        if (totalHeight >= scrollHeight - window.innerHeight) {
+          clearInterval(timer)
+          resolve()
+        }
+      }, 200)
+    })
+  })
+}
 
+  private async _catchAboutContent() {
+    const section = this.page
+      .locator(
+        'section#about, section.pv-about-section, section:has(h2:has-text("About")), section:has(h2:has-text("Sobre"))'
+      )
+      .first()
+
+    if ((await section.count()) === 0) return ''
+
+    const lines = await this._extractLines(section)
+    const cleaned = this._cleanLines(lines, ['about', 'sobre'])
+    return cleaned.join('\n').trim()
+  }
+
+  private async _catchExperienceContent(): Promise<Experience[]> {
+    const section = this.page
+      .locator(
+        'section#experience, section.pv-profile-section.experience-section, section:has(h2:has-text("Experience")), section:has(h2:has-text("Experiência"))'
+      )
+      .first()
+
+    if ((await section.count()) === 0) return []
+
+    const list = section.locator('ul.pvs-list').first()
+    let items = list.locator('> li')
+    if ((await items.count().catch(() => 0)) === 0) {
+      items = section.locator('li.pvs-list__item, li.artdeco-list__item')
+    }
+
+    const results: Experience[] = []
+    const count = await items.count().catch(() => 0)
     for (let i = 0; i < count; i++) {
       const item = items.nth(i)
 
-      const nestedItems = item.locator(
-        ":scope li.pvs-list__paged-list-item, :scope .pvs-list__outer-container li.pvs-list__paged-list-item"
-      )
-      const nestedCount = await nestedItems.count()
-
+      const nestedRoles = item.locator('ul.pvs-list > li.pvs-list__item, ul.pvs-list > li.artdeco-list__item')
+      const nestedCount = await nestedRoles.count().catch(() => 0)
       if (nestedCount > 0) {
-        const company = await this.readText(
-          item.locator("span.t-bold span[aria-hidden='true']")
-        )
-        this.log(`Experiência agrupada: ${company} (${nestedCount} posições)`)
-
+        const headerLines = await this._extractLines(item)
+        const company = this._extractCompanyName(headerLines[0] || '')
         for (let j = 0; j < nestedCount; j++) {
-          const nestedItem = nestedItems.nth(j)
-          const exp = await this.parseExperienceItem(nestedItem, company)
-          if (exp) result.push(exp)
+          const roleLines = await this._extractLines(nestedRoles.nth(j))
+          const parsed = this._parseExperienceLines(roleLines, company)
+          results.push(...parsed)
         }
-      } else {
-        const exp = await this.parseExperienceItem(item)
-        if (exp) result.push(exp)
-      }
-    }
-
-    return this.dedupeExperiences(result)
-  }
-
-  private async openExperienceDetails(): Promise<void> {
-    if (this.page.url().includes("/details/experience")) return
-
-    if (this.profileUrl && this.profileUrl.includes("/in/")) {
-      const detailsUrl = `${this.profileUrl.replace(/\/$/, "")}/details/experience/`
-      this.log(`Tentando abrir Experience direto: ${detailsUrl}`)
-      await this.page.goto(detailsUrl, { waitUntil: "domcontentloaded" }).catch(() => {})
-      if (this.page.url().includes("/details/experience")) return
-      this.log(`Falha ao abrir details direto. URL atual: ${this.page.url()}`)
-    }
-
-    const detailsLink = this.page.locator("a[href*='/details/experience/']").first()
-    if (await detailsLink.isVisible().catch(() => false)) {
-      this.log("Abrindo /details/experience via link direto")
-      await Promise.all([
-        this.page.waitForURL(/\/details\/experience\//, { timeout: 5000 }).catch(() => {}),
-        detailsLink.click({ timeout: 1500 }).catch(() => {})
-      ])
-      await this.page.waitForLoadState("domcontentloaded").catch(() => {})
-      return
-    }
-
-    const showAllLink = this.page
-      .getByRole("link", { name: /show all experiences|see all experiences|show all/i })
-      .first()
-    if (await showAllLink.isVisible().catch(() => false)) {
-      this.log("Abrindo experiences via 'show all'")
-      await Promise.all([
-        this.page.waitForURL(/\/details\/experience\//, { timeout: 5000 }).catch(() => {}),
-        showAllLink.click({ timeout: 1500 }).catch(() => {})
-      ])
-      await this.page.waitForLoadState("domcontentloaded").catch(() => {})
-      return
-    }
-
-    this.log("Nenhum link de details/experience encontrado")
-  }
-
-  private async ensureProfileLoaded(): Promise<void> {
-    const url = this.page.url()
-    if (url.includes("/login") || url.includes("/checkpoint/")) {
-      this.log("Login exigido pelo LinkedIn.")
-      throw new Error("LinkedIn requer login para acessar o perfil.")
-    }
-
-    const loginForm = this.page.locator("input[name='session_key'], input#username")
-    if (await loginForm.first().isVisible().catch(() => false)) {
-      this.log("Login exigido pelo LinkedIn (form detectado).")
-      throw new Error("LinkedIn requer login para acessar o perfil.")
-    }
-  }
-
-  private async findSectionByHeading(labels: string[]): Promise<Locator | null> {
-    const main = this.page.locator("main")
-    const pattern = new RegExp(labels.join("|"), "i")
-    const heading = main.getByRole("heading", { name: pattern }).first()
-
-    const visible = await heading
-      .waitFor({ state: "visible", timeout: 5000 })
-      .then(() => true)
-      .catch(() => false)
-    if (!visible) return null
-
-    let section = heading.locator("xpath=ancestor::section[1]")
-    if (await section.count().catch(() => 0)) return section
-
-    section = heading.locator("xpath=ancestor::div[1]")
-    if (await section.count().catch(() => 0)) return section
-
-    return null
-  }
-
-  private async loadSectionItems(section: Locator): Promise<void> {
-    await this.waitForItems(section)
-    let lastCount = -1
-    for (let i = 0; i < 8; i++) {
-      const items = section.locator("li.pvs-list__paged-list-item, li.artdeco-list__item")
-      const count = await items.count()
-      if (count === 0 && i < 3) {
-        this.log(`Nenhum item ainda, aguardando... (passo ${i + 1}/8)`)
-        await this.page.waitForTimeout(400)
         continue
       }
-      if (count === lastCount) break
-      lastCount = count
 
-      this.log(`Carregando itens: ${count} (passo ${i + 1}/8)`)
-      await this.expandSeeMore(section)
-      await this.page.mouse.wheel(0, 1200)
-      await this.page.waitForTimeout(200)
+      const lines = await this._extractLines(item)
+      const parsed = this._parseExperienceLines(lines)
+      results.push(...parsed)
+    }
+
+    return results
+  }
+
+  private async _extractLines(scope: Locator): Promise<string[]> {
+    try {
+      const spans = scope.locator('span[aria-hidden="true"]')
+      const count = await spans.count()
+      if (count > 0) {
+        const lines: string[] = []
+        for (let i = 0; i < count; i++) {
+          const text = await spans.nth(i).innerText().catch(() => '')
+          if (text) lines.push(text)
+        }
+        return this._cleanLines(lines)
+      }
+
+      const text = await scope.innerText()
+      return this._cleanLines(text.split('\n'))
+    } catch {
+      return []
     }
   }
 
-  private async waitForItems(section: Locator): Promise<void> {
-    const items = section.locator("li.pvs-list__paged-list-item, li.artdeco-list__item")
-    const found = await items
-      .first()
-      .waitFor({ state: "attached", timeout: 5000 })
-      .then(() => true)
-      .catch(() => false)
-    this.log(`Itens iniciais ${found ? "detectados" : "não detectados"}`)
+  private _cleanLines(lines: string[], extraIgnore: string[] = []) {
+    const ignore = new Set(
+      [
+        'see more',
+        'show more',
+        'see less',
+        'show less',
+        'mostrar mais',
+        'ver mais',
+        'mostrar menos',
+        'ver menos',
+        'experience',
+        'experiência',
+        ...extraIgnore
+      ].map((item) => item.toLowerCase())
+    )
+
+    const seen = new Set<string>()
+    const cleaned: string[] = []
+    for (const line of lines) {
+      const trimmed = line.replace(/\s+/g, ' ').trim()
+      if (!trimmed) continue
+      const normalized = trimmed.toLowerCase()
+      if (ignore.has(normalized)) continue
+      if (seen.has(normalized)) continue
+      seen.add(normalized)
+      cleaned.push(trimmed)
+    }
+    return cleaned
   }
 
-  private async parseExperienceItem(
-    item: Locator,
-    fallbackCompany?: string
-  ): Promise<Experience | null> {
-    await this.expandInlineShowMore(item)
-    let title = await this.readFirstMatchingText(item, [
-      ".pvs-entity__summary-info span.t-16.t-black.t-bold",
-      "span.t-16.t-black.t-bold",
-      "span.t-bold span[aria-hidden='true']"
-    ])
+  private _parseExperienceLines(lines: string[], companyOverride?: string): Experience[] {
+    const cleaned = this._cleanLines(lines)
+    if (cleaned.length === 0) return []
 
-    let company =
-      fallbackCompany ||
-      (await this.readFirstMatchingText(item, [
-        ".pvs-entity__summary-info span.t-14.t-normal span[aria-hidden='true']",
-        ".pvs-entity__summary-info span.t-14.t-normal.t-black--light span[aria-hidden='true']",
-        "span.t-14.t-normal span[aria-hidden='true']",
-        "span.t-14.t-normal"
-      ]))
-
-    let dates =
-      (await this.readText(item.locator(".pvs-entity__caption-wrapper"))) ||
-      (await this.readText(item.locator("span.t-14.t-normal.t-black--light")))
-
-    let location =
-      (await this.readText(item.locator("span.t-black--light span[aria-hidden='true']").nth(1))) ||
-      (await this.readText(item.locator("span.t-14.t-normal.t-black--light span[aria-hidden='true']").nth(1)))
-
-    let description = await this.readInlineDescription(item)
-
-    const inferred = await this.inferFromHiddenTexts(item)
-    if (!dates && inferred.dates) dates = inferred.dates
-    if (!location && inferred.location) location = inferred.location
-    if (!company && inferred.company) company = inferred.company
-    if (!title || title === company) {
-      if (inferred.title && inferred.title !== company) title = inferred.title
+    if (companyOverride) {
+      return [this._buildExperience(cleaned, companyOverride)]
     }
 
-    if (!description) {
-      description = await this.inferDescription(item, [title, company, dates, location])
+    const dateIndices = cleaned
+      .map((line, idx) => (this._isDateLine(line) ? idx : -1))
+      .filter((idx) => idx >= 0)
+
+    if (dateIndices.length > 1) {
+      const company = this._extractCompanyName(cleaned[0] || '')
+      const entries: Experience[] = []
+      for (let i = 0; i < dateIndices.length; i++) {
+        const dateIndex = dateIndices[i]
+        const nextIndex = dateIndices[i + 1] ?? cleaned.length
+
+        let titleIndex = dateIndex - 1
+        while (titleIndex > 0 && this._isEmploymentTypeLine(cleaned[titleIndex])) {
+          titleIndex -= 1
+        }
+        let title = cleaned[titleIndex] || ''
+        if (title === company && titleIndex > 0) {
+          title = cleaned[titleIndex - 1] || title
+        }
+
+        let location = ''
+        if (dateIndex + 1 < nextIndex) {
+          const candidate = cleaned[dateIndex + 1]
+          if (this._looksLikeLocation(candidate)) {
+            location = candidate
+          }
+        }
+
+        const descriptionStart = dateIndex + (location ? 2 : 1)
+        const description = cleaned
+          .slice(descriptionStart, nextIndex)
+          .filter((line) => !this._isEmploymentTypeLine(line))
+          .join(' ')
+
+        entries.push({
+          label: [title, company].filter(Boolean).join(' | '),
+          title,
+          company,
+          dates: cleaned[dateIndex] || '',
+          location,
+          description
+        })
+      }
+      return entries
     }
 
-    if (!title && !company) return null
+    return [this._buildExperience(cleaned)]
+  }
+
+  private _buildExperience(lines: string[], companyOverride?: string): Experience {
+    const title = lines[0] || ''
+    let company = companyOverride || ''
+
+    if (!company) {
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i]
+        if (this._isDateLine(line)) break
+        if (this._isEmploymentTypeLine(line)) continue
+        company = this._extractCompanyName(line)
+        break
+      }
+    }
+
+    const dateIndex = lines.findIndex((line) => this._isDateLine(line))
+    const dates = dateIndex >= 0 ? lines[dateIndex] : ''
+
+    let location = ''
+    if (dateIndex >= 0 && dateIndex + 1 < lines.length) {
+      const candidate = lines[dateIndex + 1]
+      if (this._looksLikeLocation(candidate)) {
+        location = candidate
+      }
+    }
+
+    const descriptionStart = dateIndex >= 0 ? dateIndex + (location ? 2 : 1) : 1
+    const description = lines
+      .slice(descriptionStart)
+      .filter((line) => !this._isEmploymentTypeLine(line))
+      .join(' ')
 
     return {
-      label: title || company,
+      label: [title, company].filter(Boolean).join(' | '),
       title,
       company,
       dates,
@@ -360,320 +303,54 @@ export class ProfileScraps {
     }
   }
 
-  private async readText(locator: Locator): Promise<string> {
-    const text = await locator.first().innerText().catch(() => "")
-    return this.normalizeText(text)
+  private _extractCompanyName(line: string) {
+    if (!line) return ''
+    const parts = line.split(/[·•|]/).map((part) => part.trim()).filter(Boolean)
+    return parts[0] || line.trim()
   }
 
-  private async readFirstMatchingText(
-    container: Locator,
-    selectors: string[]
-  ): Promise<string> {
-    for (const selector of selectors) {
-      const text = await container.locator(selector).first().innerText().catch(() => "")
-      const cleaned = this.cleanInlineText(text)
-      if (cleaned) return cleaned
-    }
-    return ""
-  }
-
-  private async readInlineDescription(container: Locator): Promise<string> {
-    const selectors = [
-      ".inline-show-more-text span.visually-hidden",
-      ".inline-show-more-text span[aria-hidden='true']",
-      ".inline-show-more-text span[aria-hidden='false']",
-      ".inline-show-more-text__text",
-      ".inline-show-more-text",
-      ".pvs-entity__description span.visually-hidden",
-      ".pvs-entity__description span[aria-hidden='true']",
-      ".pvs-entity__description"
-    ]
-
-    for (const selector of selectors) {
-      const text = await container.locator(selector).first().innerText().catch(() => "")
-      const cleaned = this.cleanInlineText(text)
-      if (cleaned) return cleaned
-    }
-
-    return ""
-  }
-
-  private async inferDescription(
-    container: Locator,
-    knownFields: Array<string | undefined>
-  ): Promise<string> {
-    const known = knownFields
-      .filter(Boolean)
-      .map((value) => this.normalizeForCompare(value as string))
-    const candidates = new Set<string>()
-
-    const selectors = [
-      ".pvs-entity__description",
-      ".inline-show-more-text",
-      ".inline-show-more-text__text",
-      "span[aria-hidden='true']",
-      "span.visually-hidden"
-    ]
-
-    for (const selector of selectors) {
-      const texts = await container.locator(selector).allInnerTexts().catch(() => [])
-      for (const text of texts) {
-        const cleaned = this.cleanInlineText(text)
-        if (cleaned) candidates.add(cleaned)
-      }
-    }
-
-    const raw = await container.innerText().catch(() => "")
-    for (const line of raw.split(/\r?\n/)) {
-      const cleaned = this.cleanInlineText(line)
-      if (cleaned) candidates.add(cleaned)
-    }
-
-    const filtered = Array.from(candidates).filter((text) => {
-      const normalized = this.normalizeForCompare(text)
-      if (!normalized) return false
-      if (known.includes(normalized)) return false
-      if (this.isDateLike(text)) return false
-      if (this.isLocationLike(text)) return false
-      if (this.isEmploymentType(text)) return false
-      return text.length >= 6
-    })
-
-    if (filtered.length === 0) return ""
-    filtered.sort((a, b) => b.length - a.length)
-    return filtered[0]
-  }
-
-  private isEmploymentType(text: string): boolean {
-    return /full[- ]time|part[- ]time|internship|contract|freelance|self[- ]employed|temporary|apprenticeship/i.test(
-      text
-    )
-  }
-
-  private async readAboutText(container: Locator): Promise<string> {
-    const inline = await this.readInlineDescription(container)
-    if (inline) return inline
-
-    const candidates = await container
-      .locator("span[aria-hidden='true'], span.visually-hidden")
-      .allInnerTexts()
-      .catch(() => [])
-    const cleaned = candidates.map((text) => this.cleanInlineText(text)).filter(Boolean)
-    if (cleaned.length === 0) return ""
-    cleaned.sort((a, b) => b.length - a.length)
-    return cleaned[0]
-  }
-
-  private async inferFromHiddenTexts(
-    container: Locator
-  ): Promise<{ title?: string; company?: string; dates?: string; location?: string }> {
-    const texts = await this.readAllHiddenTexts(container)
-    if (texts.length === 0) return {}
-
-    const dates = texts.find((text) => this.isDateLike(text))
-    const location = texts.find((text) => this.isLocationLike(text))
-
-    let company = texts.find(
-      (text) => text.includes("·") && text !== dates && text !== location
-    )
-    if (!company) {
-      company = texts.find(
-        (text) => !this.isDateLike(text) && !this.isLocationLike(text)
-      )
-    }
-
-    let title = texts.find(
-      (text) =>
-        text !== company &&
-        text !== dates &&
-        text !== location &&
-        !text.includes("·")
-    )
-    if (!title) {
-      title = texts.find((text) => text !== company && text !== dates && text !== location)
-    }
-
-    return { title, company, dates, location }
-  }
-
-  private isDateLike(text: string): boolean {
-    const normalized = text.toLowerCase()
-    if (/\b(19|20)\d{2}\b/.test(normalized) && /-/.test(normalized)) return true
-    if (/\b(19|20)\d{2}\b/.test(normalized) && /present|atual|current/.test(normalized))
+  private _looksLikeLocation(line: string) {
+    if (!line) return false
+    if (this._isDateLine(line) || this._isEmploymentTypeLine(line)) return false
+    const normalized = this._normalizeText(line)
+    if (
+      normalized === 'remote' ||
+      normalized === 'remoto' ||
+      normalized === 'hibrido' ||
+      normalized === 'hybrid' ||
+      normalized === 'on-site' ||
+      normalized === 'onsite' ||
+      normalized === 'presencial'
+    ) {
       return true
-    return /(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec|jan\.|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)/i.test(
-      text
+    }
+    return line.includes(',') || line.length <= 60
+  }
+
+  private _isEmploymentTypeLine(line: string) {
+    const normalized = this._normalizeText(line)
+    return /(full[- ]time|part[- ]time|intern|internship|contract|freelance|temporary|self[- ]employed|tempo integral|meio periodo|estagio|contrato|autonomo)/.test(
+      normalized
     )
   }
 
-  private isLocationLike(text: string): boolean {
-    const normalized = text.toLowerCase()
-    if (normalized.includes("remote") || normalized.includes("remoto")) return true
-    if (normalized.includes("on-site") || normalized.includes("onsite")) return true
-    if (normalized.includes("hybrid") || normalized.includes("híbrido")) return true
-    return text.includes(",")
+  private _isDateLine(line: string) {
+    const normalized = this._normalizeText(line)
+    if (!normalized) return false
+    if (/\b(19|20)\d{2}\b/.test(normalized)) return true
+    if (/(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)/.test(normalized)) return true
+    if (/(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/.test(normalized)) return true
+    if (/(present|atual|current)/.test(normalized)) return true
+    return false
   }
 
-  private async readAllHiddenTexts(container: Locator): Promise<string[]> {
-    const texts = await container
-      .locator("span[aria-hidden='true'], span.visually-hidden")
-      .allInnerTexts()
-      .catch(() => [])
-    const cleaned = texts.map((text) => this.cleanInlineText(text)).filter(Boolean)
-    const unique: string[] = []
-    for (const text of cleaned) {
-      if (!unique.includes(text)) unique.push(text)
-    }
-    return unique
-  }
-
-  private cleanInlineText(value: string): string {
-    const normalized = this.normalizeText(value)
-    if (!normalized) return ""
-
-    return normalized
-      .replace(/\s*…?\s*(see more|ver mais|mostrar mais|show more|see all)\s*$/i, "")
+  private _normalizeText(text: string) {
+    return text
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
       .trim()
+      .toLowerCase()
   }
 
-  private normalizeText(value: string): string {
-    return value.replace(/\s+/g, " ").trim()
-  }
-
-  private normalizeForCompare(value: string): string {
-    return this.normalizeText(value).toLowerCase()
-  }
-
-  private normalizeProfileUrl(url: string): string {
-    const clean = url.split("?")[0].split("#")[0]
-    const match = clean.match(/https?:\/\/[^/]+\/in\/[^/]+/)
-    return (match ? match[0] : clean).replace(/\/$/, "")
-  }
-
-  private dedupeExperiences(items: Experience[]): Experience[] {
-    const seen = new Set<string>()
-    const result: Experience[] = []
-
-    for (const item of items) {
-      const key = `${item.title}|${item.company}|${item.dates}|${item.location}`.toLowerCase()
-      if (seen.has(key)) continue
-      seen.add(key)
-      result.push(item)
-    }
-
-    return result
-  }
-
-  private log(message: string) {
-    const color = "\x1b[36m"
-    const reset = "\x1b[0m"
-    console.log(`${color}[profile-scrap]${reset} ${message}`)
-  }
-
-  private async logSeeMoreCandidates(
-    section: Locator,
-    candidates: Locator
-  ): Promise<void> {
-    const globalButtons = this.page.locator("button.inline-show-more-text__button")
-    const globalCount = await globalButtons.count()
-    this.log(`See more candidatos globais (inline-show-more-text__button): ${globalCount}`)
-    const globalSamples = await globalButtons.evaluateAll((nodes) =>
-      nodes.slice(0, 6).map((node) => ({
-        text: (node.textContent || "").trim(),
-        aria: node.getAttribute("aria-label") || "",
-        cls: (node as HTMLElement).className || ""
-      }))
-    )
-    for (const sample of globalSamples) {
-      this.log(
-        `See more global: text="${sample.text}" aria="${sample.aria}" class="${sample.cls}"`
-      )
-    }
-
-    const sectionButtons = section.locator("button, [role='button']")
-    const sectionCount = await sectionButtons.count()
-    this.log(`See more candidatos na seção (button/role=button): ${sectionCount}`)
-    const sectionSamples = await sectionButtons.evaluateAll((nodes) =>
-      nodes.slice(0, 6).map((node) => ({
-        text: (node.textContent || "").trim(),
-        aria: node.getAttribute("aria-label") || "",
-        expanded: node.getAttribute("aria-expanded") || "",
-        role: node.getAttribute("role") || "",
-        tag: node.tagName || "",
-        cls: (node as HTMLElement).className || ""
-      }))
-    )
-    for (const sample of sectionSamples) {
-      this.log(
-        `See more seção: tag="${sample.tag}" role="${sample.role}" expanded="${sample.expanded}" text="${sample.text}" aria="${sample.aria}" class="${sample.cls}"`
-      )
-    }
-
-    const candCount = await candidates.count()
-    this.log(`See more candidatos filtrados: ${candCount}`)
-    const candSamples = await candidates.evaluateAll((nodes) =>
-      nodes.slice(0, 6).map((node) => ({
-        text: (node.textContent || "").trim(),
-        aria: node.getAttribute("aria-label") || "",
-        expanded: node.getAttribute("aria-expanded") || "",
-        role: node.getAttribute("role") || "",
-        tag: node.tagName || "",
-        cls: (node as HTMLElement).className || ""
-      }))
-    )
-    for (const sample of candSamples) {
-      this.log(
-        `See more candidato: tag="${sample.tag}" role="${sample.role}" expanded="${sample.expanded}" text="${sample.text}" aria="${sample.aria}" class="${sample.cls}"`
-      )
-    }
-  }
-
-  private async expandInlineShowMore(container: Locator): Promise<void> {
-    const buttons = container.locator(
-      [
-        "button.inline-show-more-text__button",
-        "[role='button'].inline-show-more-text__button",
-        "button[aria-label*='see more' i]",
-        "button[aria-label*='ver mais' i]",
-        "button[aria-label*='mostrar mais' i]",
-        "[role='button'][aria-label*='see more' i]",
-        "[role='button'][aria-label*='ver mais' i]",
-        "[role='button'][aria-label*='mostrar mais' i]"
-      ].join(", ")
-    )
-    const count = await buttons.count().catch(() => 0)
-    if (count === 0) return
-
-    for (let i = 0; i < count; i++) {
-      const btn = buttons.nth(i)
-      const visible = await btn.isVisible().catch(() => false)
-      if (!visible) continue
-      const label = await btn
-        .innerText()
-        .then((text) => text.toLowerCase())
-        .catch(() => "")
-      const isSeeMore =
-        label.includes("see more") ||
-        label.includes("ver mais") ||
-        label.includes("mostrar mais") ||
-        label.includes("show more") ||
-        label.includes("see all")
-      const ariaLabel = await btn.getAttribute("aria-label").catch(() => "")
-      const ariaMatches =
-        (ariaLabel || "").toLowerCase().includes("see more") ||
-        (ariaLabel || "").toLowerCase().includes("ver mais") ||
-        (ariaLabel || "").toLowerCase().includes("mostrar mais") ||
-        (ariaLabel || "").toLowerCase().includes("show more") ||
-        (ariaLabel || "").toLowerCase().includes("see all")
-      const className = (await btn.getAttribute("class").catch(() => "")) || ""
-      const classMatches =
-        className.includes("inline-show-more-text__button") ||
-        className.includes("show-more") ||
-        className.includes("see-more")
-      const shouldClick = isSeeMore || ariaMatches || classMatches
-      if (!shouldClick) continue
-      await btn.scrollIntoViewIfNeeded({ timeout: 1500 }).catch(() => {})
-      await btn.click({ timeout: 1500, force: true }).catch(() => {})
-    }
-  }
 }
