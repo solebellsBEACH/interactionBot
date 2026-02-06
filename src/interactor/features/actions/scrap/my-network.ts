@@ -1,9 +1,10 @@
 import { Locator, Page } from "playwright"
 import { LinkedinCoreFeatures } from "../../linkedin-core"
+import { rankWordsFromLines, type WordRanking } from "../../../shared/utils/word-ranking"
 
 export type MyNetworkScrapResult = {
     subtitles: string[]
-    ranking: Array<{ word: string; count: number }>
+    ranking: WordRanking[]
 }
 
 export class MyNetworkScrap {
@@ -28,14 +29,14 @@ export class MyNetworkScrap {
         await this._scrollConnectionsList()
 
         let subtitles = await this._collectSubtitles()
-        let ranking = this._rankWords(subtitles)
+        let ranking = rankWordsFromLines(subtitles)
 
         if (!ranking.length) {
             const fallbackLines = await this._extractLines(this._page.locator('main'))
             const filtered = fallbackLines.filter((line) => !this._isNoiseLine(line))
             if (filtered.length) {
                 subtitles = filtered
-                ranking = this._rankWords(filtered)
+                ranking = rankWordsFromLines(filtered)
                 console.log(`[network] fallback usado (main text): ${filtered.length} linhas`)
             }
         }
@@ -247,39 +248,6 @@ export class MyNetworkScrap {
             cleaned.push(trimmed)
         }
         return cleaned
-    }
-
-    private _rankWords(subtitles: string[], top = 20) {
-        const combined = subtitles.filter(Boolean).join('\n')
-        if (!combined.trim()) return []
-
-        const normalized = combined
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, ' ')
-
-        const stopwords = new Set([
-            'a','as','o','os','um','uma','uns','umas','de','da','do','das','dos','e','ou','em','no','na','nos','nas',
-            'por','para','com','sem','sob','sobre','entre','ate','até','ao','aos','à','às','que','se','sua','seu','suas','seus',
-            'como','mais','menos','muito','muitos','muita','muitas','foi','era','sao','são','ser','estar','tem','tendo',
-            'the','and','or','in','on','at','to','for','of','with','from','by','is','are','was','were','be','been','being','as'
-        ])
-
-        const counts = new Map<string, number>()
-        for (const word of normalized.split(/\s+/g)) {
-            if (!word || word.length < 2) continue
-            if (stopwords.has(word)) continue
-            counts.set(word, (counts.get(word) ?? 0) + 1)
-        }
-
-        return Array.from(counts.entries())
-            .sort((a, b) => {
-                if (b[1] !== a[1]) return b[1] - a[1]
-                return a[0].localeCompare(b[0])
-            })
-            .slice(0, top)
-            .map(([word, count]) => ({ word, count }))
     }
 
     private _isNoiseLine(line: string) {
