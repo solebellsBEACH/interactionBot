@@ -1,6 +1,7 @@
 import readline from "readline";
 
 import { getFieldAnswer } from "../../../../api/controllers/field-answers";
+import { createPrompt, waitForPromptAnswer } from "../../../../api/controllers/prompt-queue";
 import { DiscordClient } from "../../../shared/discord/discord-client";
 import { GptClient } from "../../../shared/ai/gpt-client";
 import { FormPromptField } from "../../../shared/utils/element-handle";
@@ -110,6 +111,8 @@ export class EasyApplyAnswerResolver {
             const options = field.options || []
             const optionsText = options.map((option, idx) => `${idx + 1}) ${option}`).join('\n')
             const prompt = `[Easy Apply] Step ${step} - choose for "${label}":\n${optionsText}\nReply with number or text.`
+            const webAnswer = await this._promptWeb(prompt, options)
+            if (webAnswer) return webAnswer
             if (this._discord) {
                 return this._discord.ask(prompt)
             }
@@ -118,6 +121,8 @@ export class EasyApplyAnswerResolver {
         }
 
         const prompt = `[Easy Apply] Step ${step} - fill "${label}":`
+        const webAnswer = await this._promptWeb(prompt)
+        if (webAnswer) return webAnswer
         if (this._discord) {
             return this._discord.ask(prompt)
         }
@@ -249,5 +254,17 @@ export class EasyApplyAnswerResolver {
         if (!result) return null
         const trimmed = result.trim()
         return trimmed ? trimmed : null
+    }
+
+    private async _promptWeb(prompt: string, options?: string[]) {
+        const jobId = (process.env.BOT_JOB_ID || '').trim()
+        if (!jobId) return null
+        try {
+            const record = await createPrompt(jobId, prompt, options)
+            const answer = await waitForPromptAnswer(record._id.toString(), this._promptTimeoutMs)
+            return answer
+        } catch {
+            return null
+        }
     }
 }

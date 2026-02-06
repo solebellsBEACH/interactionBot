@@ -18,6 +18,7 @@ export class MyNetworkScrap {
     async myConnections(): Promise<MyNetworkScrapResult> {
         const url = 'https://www.linkedin.com/mynetwork/invite-connect/connections/'
         await this._navigator.goToLinkedinURL(url)
+        await this._page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined)
         await this._page.waitForTimeout(1200)
 
         await this._ensureConnectionsView()
@@ -71,6 +72,8 @@ export class MyNetworkScrap {
             'div.mn-connection-card',
             'div.reusable-search__result-container',
             'div.entity-result',
+            'div.scaffold-finite-scroll__content li',
+            'div.scaffold-finite-scroll__content > div',
             'main li:has(a[href*="/in/"])'
         ]
     }

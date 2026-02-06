@@ -3,6 +3,7 @@ import { env } from "../../../shared/env"
 import { LinkedinCoreFeatures } from "../../linkedin-core"
 import { MyNetworkScrap } from "../scrap/my-network"
 import { ProfileScraps } from "../scrap/profile"
+import { saveDashboardAnalysis } from "../../../../api/controllers/dashboard-analyses"
 
 type WordRanking = { word: string; count: number }
 
@@ -83,6 +84,18 @@ export class DashboardFlow {
         scrapedAt: new Date().toISOString(),
         mode
       }
+    }
+
+    try {
+      await saveDashboardAnalysis({
+        type: mode,
+        profileWords: profileWords.length ? profileWords : undefined,
+        networkWords: networkWords.length ? networkWords : undefined,
+        profileUrl: targetUrl || undefined,
+        connectionsCount
+      })
+    } catch (error) {
+      console.warn('[dashboard] falha ao salvar no banco:', error)
     }
 
     console.log(`[dashboard] data: ${JSON.stringify(payload)}`)
