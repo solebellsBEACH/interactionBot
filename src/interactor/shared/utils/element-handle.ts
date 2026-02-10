@@ -96,6 +96,7 @@ export class ElementHandle {
     }
 
     private async _getFormValues(element: Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormValues> {
+        await this._handleCheckboxes(element)
         const selectValues = await this._getSelectValues(element, prompt)
         const inputValues = await this._getInputValues(element, prompt)
 
@@ -140,6 +141,111 @@ export class ElementHandle {
         }
 
         return values
+    }
+
+    private async _handleCheckboxes(element: Locator) {
+        const checkboxes = element.locator('input[type="checkbox"], [role="checkbox"]')
+        const count = await checkboxes.count().catch(() => 0)
+        if (count === 0) return
+
+        for (let i = 0; i < count; i++) {
+            const checkbox = checkboxes.nth(i)
+            try {
+                if (!(await checkbox.isVisible())) continue
+                if (await checkbox.isDisabled()) continue
+            } catch {
+                continue
+            }
+
+            const alreadyChecked = await this._isCheckboxChecked(checkbox)
+            if (alreadyChecked) continue
+
+            const meta = await this._getControlMeta(checkbox)
+            const label = meta.labelText || meta.ariaLabel || meta.name || meta.id || ''
+            const required = await this._isCheckboxRequired(checkbox)
+            const shouldCheck = required || this._isTermsConsentLabel(label)
+            if (!shouldCheck) continue
+
+            try {
+                if ((await checkbox.getAttribute('type')) === 'checkbox') {
+                    await checkbox.check({ force: true })
+                } else {
+                    await checkbox.click({ force: true })
+                }
+            } catch {
+                try {
+                    await checkbox.click({ force: true })
+                } catch {
+                    // ignore if cannot click
+                }
+            }
+        }
+    }
+
+    private async _isCheckboxChecked(checkbox: Locator) {
+        try {
+            const type = await checkbox.getAttribute('type')
+            if (type === 'checkbox') {
+                return await checkbox.isChecked().catch(() => false)
+            }
+            const aria = await checkbox.getAttribute('aria-checked')
+            return aria === 'true'
+        } catch {
+            return false
+        }
+    }
+
+    private async _isCheckboxRequired(checkbox: Locator) {
+        try {
+            const aria = await checkbox.getAttribute('aria-required')
+            if (aria === 'true') return true
+            const required = await checkbox.getAttribute('required')
+            if (required !== null) return true
+        } catch {
+            // ignore
+        }
+        return await checkbox.evaluate((el) => {
+            const attrRequired = el.getAttribute('required')
+            const ariaRequired = el.getAttribute('aria-required')
+            if (attrRequired !== null || ariaRequired === 'true') return true
+            const container = el.closest('[data-test-form-element], .jobs-easy-apply-form-element, fieldset')
+            if (!container) return false
+            if (container.getAttribute('aria-required') === 'true') return true
+            if (container.querySelector('[aria-required="true"], .required, .required-field, [data-required="true"]')) {
+                return true
+            }
+            const text = (container.textContent || '').toLowerCase()
+            return text.includes('required') || text.includes('obrigatório') || text.includes('obrigatorio')
+        }).catch(() => false)
+    }
+
+    private _isTermsConsentLabel(label: string) {
+        const normalized = label
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+        if (!normalized) return false
+        const keywords = [
+            'terms',
+            'termos',
+            'terms of use',
+            'privacy',
+            'privacidade',
+            'policy',
+            'politica',
+            'política',
+            'consent',
+            'consentimento',
+            'agree',
+            'i agree',
+            'aceito',
+            'aceitar',
+            'smartrecruiters',
+            'experian',
+            'condicoes',
+            'condições'
+        ]
+        return keywords.some((keyword) => normalized.includes(keyword))
     }
 
     private async _getSelectValues(element: Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormFieldValue[]> {

@@ -20,12 +20,18 @@ export class ProfileFlow{
         
 
         async main(profileUrl?: string){
-            const targetUrl = (profileUrl || env.linkedinURLs.recruiterURL || '').trim()
+            let targetUrl = (profileUrl || env.linkedinURLs.recruiterURL || '').trim()
+
+            await this._navigator.auth()
+
+            if (!targetUrl) {
+                targetUrl = (await this._navigator.getOwnProfileUrl()) || ''
+            }
+
             if (!targetUrl) {
                 throw new Error('missing-profile-url')
             }
 
-            await this._navigator.auth()
             console.log(`[profile] iniciando scrape: ${targetUrl}`)
             // const result = await this._profileScrap.scrapeProfile(targetUrl)
             // console.log(result)

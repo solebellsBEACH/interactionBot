@@ -68,7 +68,7 @@ export class DashboardFlow {
     if (mode === 'full' || mode === 'network') {
       const network = await this._networkScrap.myConnections()
       networkWords = network.ranking
-      connectionsCount = network.subtitles.length
+      connectionsCount = network.connectionsCount ?? network.subtitles.length
       if (!networkWords.length) {
         console.log('[dashboard] network: sem keywords detectadas')
       }

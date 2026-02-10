@@ -56,14 +56,15 @@ export class LinkedinJobsFlow {
             const tag = searchJobTag.trim()
             if (!tag) return []
     
-            const maxPages = options?.maxPages ?? 10
+            const maxPages = options?.maxPages ?? (options?.maxApplicants !== undefined ? 30 : 10)
             const maxResults = options?.maxResults ?? Number.POSITIVE_INFINITY
             const easyApplyOnly = options?.easyApplyOnly !== false
             const onlyNonPromoted = options?.onlyNonPromoted === true
             const maxApplicants = options?.maxApplicants
-            const includeDetails = options?.includeDetails ?? maxApplicants !== undefined
+            const includeUnknownApplicants = options?.includeUnknownApplicants ?? false
+            const includeDetails = options?.includeDetails ?? true
             const results = new Map<string, EasyApplyJobResult>()
-    
+
             for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
                 if (this._page.isClosed()) break
                 console.log(`Buscando jobs: pagina ${pageIndex + 1}/${maxPages}`)
@@ -79,22 +80,50 @@ export class LinkedinJobsFlow {
                     await this._linkedinJobsScrap.scrollResultsList()
                     pageResults = await this._linkedinJobsScrap.collectEasyApplyFromPage(includeDetails, easyApplyOnly)
                 }
-    
+
                 const beforeCount = results.size
+                let aboveMax = 0
+                let unknownApplicants = 0
+                let notEasyApply = 0
+                let promotedBlocked = 0
                 for (const job of this._linkedinJobsScrap.filterResults(pageResults, {
                     onlyNonPromoted,
                     maxApplicants,
-                    easyApplyOnly
+                    easyApplyOnly,
+                    includeUnknownApplicants
                 })) {
                     if (results.size >= maxResults) break
                     results.set(job.url, job)
                 }
-    
+                if (maxApplicants !== undefined) {
+                    for (const job of pageResults) {
+                        if (onlyNonPromoted && job.promoted) {
+                            promotedBlocked++
+                            continue
+                        }
+                        if (easyApplyOnly && !job.easyApply) {
+                            notEasyApply++
+                            continue
+                        }
+                        if (job.applicants === null) {
+                            unknownApplicants++
+                            continue
+                        }
+                        if (job.applicants > maxApplicants) {
+                            aboveMax++
+                        }
+                    }
+                    const kept = results.size - beforeCount
+                    console.log(
+                        `[bot] Filtro candidaturas: pagina ${pageIndex + 1} | total=${pageResults.length} | mantidas=${kept} | acimaMax=${aboveMax} | semNumero=${unknownApplicants} | naoEasy=${notEasyApply} | promovidas=${promotedBlocked}`
+                    )
+                }
+
                 if (results.size >= maxResults) break
                 if (pageResults.length === 0) break
-                if (results.size === beforeCount) break
+                if (results.size === beforeCount && maxApplicants === undefined) break
             }
-    
+
             return Array.from(results.values())
         }
     

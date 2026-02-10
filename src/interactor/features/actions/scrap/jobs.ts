@@ -13,6 +13,7 @@ export type EasyApplyJobResult = {
     promoted: boolean
     easyApply: boolean
     applicants: number | null
+    postedAt?: string | null
 }
 
 export type SearchJobTagOptions = {
@@ -23,6 +24,7 @@ export type SearchJobTagOptions = {
     easyApplyOnly?: boolean
     onlyNonPromoted?: boolean
     maxApplicants?: number
+    includeUnknownApplicants?: boolean
     includeDetails?: boolean
 }
 
@@ -107,9 +109,21 @@ export class LinkedinJobsScrap {
             for (let i = 0; i < count; i++) {
                 const card = cards.nth(i)
                 const link = card.locator(SCRAP_SELECTORS.jobLink)
-                const href = await link.first().getAttribute('href').catch(() => null)
+                let href = await link.first().getAttribute('href').catch(() => null)
+                const clicked = await this._clickJobCard(card)
+                if (!clicked) continue
+                await this._page
+                    .waitForSelector(SCRAP_SELECTORS.jobDetailContainer, { state: 'visible', timeout: 5_000 })
+                    .catch(() => undefined)
+                if (!href) {
+                    const detail = this._page.locator(SCRAP_SELECTORS.jobDetailContainer).first()
+                    const detailUrl = await this._getDetailUrl(detail)
+                    if (detailUrl) {
+                        href = detailUrl
+                    }
+                }
                 if (!href) continue
-    
+
                 const url = this._normalizeJobUrl(href)
                 const title = await this._safeInnerText(link.first())
                 const company = await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobCompany))
@@ -117,12 +131,13 @@ export class LinkedinJobsScrap {
                 const cardText = await this._safeInnerText(card)
                 let promoted = this._hasPromotedLabel(cardText)
                 let applicants = this._parseApplicantsCount(cardText)
+                let postedAt = await this._getPostedAtFromCard(card, cardText)
                 let easyApply = easyApplyOnly || this._hasEasyApplyLabel(cardText)
-                if (includeDetails && (applicants === null || !promoted || !easyApply)) {
-                    const detailText = await this._getDetailTextFromCard(card)
+                if (includeDetails && (applicants === null || !promoted || !easyApply || !postedAt)) {
+                    const detailText = await this._getDetailTextFromCard(card, title, url, true)
                     if (detailText) {
                         if (applicants === null) {
-                            applicants = this._parseApplicantsCount(detailText)
+                            applicants = this._parseApplicantsCount(detailText) ?? (await this._getApplicantsFromDetail())
                         }
                         if (!promoted) {
                             promoted = this._hasPromotedLabel(detailText)
@@ -130,9 +145,14 @@ export class LinkedinJobsScrap {
                         if (!easyApply) {
                             easyApply = this._hasEasyApplyLabel(detailText)
                         }
+                        if (!postedAt) {
+                            postedAt = (await this._getPostedAtFromDetail()) || this._extractPostedAtFromText(detailText)
+                        }
+                    } else if (applicants === null) {
+                        applicants = await this._getApplicantsFromDetail()
                     }
                 }
-    
+
                 results.push({
                     title,
                     company,
@@ -140,7 +160,8 @@ export class LinkedinJobsScrap {
                     url,
                     promoted,
                     easyApply,
-                    applicants
+                    applicants,
+                    postedAt
                 })
             }
     
@@ -166,33 +187,147 @@ export class LinkedinJobsScrap {
                 return ''
             }
         }
-    
-        private async _getDetailTextFromCard(card: Locator) {
-            const detail = this._page.locator(SCRAP_SELECTORS.jobDetailContainer).first()
-            if ((await detail.count().catch(() => 0)) === 0) return ''
+
+        private async _safeText(locator: Locator) {
             try {
-                await card.click({ timeout: 3_000 })
+                if ((await locator.count()) === 0) return ''
+                const target = locator.first()
+                const text = (await target.innerText().catch(() => ''))?.trim()
+                if (text) return text
+                const aria = (await target.getAttribute('aria-label').catch(() => ''))?.trim()
+                if (aria) return aria
+                const content = (await target.textContent().catch(() => ''))?.trim()
+                return content || ''
             } catch {
                 return ''
             }
+        }
+
+        private async _clickJobCard(card: Locator) {
+            try {
+                await card.scrollIntoViewIfNeeded()
+            } catch {
+                // ignore scroll errors
+            }
+            const link = card.locator(SCRAP_SELECTORS.jobLink).first()
+            try {
+                if ((await link.count().catch(() => 0)) > 0) {
+                    await link.click({ timeout: 5_000 })
+                    return true
+                }
+            } catch {
+                // fallback to card click below
+            }
+            try {
+                await card.click({ timeout: 5_000 })
+                return true
+            } catch {
+                return false
+            }
+        }
+
+        private async _getDetailTextFromCard(card: Locator, expectedTitle?: string, expectedUrl?: string, skipClick = false) {
+            const detail = this._page.locator(SCRAP_SELECTORS.jobDetailContainer).first()
+            if ((await detail.count().catch(() => 0)) === 0) return ''
+            const expected = expectedTitle ? this._normalizeText(expectedTitle) : ''
+            const before = await this._safeInnerText(detail)
+            const beforeUrl = expectedUrl ? await this._getDetailUrl(detail) : ''
+            const clicked = skipClick ? true : await this._clickJobCard(card)
+            if (!clicked) return ''
             await detail.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined)
-            await this._page.waitForTimeout(250)
-            const parts = await this._safeInnerText(detail)
+            let parts = ''
+            const startedAt = Date.now()
+            while (Date.now() - startedAt < 3_000) {
+                await this._page.waitForTimeout(150)
+                if (expectedUrl) {
+                    const detailUrl = await this._getDetailUrl(detail)
+                    if (detailUrl && detailUrl === expectedUrl) {
+                        parts = await this._safeInnerText(detail)
+                        if (parts) break
+                    }
+                    if (detailUrl && beforeUrl && detailUrl !== beforeUrl) {
+                        parts = await this._safeInnerText(detail)
+                        if (parts) break
+                    }
+                }
+                parts = await this._safeInnerText(detail)
+                if (!parts) continue
+                if (!expected) break
+                const normalized = this._normalizeText(parts)
+                if (normalized.includes(expected) || parts !== before) break
+            }
+            if (!parts) {
+                parts = await this._safeInnerText(detail)
+            }
             if (parts) return parts
             const detailTextSelectors = SCRAP_SELECTORS.jobDetailText.join(', ')
             const detailText = await this._safeInnerText(this._page.locator(detailTextSelectors))
             return detailText
         }
+
+        private async _getDetailUrl(detail: Locator) {
+            const selectors = SCRAP_SELECTORS.jobDetailLink.join(', ')
+            const href = await detail.locator(selectors).first().getAttribute('href').catch(() => null)
+            if (!href) return ''
+            return this._normalizeJobUrl(href)
+        }
+
+        private async _getPostedAtFromCard(card: Locator, fallbackText?: string) {
+            const selectors = SCRAP_SELECTORS.jobPostedTime.join(', ')
+            const text = await this._safeText(card.locator(selectors))
+            if (text) {
+                const match = this._extractPostedAtFromText(text)
+                if (match) return match
+            }
+            if (fallbackText) {
+                return this._extractPostedAtFromText(fallbackText)
+            }
+            return null
+        }
+
+        private async _getPostedAtFromDetail() {
+            const selectors = SCRAP_SELECTORS.jobDetailPostedTime.join(', ')
+            const text = await this._safeText(this._page.locator(selectors))
+            if (text) {
+                const match = this._extractPostedAtFromText(text)
+                if (match) return match
+            }
+            return null
+        }
+
+        private async _getApplicantsFromDetail() {
+            const selectors = SCRAP_SELECTORS.jobDetailApplicants.join(', ')
+            const locator = this._page.locator(selectors)
+            const count = await locator.count().catch(() => 0)
+            if (count === 0) return null
+            for (let i = 0; i < count; i++) {
+                const text = await this._safeText(locator.nth(i))
+                if (!text) continue
+                const parsed = this._parseApplicantsCount(text)
+                if (parsed !== null) return parsed
+            }
+            const combined = await locator.allTextContents().catch(() => [])
+            const merged = combined.map((item) => item.trim()).filter(Boolean).join(' ')
+            if (!merged) return null
+            return this._parseApplicantsCount(merged)
+        }
     
         filterResults(
             jobs: EasyApplyJobResult[],
-            options: { onlyNonPromoted: boolean; maxApplicants?: number; easyApplyOnly: boolean }
+            options: {
+                onlyNonPromoted: boolean
+                maxApplicants?: number
+                easyApplyOnly: boolean
+                includeUnknownApplicants?: boolean
+            }
         ) {
             return jobs.filter((job) => {
                 if (options.onlyNonPromoted && job.promoted) return false
                 if (options.easyApplyOnly && !job.easyApply) return false
                 if (options.maxApplicants !== undefined) {
-                    if (job.applicants === null) return false
+                    if (job.applicants === null) {
+                        return options.includeUnknownApplicants === true
+                    }
                     if (job.applicants > options.maxApplicants) return false
                 }
                 return true
@@ -202,19 +337,64 @@ export class LinkedinJobsScrap {
         private _parseApplicantsCount(text: string) {
             const normalized = this._normalizeText(text)
             if (!normalized) return null
-            const patterns = [
-                /(?:over|more than|mais de)\s*([\d.,]+)\s*(?:applicants?|applications?|candidatos?|candidaturas?)/,
-                /([\d.,]+)\s*(?:applicants?|applications?|candidatos?|candidaturas?)/,
-                /be among the first\s*([\d.,]+)/,
-                /seja um dos primeiros\s*([\d.,]+)/
+            const keyword = '(?:applicants?|applications?|candidatos?|candidaturas?|aplicantes?)'
+            const prefixWords =
+                '(?:total|totais|received|recebidas?|recebido|ate|até|agora|no\\s*total|so\\s*far)'
+            const patterns: Array<{ regex: RegExp; over?: boolean }> = [
+                {
+                    regex:
+                        new RegExp(`(?:over|more than|mais de)\\s*([\\d.,]+)\\s*${keyword}`),
+                    over: true
+                },
+                {
+                    regex:
+                        new RegExp(`([\\d.,]+)\\s*\\+\\s*${keyword}`),
+                    over: true
+                },
+                {
+                    regex: new RegExp(
+                        `${keyword}\\s*(?:[:\\-]|\\s)*(?:${prefixWords}\\s*){0,3}([\\d.,]+)\\s*\\+`
+                    ),
+                    over: true
+                },
+                { regex: new RegExp(`([\\d.,]+)\\s*${keyword}`) },
+                {
+                    regex: new RegExp(
+                        `${keyword}\\s*(?:[:\\-]|\\s)*(?:${prefixWords}\\s*){0,3}([\\d.,]+)`
+                    )
+                },
+                { regex: /be among the first\s*([\d.,]+)/ },
+                { regex: /seja um dos primeiros\s*([\d.,]+)/ }
             ]
             for (const pattern of patterns) {
-                const match = normalized.match(pattern)
+                const match = normalized.match(pattern.regex)
                 if (match) {
                     const raw = match[1].replace(/[^\d]/g, '')
                     if (!raw) continue
                     const value = Number(raw)
-                    return Number.isNaN(value) ? null : value
+                    if (Number.isNaN(value)) return null
+                    return pattern.over ? value + 1 : value
+                }
+            }
+            return null
+        }
+
+        private _extractPostedAtFromText(text: string) {
+            if (!text) return null
+            const parts = text
+                .split(/[\n•·|]/g)
+                .map((part) => part.trim())
+                .filter(Boolean)
+            const patterns = [
+                /\b(?:ha|há)\s*\d+\s*(?:minutos?|horas?|dias?|semanas?|meses?|m[eê]s|anos?)\b/i,
+                /\b\d+\s*(?:minutes?|hours?|days?|weeks?|months?|years?)\s*ago\b/i,
+                /\brepostad[oa]\b.*$/i,
+                /\breposted\b.*$/i,
+                /\bpublicad[oa]\b.*$/i
+            ]
+            for (const part of parts) {
+                for (const pattern of patterns) {
+                    if (pattern.test(part)) return part
                 }
             }
             return null
