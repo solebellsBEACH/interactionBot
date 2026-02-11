@@ -32,6 +32,7 @@ export type SearchJobTagOptions = {
 export class LinkedinJobsScrap {
 
     private readonly _page: Page
+    private readonly _enableTimingLogs = true
 
     constructor( page: Page, ) {
             this._page = page
@@ -70,7 +71,7 @@ export class LinkedinJobsScrap {
             const emptySelector = SCRAP_SELECTORS.jobResultsEmpty.join(', ')
     
             try {
-                await this._page.waitForSelector(resultsSelector, { state: 'attached', timeout: 20_000 })
+                await this._page.waitForSelector(resultsSelector, { state: 'attached', timeout: 6_000 })
                 return true
             } catch {
                 const emptyVisible = await this._page.locator(emptySelector).first().isVisible().catch(() => false)
@@ -79,24 +80,24 @@ export class LinkedinJobsScrap {
             }
         }
     
-         async scrollResultsList() {
+        async scrollResultsList() {
             const list = this._page.locator(SCRAP_SELECTORS.jobResultsList)
             if ((await list.count()) === 0) {
                 await this._page.mouse.wheel(0, 1600)
-                await this._page.waitForTimeout(800)
+                await this._page.waitForTimeout(200)
                 return
             }
     
             const container = list.first()
             let previousHeight = 0
-            for (let i = 0; i < 8; i++) {
+            for (let i = 0; i < 5; i++) {
                 const height = await container.evaluate((el) => el.scrollHeight)
                 if (height === previousHeight) break
                 previousHeight = height
                 await container.evaluate((el) => {
                     el.scrollTop = el.scrollHeight
                 })
-                await this._page.waitForTimeout(800)
+                await this._page.waitForTimeout(200)
             }
         }
     
@@ -105,18 +106,32 @@ export class LinkedinJobsScrap {
             const cards = this._page.locator(SCRAP_SELECTORS.jobCard)
             const count = await cards.count().catch(() => 0)
             const results: EasyApplyJobResult[] = []
+            const batchStart = Date.now()
+            this._logTiming('cards:start', { total: count })
     
             for (let i = 0; i < count; i++) {
+                const cardStart = Date.now()
+                this._logTiming('card:start', { index: i + 1, total: count })
                 const card = cards.nth(i)
                 const link = card.locator(SCRAP_SELECTORS.jobLink)
                 let href = await link.first().getAttribute('href').catch(() => null)
+                const title = await this._safeInnerText(link.first())
+                const company = await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobCompany))
+                const location = await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobLocation))
+                const cardText = await this._safeInnerText(card)
                 const clicked = await this._clickJobCard(card)
                 if (!clicked) continue
-                await this._page
-                    .waitForSelector(SCRAP_SELECTORS.jobDetailContainer, { state: 'visible', timeout: 5_000 })
-                    .catch(() => undefined)
+                await this._page.waitForTimeout(40)
+                const detail = this._page.locator(SCRAP_SELECTORS.jobDetailContainer).first()
+                const expectedUrl = href ? this._normalizeJobUrl(href) : ''
+                if (expectedUrl) {
+                    for (let attempt = 0; attempt < 3; attempt++) {
+                        const detailUrl = await this._getDetailUrl(detail)
+                        if (detailUrl && detailUrl === expectedUrl) break
+                        await this._page.waitForTimeout(60)
+                    }
+                }
                 if (!href) {
-                    const detail = this._page.locator(SCRAP_SELECTORS.jobDetailContainer).first()
                     const detailUrl = await this._getDetailUrl(detail)
                     if (detailUrl) {
                         href = detailUrl
@@ -125,19 +140,22 @@ export class LinkedinJobsScrap {
                 if (!href) continue
 
                 const url = this._normalizeJobUrl(href)
-                const title = await this._safeInnerText(link.first())
-                const company = await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobCompany))
-                const location = await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobLocation))
-                const cardText = await this._safeInnerText(card)
                 let promoted = this._hasPromotedLabel(cardText)
                 let applicants = this._parseApplicantsCount(cardText)
                 let postedAt = await this._getPostedAtFromCard(card, cardText)
                 let easyApply = easyApplyOnly || this._hasEasyApplyLabel(cardText)
                 if (includeDetails && (applicants === null || !promoted || !easyApply || !postedAt)) {
-                    const detailText = await this._getDetailTextFromCard(card, title, url, true)
+                    const detailTextSelectors = SCRAP_SELECTORS.jobDetailText.join(', ')
+                    let detailText = await this._safeInnerText(detail)
+                    if (!detailText) {
+                        detailText = await this._safeInnerText(this._page.locator(detailTextSelectors))
+                    }
                     if (detailText) {
                         if (applicants === null) {
-                            applicants = this._parseApplicantsCount(detailText) ?? (await this._getApplicantsFromDetail())
+                            applicants = this._parseApplicantsCount(detailText)
+                            if (applicants === null) {
+                                applicants = await this._getApplicantsFromDetail()
+                            }
                         }
                         if (!promoted) {
                             promoted = this._hasPromotedLabel(detailText)
@@ -152,6 +170,7 @@ export class LinkedinJobsScrap {
                         applicants = await this._getApplicantsFromDetail()
                     }
                 }
+                this._logTiming('card:parsed', { index: i + 1, ms: Date.now() - cardStart })
 
                 results.push({
                     title,
@@ -163,7 +182,9 @@ export class LinkedinJobsScrap {
                     applicants,
                     postedAt
                 })
+                this._logTiming('card:done', { index: i + 1, ms: Date.now() - cardStart })
             }
+            this._logTiming('cards:done', { total: results.length, ms: Date.now() - batchStart })
     
             return results
         }
@@ -178,11 +199,23 @@ export class LinkedinJobsScrap {
                 return href
             }
         }
+
+        private _logTiming(action: string, data?: Record<string, unknown>) {
+            if (!this._enableTimingLogs) return
+            const now = new Date()
+            const timestamp = now
+                .toTimeString()
+                .split(' ')[0]
+                .concat(`.${String(now.getMilliseconds()).padStart(3, '0')}`)
+            const payload = data ? ` | ${JSON.stringify(data)}` : ''
+            console.log(`[jobs ${timestamp}] ${action}${payload}`)
+        }
     
         private async _safeInnerText(locator: Locator) {
             try {
-                if ((await locator.count()) === 0) return ''
-                return (await locator.first().innerText()).trim()
+                const target = locator.first()
+                const text = (await target.innerText({ timeout: 500 }).catch(() => ''))?.trim()
+                return text || ''
             } catch {
                 return ''
             }
@@ -190,13 +223,12 @@ export class LinkedinJobsScrap {
 
         private async _safeText(locator: Locator) {
             try {
-                if ((await locator.count()) === 0) return ''
                 const target = locator.first()
-                const text = (await target.innerText().catch(() => ''))?.trim()
+                const text = (await target.innerText({ timeout: 500 }).catch(() => ''))?.trim()
                 if (text) return text
-                const aria = (await target.getAttribute('aria-label').catch(() => ''))?.trim()
+                const aria = (await target.getAttribute('aria-label', { timeout: 500 }).catch(() => ''))?.trim()
                 if (aria) return aria
-                const content = (await target.textContent().catch(() => ''))?.trim()
+                const content = (await target.textContent({ timeout: 500 }).catch(() => ''))?.trim()
                 return content || ''
             } catch {
                 return ''
@@ -204,24 +236,26 @@ export class LinkedinJobsScrap {
         }
 
         private async _clickJobCard(card: Locator) {
-            try {
-                await card.scrollIntoViewIfNeeded()
-            } catch {
-                // ignore scroll errors
-            }
             const link = card.locator(SCRAP_SELECTORS.jobLink).first()
             try {
                 if ((await link.count().catch(() => 0)) > 0) {
-                    await link.click({ timeout: 5_000 })
+                    await link.click({ timeout: 250, force: true })
                     return true
                 }
             } catch {
                 // fallback to card click below
             }
             try {
-                await card.click({ timeout: 5_000 })
+                await card.click({ timeout: 250, force: true })
                 return true
             } catch {
+                try {
+                    await card.scrollIntoViewIfNeeded()
+                    await card.click({ timeout: 500, force: true })
+                    return true
+                } catch {
+                    return false
+                }
                 return false
             }
         }
@@ -234,11 +268,11 @@ export class LinkedinJobsScrap {
             const beforeUrl = expectedUrl ? await this._getDetailUrl(detail) : ''
             const clicked = skipClick ? true : await this._clickJobCard(card)
             if (!clicked) return ''
-            await detail.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined)
+            await detail.waitFor({ state: 'visible', timeout: 400 }).catch(() => undefined)
             let parts = ''
             const startedAt = Date.now()
-            while (Date.now() - startedAt < 3_000) {
-                await this._page.waitForTimeout(150)
+            while (Date.now() - startedAt < 1_000) {
+                await this._page.waitForTimeout(80)
                 if (expectedUrl) {
                     const detailUrl = await this._getDetailUrl(detail)
                     if (detailUrl && detailUrl === expectedUrl) {
@@ -267,7 +301,7 @@ export class LinkedinJobsScrap {
 
         private async _getDetailUrl(detail: Locator) {
             const selectors = SCRAP_SELECTORS.jobDetailLink.join(', ')
-            const href = await detail.locator(selectors).first().getAttribute('href').catch(() => null)
+            const href = await detail.locator(selectors).first().getAttribute('href', { timeout: 500 }).catch(() => null)
             if (!href) return ''
             return this._normalizeJobUrl(href)
         }

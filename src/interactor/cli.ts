@@ -25,6 +25,7 @@ type ParsedArgs = {
   maxResults?: number
   maxLikes?: number
   maxApplicants?: number
+  maxPages?: number
   easyApplyOnly?: boolean
   includeUnknownApplicants?: boolean
   maxConnections?: number
@@ -68,6 +69,11 @@ const parseArgs = (argv: string[]): ParsedArgs => {
   const maxApplicants =
     typeof raw.maxApplicants === 'string' && raw.maxApplicants.trim()
       ? Number(raw.maxApplicants)
+      : undefined
+
+  const maxPages =
+    typeof raw.maxPages === 'string' && raw.maxPages.trim()
+      ? Number(raw.maxPages)
       : undefined
 
   let easyApplyOnly: boolean | undefined
@@ -129,6 +135,7 @@ const parseArgs = (argv: string[]): ParsedArgs => {
     maxResults: Number.isNaN(maxResults) ? undefined : maxResults,
     maxLikes: Number.isNaN(maxLikes) ? undefined : maxLikes,
     maxApplicants: Number.isNaN(maxApplicants) ? undefined : maxApplicants,
+    maxPages: Number.isNaN(maxPages) ? undefined : maxPages,
     easyApplyOnly,
     includeUnknownApplicants,
     maxConnections: Number.isNaN(maxConnections) ? undefined : maxConnections,
@@ -179,6 +186,7 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
         )
         const results = await features.searchJobTag(tag, {
           maxResults: args.maxResults,
+          maxPages: args.maxPages,
           maxApplicants,
           easyApplyOnly,
           includeUnknownApplicants
@@ -197,6 +205,7 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
         )
         const results = await features.catchJobs(tag, {
           maxResults: args.maxResults,
+          maxPages: args.maxPages,
           maxApplicants,
           easyApplyOnly,
           includeUnknownApplicants
