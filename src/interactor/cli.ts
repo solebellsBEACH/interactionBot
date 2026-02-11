@@ -26,6 +26,7 @@ type ParsedArgs = {
   maxLikes?: number
   maxApplicants?: number
   maxPages?: number
+  postedWithinDays?: number
   easyApplyOnly?: boolean
   includeUnknownApplicants?: boolean
   maxConnections?: number
@@ -75,6 +76,23 @@ const parseArgs = (argv: string[]): ParsedArgs => {
     typeof raw.maxPages === 'string' && raw.maxPages.trim()
       ? Number(raw.maxPages)
       : undefined
+
+  const postedWithinDays =
+    typeof raw.postedWithinDays === 'string' && raw.postedWithinDays.trim()
+      ? Number(raw.postedWithinDays)
+      : undefined
+
+  let datePostedDays: number | undefined
+  if (typeof raw.datePosted === 'string') {
+    const normalized = raw.datePosted.trim().toLowerCase()
+    if (['24h', '24hours', '24hrs', 'day', '1d', 'hoje'].includes(normalized)) {
+      datePostedDays = 1
+    } else if (['week', 'semana', '7d', '1w'].includes(normalized)) {
+      datePostedDays = 7
+    } else if (['month', 'mes', 'mês', '30d', '1m'].includes(normalized)) {
+      datePostedDays = 30
+    }
+  }
 
   let easyApplyOnly: boolean | undefined
   if (raw.easyApplyOnly !== undefined) {
@@ -136,6 +154,10 @@ const parseArgs = (argv: string[]): ParsedArgs => {
     maxLikes: Number.isNaN(maxLikes) ? undefined : maxLikes,
     maxApplicants: Number.isNaN(maxApplicants) ? undefined : maxApplicants,
     maxPages: Number.isNaN(maxPages) ? undefined : maxPages,
+    postedWithinDays:
+      postedWithinDays === undefined || Number.isNaN(postedWithinDays)
+        ? datePostedDays
+        : postedWithinDays,
     easyApplyOnly,
     includeUnknownApplicants,
     maxConnections: Number.isNaN(maxConnections) ? undefined : maxConnections,
@@ -182,12 +204,13 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
         const maxApplicants = args.maxApplicants
         const includeUnknownApplicants = args.includeUnknownApplicants
         console.log(
-          `[bot] Filtros: easyApplyOnly=${easyApplyOnly} | maxApplicants=${maxApplicants ?? '-'} | includeUnknownApplicants=${includeUnknownApplicants ?? '-'}`
+          `[bot] Filtros: easyApplyOnly=${easyApplyOnly} | maxApplicants=${maxApplicants ?? '-'} | includeUnknownApplicants=${includeUnknownApplicants ?? '-'} | postedWithinDays=${args.postedWithinDays ?? '-'}`
         )
         const results = await features.searchJobTag(tag, {
           maxResults: args.maxResults,
           maxPages: args.maxPages,
           maxApplicants,
+          postedWithinDays: args.postedWithinDays,
           easyApplyOnly,
           includeUnknownApplicants
         })
@@ -201,12 +224,13 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
         const maxApplicants = args.maxApplicants
         const includeUnknownApplicants = args.includeUnknownApplicants
         console.log(
-          `[bot] Filtros: easyApplyOnly=${easyApplyOnly} | maxApplicants=${maxApplicants ?? '-'} | includeUnknownApplicants=${includeUnknownApplicants ?? '-'}`
+          `[bot] Filtros: easyApplyOnly=${easyApplyOnly} | maxApplicants=${maxApplicants ?? '-'} | includeUnknownApplicants=${includeUnknownApplicants ?? '-'} | postedWithinDays=${args.postedWithinDays ?? '-'}`
         )
         const results = await features.catchJobs(tag, {
           maxResults: args.maxResults,
           maxPages: args.maxPages,
           maxApplicants,
+          postedWithinDays: args.postedWithinDays,
           easyApplyOnly,
           includeUnknownApplicants
         })

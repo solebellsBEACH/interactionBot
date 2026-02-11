@@ -26,6 +26,7 @@ export type SearchJobTagOptions = {
     maxApplicants?: number
     includeUnknownApplicants?: boolean
     includeDetails?: boolean
+    postedWithinDays?: number
 }
 
 
@@ -44,12 +45,17 @@ export class LinkedinJobsScrap {
             location?: string,
             start = 0,
             geoId?: string | number,
-            easyApplyOnly = true
+            easyApplyOnly = true,
+            postedWithinDays?: number
         ) {
             const params = new URLSearchParams()
             params.set('keywords', tag)
             if (easyApplyOnly) {
                 params.set('f_AL', 'true')
+            }
+            if (postedWithinDays !== undefined && postedWithinDays > 0) {
+                const seconds = Math.round(postedWithinDays * 24 * 60 * 60)
+                params.set('f_TPR', `r${seconds}`)
             }
             if (geoId !== undefined && geoId !== null) {
                 const normalized = String(geoId).trim()
@@ -353,6 +359,7 @@ export class LinkedinJobsScrap {
                 maxApplicants?: number
                 easyApplyOnly: boolean
                 includeUnknownApplicants?: boolean
+                postedWithinDays?: number
             }
         ) {
             return jobs.filter((job) => {
@@ -364,8 +371,18 @@ export class LinkedinJobsScrap {
                     }
                     if (job.applicants > options.maxApplicants) return false
                 }
+                if (options.postedWithinDays !== undefined) {
+                    if (!this.isPostedWithinDays(job.postedAt, options.postedWithinDays)) return false
+                }
                 return true
             })
+        }
+
+        isPostedWithinDays(postedAt: string | null | undefined, maxDays: number) {
+            if (!postedAt) return false
+            const ageMinutes = this._parsePostedAgeMinutes(postedAt)
+            if (ageMinutes === null) return false
+            return ageMinutes <= maxDays * 24 * 60
         }
     
         private _parseApplicantsCount(text: string) {
@@ -413,6 +430,37 @@ export class LinkedinJobsScrap {
             return null
         }
 
+        private _parsePostedAgeMinutes(text: string) {
+            const normalized = this._normalizeText(text)
+            if (!normalized) return null
+            const cleaned = normalized
+                .replace(/\b(reposted|repostado|repostada|publicado|publicada|publicado ha|publicada ha)\b/g, '')
+                .trim()
+            if (!cleaned) return null
+            if (/(just now|agora mesmo|neste momento)/.test(cleaned)) return 0
+
+            const numberMatch = cleaned.match(/(\d+)/)
+            const wordOne = cleaned.match(/\b(um|uma|one|a)\b/)
+            const amount = numberMatch ? Number(numberMatch[1]) : wordOne ? 1 : null
+            if (!amount || Number.isNaN(amount)) return null
+
+            const unit =
+                cleaned.match(/\b(minuto|minutos|minute|minutes|min)\b/)?.[1] ||
+                cleaned.match(/\b(hora|horas|hour|hours|hr|hrs)\b/)?.[1] ||
+                cleaned.match(/\b(dia|dias|day|days)\b/)?.[1] ||
+                cleaned.match(/\b(semana|semanas|week|weeks|sem)\b/)?.[1] ||
+                cleaned.match(/\b(mes|meses|month|months)\b/)?.[1] ||
+                cleaned.match(/\b(ano|anos|year|years)\b/)?.[1]
+
+            if (!unit) return null
+            if (/min/.test(unit)) return amount
+            if (/hora|hour|hr/.test(unit)) return amount * 60
+            if (/dia|day/.test(unit)) return amount * 60 * 24
+            if (/semana|week|sem/.test(unit)) return amount * 60 * 24 * 7
+            if (/mes|month/.test(unit)) return amount * 60 * 24 * 30
+            if (/ano|year/.test(unit)) return amount * 60 * 24 * 365
+            return null
+        }
         private _extractPostedAtFromText(text: string) {
             if (!text) return null
             const parts = text

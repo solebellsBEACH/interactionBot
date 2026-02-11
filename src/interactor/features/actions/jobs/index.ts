@@ -63,12 +63,20 @@ export class LinkedinJobsFlow {
             const maxApplicants = options?.maxApplicants
             const includeUnknownApplicants = options?.includeUnknownApplicants ?? false
             const includeDetails = options?.includeDetails ?? true
+            const postedWithinDays = options?.postedWithinDays
             const results = new Map<string, EasyApplyJobResult>()
 
             for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
                 if (this._page.isClosed()) break
                 console.log(`Buscando jobs: pagina ${pageIndex + 1}/${maxPages}`)
-                const searchUrl = this._linkedinJobsScrap.buildSearchJobUrl(tag, options?.location, pageIndex * 25, options?.geoId, easyApplyOnly)
+                const searchUrl = this._linkedinJobsScrap.buildSearchJobUrl(
+                    tag,
+                    options?.location,
+                    pageIndex * 25,
+                    options?.geoId,
+                    easyApplyOnly,
+                    postedWithinDays
+                )
                 await this._navigator.goToLinkedinURL(searchUrl)
     
                 const ready = await this._linkedinJobsScrap.waitForJobResults()
@@ -86,16 +94,18 @@ export class LinkedinJobsFlow {
                 let unknownApplicants = 0
                 let notEasyApply = 0
                 let promotedBlocked = 0
+                let outOfDate = 0
                 for (const job of this._linkedinJobsScrap.filterResults(pageResults, {
                     onlyNonPromoted,
                     maxApplicants,
                     easyApplyOnly,
-                    includeUnknownApplicants
+                    includeUnknownApplicants,
+                    postedWithinDays
                 })) {
                     if (results.size >= maxResults) break
                     results.set(job.url, job)
                 }
-                if (maxApplicants !== undefined) {
+                if (maxApplicants !== undefined || postedWithinDays !== undefined) {
                     for (const job of pageResults) {
                         if (onlyNonPromoted && job.promoted) {
                             promotedBlocked++
@@ -105,17 +115,25 @@ export class LinkedinJobsFlow {
                             notEasyApply++
                             continue
                         }
-                        if (job.applicants === null) {
-                            unknownApplicants++
-                            continue
+                        if (maxApplicants !== undefined) {
+                            if (job.applicants === null) {
+                                unknownApplicants++
+                                continue
+                            }
+                            if (job.applicants > maxApplicants) {
+                                aboveMax++
+                                continue
+                            }
                         }
-                        if (job.applicants > maxApplicants) {
-                            aboveMax++
+                        if (postedWithinDays !== undefined) {
+                            if (!this._linkedinJobsScrap.isPostedWithinDays(job.postedAt, postedWithinDays)) {
+                                outOfDate++
+                            }
                         }
                     }
                     const kept = results.size - beforeCount
                     console.log(
-                        `[bot] Filtro candidaturas: pagina ${pageIndex + 1} | total=${pageResults.length} | mantidas=${kept} | acimaMax=${aboveMax} | semNumero=${unknownApplicants} | naoEasy=${notEasyApply} | promovidas=${promotedBlocked}`
+                        `[bot] Filtro candidaturas: pagina ${pageIndex + 1} | total=${pageResults.length} | mantidas=${kept} | acimaMax=${aboveMax} | semNumero=${unknownApplicants} | naoEasy=${notEasyApply} | promovidas=${promotedBlocked} | foraData=${outOfDate}`
                     )
                 }
 
