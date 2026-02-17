@@ -8,7 +8,8 @@
     "open:linkedin": "npx ts-node src/interactor/main.ts",
     "install:chrome": "npx playwright install chrome",
     "install:browsers": "npx playwright install chromium",
-    "test": "playwright test",
+    "test": "node scripts/test-functions.mjs",
+    "test:playwright": "playwright test",
     "test:ui": "playwright test --ui --headed"
   },
   "author": "",

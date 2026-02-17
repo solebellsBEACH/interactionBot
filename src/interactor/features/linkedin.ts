@@ -14,6 +14,7 @@ import { LinkedinJobsFlow } from "./actions/jobs";
 import { EasyApplyJobResult, SearchJobTagOptions } from "./actions/scrap/jobs";
 import { ProfileFlow } from "./actions/profile/profile-flow";
 import { DashboardFlow } from "./actions/dashboard/dashboard-flow";
+import { MyNetworkScrap, VisitConnectionsOptions } from "./actions/scrap/my-network";
 
 
 type UpvoteOptions = {
@@ -33,6 +34,7 @@ export class LinkedinFeatures {
     private _commands: LinkedinDiscordCommands
     private _profileFlow: ProfileFlow
     private _dashboardFlow: DashboardFlow
+    private _networkScrap: MyNetworkScrap
 
     constructor(page: Page, discord?: DiscordClient) {
         this._elementHandle = new ElementHandle(page)
@@ -50,6 +52,7 @@ export class LinkedinFeatures {
 
         this._profileFlow= new  ProfileFlow(page)
         this._dashboardFlow = new DashboardFlow(page, this._linkedinCoreFeatures)
+        this._networkScrap = new MyNetworkScrap(page, this._linkedinCoreFeatures)
         this._commands = new LinkedinDiscordCommands({
             easyApply: this.easyApply.bind(this),
             searchJobTag: this.searchJobTag.bind(this),
@@ -72,6 +75,14 @@ export class LinkedinFeatures {
         return this._connectFlow.sendConnection(profileURL, inMailOptions)
     }
 
+    async connectByKeyword(keyword: string, options?: { maxResults?: number; maxPages?: number }) {
+        return this._connectFlow.searchConnectionsByKeyword(keyword, options)
+    }
+
+    async accountSummary() {
+        return this._linkedinCoreFeatures.getOwnProfileSummary()
+    }
+
     async easyApply(jobURL?: string): Promise<EasyApplyStepValues[]> {
         return this._easyApplyFlow.execute(jobURL || env.linkedinURLs.jobURL)
     }
@@ -82,6 +93,22 @@ export class LinkedinFeatures {
 
     async upvoteOnPosts(options?: UpvoteOptions): Promise<string[]> {
         return this._upvoteFlow.upvoteOnPosts(options)
+    }
+
+    async ensureSession() {
+        return this._linkedinCoreFeatures.auth()
+    }
+
+    async login() {
+        return this._linkedinCoreFeatures.login()
+    }
+
+    async relogin() {
+        return this._linkedinCoreFeatures.relogin()
+    }
+
+    async logout() {
+        return this._linkedinCoreFeatures.logout()
     }
 
     async profile(profileUrl?: string){
@@ -98,6 +125,10 @@ export class LinkedinFeatures {
 
     async dashboardNetwork() {
         return await this._dashboardFlow.networkOnly()
+    }
+
+    async visitConnections(options?: VisitConnectionsOptions) {
+        return await this._networkScrap.visitConnectionProfiles(options)
     }
 
 }

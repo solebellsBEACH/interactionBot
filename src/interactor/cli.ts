@@ -2,12 +2,16 @@ import { BrowserContext, chromium } from 'playwright';
 import { env } from './shared/env';
 import { LinkedinFeatures } from './features/linkedin';
 import { DiscordClient } from './shared/discord/discord-client';
+import { disconnectFromDatabase } from '../api/database';
 
 type Action =
+  | 'account'
+  | 'session'
   | 'profile'
   | 'dashboard'
   | 'dashboard-profile'
   | 'dashboard-network'
+  | 'connections-visit'
   | 'easy-apply'
   | 'search-jobs'
   | 'catch-jobs'
@@ -22,12 +26,23 @@ type ParsedArgs = {
   message?: string
   maxResults?: number
   maxLikes?: number
+  maxApplicants?: number
+  maxPages?: number
+  postedWithinDays?: number
+  easyApplyOnly?: boolean
+  includeUnknownApplicants?: boolean
+  maxConnections?: number
+  delayMs?: number
+  maxScrollRounds?: number
+  maxIdleRounds?: number
   headless?: boolean
 };
 
-const parseArgs = (argv: string[]): ParsedArgs => {
-  const raw: Record<string, string | boolean> = {}
+const TRUTHY_VALUES = new Set(['1', 'true', 'yes'])
+const FALSEY_VALUES = new Set(['0', 'false', 'no'])
 
+const parseRawArgs = (argv: string[]): Record<string, string | boolean> => {
+  const raw: Record<string, string | boolean> = {}
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (!arg.startsWith('--')) continue
@@ -40,46 +55,121 @@ const parseArgs = (argv: string[]): ParsedArgs => {
     raw[key] = next
     i++
   }
+  return raw
+}
 
-  const headlessRaw = raw.headless
-  const headless =
-    headlessRaw === true ||
-    (typeof headlessRaw === 'string' && ['1', 'true', 'yes'].includes(headlessRaw.toLowerCase()))
+const parseOptionalNumber = (value: string | boolean | undefined) => {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim()
+  if (!normalized) return undefined
+  const parsed = Number(normalized)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
 
-  const maxResults =
-    typeof raw.maxResults === 'string' && raw.maxResults.trim()
-      ? Number(raw.maxResults)
-      : undefined
+const parseOptionalBoolean = (value: string | boolean | undefined) => {
+  if (value === true) return true
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  if (TRUTHY_VALUES.has(normalized)) return true
+  if (FALSEY_VALUES.has(normalized)) return false
+  return undefined
+}
 
-  const maxLikes =
-    typeof raw.maxLikes === 'string' && raw.maxLikes.trim()
-      ? Number(raw.maxLikes)
-      : undefined
+const parseDatePostedDays = (value: string | undefined) => {
+  if (!value) return undefined
+  const normalized = value.trim().toLowerCase()
+  if (['24h', '24hours', '24hrs', 'day', '1d', 'hoje'].includes(normalized)) {
+    return 1
+  }
+  if (['week', 'semana', '7d', '1w'].includes(normalized)) {
+    return 7
+  }
+  if (['month', 'mes', 'mês', '30d', '1m'].includes(normalized)) {
+    return 30
+  }
+  return undefined
+}
+
+const getStringArg = (raw: Record<string, string | boolean>, key: string) => {
+  const value = raw[key]
+  return typeof value === 'string' ? value : undefined
+}
+
+const parseArgs = (argv: string[]): ParsedArgs => {
+  const raw = parseRawArgs(argv)
+  const postedWithinDays = parseOptionalNumber(raw.postedWithinDays)
+  const datePostedDays = parseDatePostedDays(getStringArg(raw, 'datePosted'))
 
   return {
     action: typeof raw.action === 'string' ? (raw.action as Action) : undefined,
-    jobUrl: typeof raw.jobUrl === 'string' ? raw.jobUrl : undefined,
-    tag: typeof raw.tag === 'string' ? raw.tag : undefined,
-    profileUrl: typeof raw.profileUrl === 'string' ? raw.profileUrl : undefined,
-    message: typeof raw.message === 'string' ? raw.message : undefined,
-    maxResults: Number.isNaN(maxResults) ? undefined : maxResults,
-    maxLikes: Number.isNaN(maxLikes) ? undefined : maxLikes,
-    headless
+    jobUrl: getStringArg(raw, 'jobUrl'),
+    tag: getStringArg(raw, 'tag'),
+    profileUrl: getStringArg(raw, 'profileUrl'),
+    message: getStringArg(raw, 'message'),
+    maxResults: parseOptionalNumber(raw.maxResults),
+    maxLikes: parseOptionalNumber(raw.maxLikes),
+    maxApplicants: parseOptionalNumber(raw.maxApplicants),
+    maxPages: parseOptionalNumber(raw.maxPages),
+    postedWithinDays: postedWithinDays ?? datePostedDays,
+    easyApplyOnly: parseOptionalBoolean(raw.easyApplyOnly),
+    includeUnknownApplicants: parseOptionalBoolean(raw.includeUnknownApplicants),
+    maxConnections: parseOptionalNumber(raw.maxConnections),
+    delayMs: parseOptionalNumber(raw.delayMs),
+    maxScrollRounds: parseOptionalNumber(raw.maxScrollRounds),
+    maxIdleRounds: parseOptionalNumber(raw.maxIdleRounds),
+    headless: parseOptionalBoolean(raw.headless)
   }
 }
 
 let browser: BrowserContext | undefined
 let shuttingDown = false
 
+type JobFilterLog = {
+  easyApplyOnly: boolean
+  maxApplicants?: number
+  includeUnknownApplicants?: boolean
+  postedWithinDays?: number
+}
+
+const buildJobSearchOptions = (args: ParsedArgs, easyApplyDefault: boolean) => {
+  const easyApplyOnly = args.easyApplyOnly ?? easyApplyDefault
+  const maxApplicants = args.maxApplicants
+  const includeUnknownApplicants = args.includeUnknownApplicants
+  const postedWithinDays = args.postedWithinDays
+  return {
+    filters: {
+      easyApplyOnly,
+      maxApplicants,
+      includeUnknownApplicants,
+      postedWithinDays
+    },
+    options: {
+      maxResults: args.maxResults,
+      maxPages: args.maxPages,
+      maxApplicants,
+      postedWithinDays,
+      easyApplyOnly,
+      includeUnknownApplicants
+    }
+  }
+}
+
+const logJobFilters = (filters: JobFilterLog) => {
+  console.log(
+    `[bot] Filtros: easyApplyOnly=${filters.easyApplyOnly} | maxApplicants=${filters.maxApplicants ?? '-'} | includeUnknownApplicants=${filters.includeUnknownApplicants ?? '-'} | postedWithinDays=${filters.postedWithinDays ?? '-'}`
+  )
+}
+
 const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
   const action = args.action || 'profile'
   const defaultTag = env.linkedinURLs.searchJobTag || ''
 
   switch (action) {
+    case 'session':
+      return features.ensureSession()
     case 'profile':
       {
-        const profileUrl = args.profileUrl?.trim()
-        if (!profileUrl) throw new Error('missing-profile-url')
+        const profileUrl = args.profileUrl?.trim() || undefined
         return features.profile(profileUrl)
       }
     case 'dashboard':
@@ -88,20 +178,31 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
       return features.dashboardProfile(args.profileUrl)
     case 'dashboard-network':
       return features.dashboardNetwork()
+    case 'connections-visit':
+      return features.visitConnections({
+        maxToVisit: args.maxConnections,
+        delayMs: args.delayMs,
+        maxScrollRounds: args.maxScrollRounds,
+        maxIdleRounds: args.maxIdleRounds
+      })
     case 'easy-apply':
       return features.easyApply(args.jobUrl)
     case 'search-jobs':
       {
         const tag = (args.tag || defaultTag).trim()
         if (!tag) throw new Error('missing-tag')
-        const results = await features.searchJobTag(tag, args.maxResults ? { maxResults: args.maxResults } : undefined)
+        const { filters, options } = buildJobSearchOptions(args, false)
+        logJobFilters(filters)
+        const results = await features.searchJobTag(tag, options)
         logJobs('Buscar jobs', results)
         return results
       }
     case 'catch-jobs':
       {
         const tag = (args.tag || defaultTag).trim() || undefined
-        const results = await features.catchJobs(tag, args.maxResults ? { maxResults: args.maxResults } : undefined)
+        const { filters, options } = buildJobSearchOptions(args, true)
+        logJobFilters(filters)
+        const results = await features.catchJobs(tag, options)
         logJobs('Capturar jobs', results)
         if (results.length === 0) return results
 
@@ -121,11 +222,33 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
         return results
       }
     case 'connect':
-      if (!args.profileUrl) throw new Error('missing-profile-url')
-      return features.sendConnection(
-        args.profileUrl,
-        args.message ? { message: args.message } : undefined
-      )
+      if (args.profileUrl) {
+        return features.sendConnection(
+          args.profileUrl,
+          args.message ? { message: args.message } : undefined
+        )
+      }
+      {
+        const keyword = (args.tag || '').trim()
+        if (!keyword) throw new Error('missing-tag')
+        const results = await features.connectByKeyword(keyword, {
+          maxResults: args.maxResults,
+          maxPages: args.maxPages
+        })
+        logConnections('Conexoes encontradas', results)
+        return results
+      }
+    case 'account':
+      {
+        const summary = await features.accountSummary()
+        if (!summary) throw new Error('account-not-found')
+        if (summary.name) console.log(`[account] name: ${summary.name}`)
+        if (summary.headline) console.log(`[account] headline: ${summary.headline}`)
+        if (summary.location) console.log(`[account] location: ${summary.location}`)
+        if (summary.photoUrl) console.log(`[account] photo: ${summary.photoUrl}`)
+        if (summary.profileUrl) console.log(`[account] url: ${summary.profileUrl}`)
+        return summary
+      }
     case 'upvote':
       {
         const results = await features.upvoteOnPosts({
@@ -151,6 +274,7 @@ const main = async (): Promise<void> => {
     console.log('Encerrando...')
     try {
       await browser?.close()
+      await disconnectFromDatabase().catch(() => undefined)
     } finally {
       process.exit(0)
     }
@@ -175,6 +299,9 @@ const main = async (): Promise<void> => {
     await browser?.close().catch((error) => {
       console.warn('Falha ao fechar o navegador:', error)
     })
+    await disconnectFromDatabase().catch((error) => {
+      console.warn('Falha ao fechar o MongoDB:', error)
+    })
   }
 }
 
@@ -191,13 +318,51 @@ function logHeader(title: string, value: string) {
 
 function logJobs(
   title: string,
-  jobs: { title: string; company: string; location: string; url: string }[]
+  jobs: {
+    title: string
+    company: string
+    location: string
+    url: string
+    applicants?: number | null
+    postedAt?: string | null
+    easyApply?: boolean
+  }[]
 ) {
+  const clean = (value: string) => value.replace(/\s+/g, ' ').trim()
   console.log(`[bot] ${title}: ${jobs.length}`)
   if (!jobs.length) return
   for (const [idx, job] of jobs.entries()) {
-    const parts = [job.title, job.company, job.location].filter(Boolean).join(' | ')
-    console.log(`${idx + 1}. ${parts} | ${job.url}`)
+    const posted = job.postedAt ? `Publicado: ${job.postedAt}` : 'Publicado: —'
+    const applicants =
+      typeof job.applicants === 'number' ? `Candidaturas: ${job.applicants}` : 'Candidaturas: —'
+    const easyApply = `Easy Apply: ${job.easyApply ? 'sim' : 'nao'}`
+    const parts = [job.title, job.company, job.location, posted, applicants, easyApply]
+      .filter(Boolean)
+      .map((value) => clean(String(value)))
+      .join(' | ')
+    console.log(`${idx + 1}. ${parts} | ${clean(job.url)}`)
+  }
+}
+
+function logConnections(
+  title: string,
+  connections: {
+    name?: string
+    headline?: string
+    location?: string
+    url: string
+  }[]
+) {
+  const clean = (value: string) => value.replace(/\s+/g, ' ').trim()
+  console.log(`[bot] ${title}: ${connections.length}`)
+  if (!connections.length) return
+  for (const [idx, connection] of connections.entries()) {
+    const parts = [connection.name, connection.headline, connection.location]
+      .filter(Boolean)
+      .map((value) => clean(String(value)))
+      .join(' | ')
+    const label = parts ? `${parts} | ${clean(connection.url)}` : clean(connection.url)
+    console.log(`${idx + 1}. ${label}`)
   }
 }
 

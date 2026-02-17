@@ -3,6 +3,7 @@ import { env } from "../../../shared/env"
 import { LinkedinCoreFeatures } from "../../linkedin-core"
 import { ProfileScraps } from "../scrap/profile"
 import { MyNetworkScrap } from "../scrap/my-network"
+import { rankWordsFromText, type WordRanking } from "../../../shared/utils/word-ranking"
 
 export class ProfileFlow{
 
@@ -19,12 +20,18 @@ export class ProfileFlow{
         
 
         async main(profileUrl?: string){
-            const targetUrl = (profileUrl || env.linkedinURLs.recruiterURL || '').trim()
+            let targetUrl = (profileUrl || env.linkedinURLs.recruiterURL || '').trim()
+
+            await this._navigator.auth()
+
+            if (!targetUrl) {
+                targetUrl = (await this._navigator.getOwnProfileUrl()) || ''
+            }
+
             if (!targetUrl) {
                 throw new Error('missing-profile-url')
             }
 
-            await this._navigator.auth()
             console.log(`[profile] iniciando scrape: ${targetUrl}`)
             // const result = await this._profileScrap.scrapeProfile(targetUrl)
             // console.log(result)
@@ -61,36 +68,9 @@ export class ProfileFlow{
                 console.log('[profile] ranking palavras: sem conteúdo')
                 return
             }
-
-            const normalized = combined
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, ' ')
-
-            const stopwords = new Set([
-                'a','as','o','os','um','uma','uns','umas','de','da','do','das','dos','e','ou','em','no','na','nos','nas',
-                'por','para','com','sem','sob','sobre','entre','ate','até','ao','aos','à','às','que','se','sua','seu','suas','seus',
-                'como','mais','menos','muito','muitos','muita','muitas','foi','era','sao','são','ser','estar','tem','tendo',
-                'the','and','or','in','on','at','to','for','of','with','from','by','is','are','was','were','be','been','being','as'
-            ])
-
-            const counts = new Map<string, number>()
-            for (const word of normalized.split(/\s+/g)) {
-                if (!word || word.length < 2) continue
-                if (stopwords.has(word)) continue
-                counts.set(word, (counts.get(word) ?? 0) + 1)
-            }
-
-            const ranking = Array.from(counts.entries())
-                .sort((a, b) => {
-                    if (b[1] !== a[1]) return b[1] - a[1]
-                    return a[0].localeCompare(b[0])
-                })
-                .slice(0, top)
-
+            const ranking: WordRanking[] = rankWordsFromText(combined, top)
             console.log(`[profile] ranking palavras (top ${top}):`)
-            for (const [idx, [word, count]] of ranking.entries()) {
+            for (const [idx, { word, count }] of ranking.entries()) {
                 console.log(`${idx + 1}. ${word} (${count})`)
             }
         }

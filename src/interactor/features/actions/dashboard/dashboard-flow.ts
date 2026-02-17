@@ -1,10 +1,10 @@
 import { Page } from "playwright"
 import { env } from "../../../shared/env"
+import { rankWordsFromLines, type WordRanking } from "../../../shared/utils/word-ranking"
 import { LinkedinCoreFeatures } from "../../linkedin-core"
 import { MyNetworkScrap } from "../scrap/my-network"
 import { ProfileScraps } from "../scrap/profile"
-
-type WordRanking = { word: string; count: number }
+import { saveDashboardAnalysis } from "../../../../api/controllers/dashboard-analyses"
 
 type DashboardMode = 'full' | 'profile' | 'network'
 
@@ -43,7 +43,12 @@ export class DashboardFlow {
   }
 
   private async _run(mode: DashboardMode, profileUrl?: string) {
+    await this._navigator.auth()
+
     let targetUrl = (profileUrl || env.linkedinURLs.recruiterURL || '').trim()
+    if (targetUrl.includes('/in/me')) {
+      targetUrl = ''
+    }
 
     if (mode !== 'network') {
       if (!targetUrl) {
@@ -53,8 +58,6 @@ export class DashboardFlow {
         throw new Error('missing-profile-url')
       }
     }
-
-    await this._navigator.auth()
 
     let profileWords: WordRanking[] = []
     let networkWords: WordRanking[] = []
@@ -68,7 +71,7 @@ export class DashboardFlow {
     if (mode === 'full' || mode === 'network') {
       const network = await this._networkScrap.myConnections()
       networkWords = network.ranking
-      connectionsCount = network.subtitles.length
+      connectionsCount = network.connectionsCount ?? network.subtitles.length
       if (!networkWords.length) {
         console.log('[dashboard] network: sem keywords detectadas')
       }
@@ -85,6 +88,18 @@ export class DashboardFlow {
       }
     }
 
+    try {
+      await saveDashboardAnalysis({
+        type: mode,
+        profileWords: profileWords.length ? profileWords : undefined,
+        networkWords: networkWords.length ? networkWords : undefined,
+        profileUrl: targetUrl || undefined,
+        connectionsCount
+      })
+    } catch (error) {
+      console.warn('[dashboard] falha ao salvar no banco:', error)
+    }
+
     console.log(`[dashboard] data: ${JSON.stringify(payload)}`)
     return payload
   }
@@ -98,39 +113,6 @@ export class DashboardFlow {
     for (const exp of profile.experiences || []) {
       parts.push(exp.title, exp.company, exp.dates, exp.location, exp.description)
     }
-    const combined = parts.filter(Boolean).join('\n')
-    return this._rankWords(combined)
-  }
-
-  private _rankWords(text: string, top = 20): WordRanking[] {
-    if (!text.trim()) return []
-
-    const normalized = text
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, ' ')
-
-    const stopwords = new Set([
-      'a','as','o','os','um','uma','uns','umas','de','da','do','das','dos','e','ou','em','no','na','nos','nas',
-      'por','para','com','sem','sob','sobre','entre','ate','até','ao','aos','à','às','que','se','sua','seu','suas','seus',
-      'como','mais','menos','muito','muitos','muita','muitas','foi','era','sao','são','ser','estar','tem','tendo',
-      'the','and','or','in','on','at','to','for','of','with','from','by','is','are','was','were','be','been','being','as'
-    ])
-
-    const counts = new Map<string, number>()
-    for (const word of normalized.split(/\s+/g)) {
-      if (!word || word.length < 2) continue
-      if (stopwords.has(word)) continue
-      counts.set(word, (counts.get(word) ?? 0) + 1)
-    }
-
-    return Array.from(counts.entries())
-      .sort((a, b) => {
-        if (b[1] !== a[1]) return b[1] - a[1]
-        return a[0].localeCompare(b[0])
-      })
-      .slice(0, top)
-      .map(([word, count]) => ({ word, count }))
+    return rankWordsFromLines(parts)
   }
 }
