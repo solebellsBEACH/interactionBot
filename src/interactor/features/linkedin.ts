@@ -75,6 +75,14 @@ export class LinkedinFeatures {
         return this._connectFlow.sendConnection(profileURL, inMailOptions)
     }
 
+    async connectByKeyword(keyword: string, options?: { maxResults?: number; maxPages?: number }) {
+        return this._connectFlow.searchConnectionsByKeyword(keyword, options)
+    }
+
+    async accountSummary() {
+        return this._linkedinCoreFeatures.getOwnProfileSummary()
+    }
+
     async easyApply(jobURL?: string): Promise<EasyApplyStepValues[]> {
         return this._easyApplyFlow.execute(jobURL || env.linkedinURLs.jobURL)
     }
@@ -85,6 +93,22 @@ export class LinkedinFeatures {
 
     async upvoteOnPosts(options?: UpvoteOptions): Promise<string[]> {
         return this._upvoteFlow.upvoteOnPosts(options)
+    }
+
+    async ensureSession() {
+        return this._linkedinCoreFeatures.auth()
+    }
+
+    async login() {
+        return this._linkedinCoreFeatures.login()
+    }
+
+    async relogin() {
+        return this._linkedinCoreFeatures.relogin()
+    }
+
+    async logout() {
+        return this._linkedinCoreFeatures.logout()
     }
 
     async profile(profileUrl?: string){

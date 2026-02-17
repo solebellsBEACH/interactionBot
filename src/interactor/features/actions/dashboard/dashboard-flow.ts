@@ -43,7 +43,12 @@ export class DashboardFlow {
   }
 
   private async _run(mode: DashboardMode, profileUrl?: string) {
+    await this._navigator.auth()
+
     let targetUrl = (profileUrl || env.linkedinURLs.recruiterURL || '').trim()
+    if (targetUrl.includes('/in/me')) {
+      targetUrl = ''
+    }
 
     if (mode !== 'network') {
       if (!targetUrl) {
@@ -53,8 +58,6 @@ export class DashboardFlow {
         throw new Error('missing-profile-url')
       }
     }
-
-    await this._navigator.auth()
 
     let profileWords: WordRanking[] = []
     let networkWords: WordRanking[] = []

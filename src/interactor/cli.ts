@@ -5,6 +5,8 @@ import { DiscordClient } from './shared/discord/discord-client';
 import { disconnectFromDatabase } from '../api/database';
 
 type Action =
+  | 'account'
+  | 'session'
   | 'profile'
   | 'dashboard'
   | 'dashboard-profile'
@@ -36,9 +38,11 @@ type ParsedArgs = {
   headless?: boolean
 };
 
-const parseArgs = (argv: string[]): ParsedArgs => {
-  const raw: Record<string, string | boolean> = {}
+const TRUTHY_VALUES = new Set(['1', 'true', 'yes'])
+const FALSEY_VALUES = new Set(['0', 'false', 'no'])
 
+const parseRawArgs = (argv: string[]): Record<string, string | boolean> => {
+  const raw: Record<string, string | boolean> = {}
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (!arg.startsWith('--')) continue
@@ -51,131 +55,118 @@ const parseArgs = (argv: string[]): ParsedArgs => {
     raw[key] = next
     i++
   }
+  return raw
+}
 
-  const headlessRaw = raw.headless
-  const headless =
-    headlessRaw === true ||
-    (typeof headlessRaw === 'string' && ['1', 'true', 'yes'].includes(headlessRaw.toLowerCase()))
+const parseOptionalNumber = (value: string | boolean | undefined) => {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim()
+  if (!normalized) return undefined
+  const parsed = Number(normalized)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
 
-  const maxResults =
-    typeof raw.maxResults === 'string' && raw.maxResults.trim()
-      ? Number(raw.maxResults)
-      : undefined
+const parseOptionalBoolean = (value: string | boolean | undefined) => {
+  if (value === true) return true
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  if (TRUTHY_VALUES.has(normalized)) return true
+  if (FALSEY_VALUES.has(normalized)) return false
+  return undefined
+}
 
-  const maxLikes =
-    typeof raw.maxLikes === 'string' && raw.maxLikes.trim()
-      ? Number(raw.maxLikes)
-      : undefined
-
-  const maxApplicants =
-    typeof raw.maxApplicants === 'string' && raw.maxApplicants.trim()
-      ? Number(raw.maxApplicants)
-      : undefined
-
-  const maxPages =
-    typeof raw.maxPages === 'string' && raw.maxPages.trim()
-      ? Number(raw.maxPages)
-      : undefined
-
-  const postedWithinDays =
-    typeof raw.postedWithinDays === 'string' && raw.postedWithinDays.trim()
-      ? Number(raw.postedWithinDays)
-      : undefined
-
-  let datePostedDays: number | undefined
-  if (typeof raw.datePosted === 'string') {
-    const normalized = raw.datePosted.trim().toLowerCase()
-    if (['24h', '24hours', '24hrs', 'day', '1d', 'hoje'].includes(normalized)) {
-      datePostedDays = 1
-    } else if (['week', 'semana', '7d', '1w'].includes(normalized)) {
-      datePostedDays = 7
-    } else if (['month', 'mes', 'mês', '30d', '1m'].includes(normalized)) {
-      datePostedDays = 30
-    }
+const parseDatePostedDays = (value: string | undefined) => {
+  if (!value) return undefined
+  const normalized = value.trim().toLowerCase()
+  if (['24h', '24hours', '24hrs', 'day', '1d', 'hoje'].includes(normalized)) {
+    return 1
   }
-
-  let easyApplyOnly: boolean | undefined
-  if (raw.easyApplyOnly !== undefined) {
-    const easyApplyOnlyRaw = raw.easyApplyOnly
-    if (easyApplyOnlyRaw === true) {
-      easyApplyOnly = true
-    } else if (typeof easyApplyOnlyRaw === 'string') {
-      const normalized = easyApplyOnlyRaw.toLowerCase()
-      if (['1', 'true', 'yes'].includes(normalized)) {
-        easyApplyOnly = true
-      } else if (['0', 'false', 'no'].includes(normalized)) {
-        easyApplyOnly = false
-      }
-    }
+  if (['week', 'semana', '7d', '1w'].includes(normalized)) {
+    return 7
   }
-
-  let includeUnknownApplicants: boolean | undefined
-  if (raw.includeUnknownApplicants !== undefined) {
-    const includeRaw = raw.includeUnknownApplicants
-    if (includeRaw === true) {
-      includeUnknownApplicants = true
-    } else if (typeof includeRaw === 'string') {
-      const normalized = includeRaw.toLowerCase()
-      if (['1', 'true', 'yes'].includes(normalized)) {
-        includeUnknownApplicants = true
-      } else if (['0', 'false', 'no'].includes(normalized)) {
-        includeUnknownApplicants = false
-      }
-    }
+  if (['month', 'mes', 'mês', '30d', '1m'].includes(normalized)) {
+    return 30
   }
+  return undefined
+}
 
-  const maxConnections =
-    typeof raw.maxConnections === 'string' && raw.maxConnections.trim()
-      ? Number(raw.maxConnections)
-      : undefined
+const getStringArg = (raw: Record<string, string | boolean>, key: string) => {
+  const value = raw[key]
+  return typeof value === 'string' ? value : undefined
+}
 
-  const delayMs =
-    typeof raw.delayMs === 'string' && raw.delayMs.trim()
-      ? Number(raw.delayMs)
-      : undefined
-
-  const maxScrollRounds =
-    typeof raw.maxScrollRounds === 'string' && raw.maxScrollRounds.trim()
-      ? Number(raw.maxScrollRounds)
-      : undefined
-
-  const maxIdleRounds =
-    typeof raw.maxIdleRounds === 'string' && raw.maxIdleRounds.trim()
-      ? Number(raw.maxIdleRounds)
-      : undefined
+const parseArgs = (argv: string[]): ParsedArgs => {
+  const raw = parseRawArgs(argv)
+  const postedWithinDays = parseOptionalNumber(raw.postedWithinDays)
+  const datePostedDays = parseDatePostedDays(getStringArg(raw, 'datePosted'))
 
   return {
     action: typeof raw.action === 'string' ? (raw.action as Action) : undefined,
-    jobUrl: typeof raw.jobUrl === 'string' ? raw.jobUrl : undefined,
-    tag: typeof raw.tag === 'string' ? raw.tag : undefined,
-    profileUrl: typeof raw.profileUrl === 'string' ? raw.profileUrl : undefined,
-    message: typeof raw.message === 'string' ? raw.message : undefined,
-    maxResults: Number.isNaN(maxResults) ? undefined : maxResults,
-    maxLikes: Number.isNaN(maxLikes) ? undefined : maxLikes,
-    maxApplicants: Number.isNaN(maxApplicants) ? undefined : maxApplicants,
-    maxPages: Number.isNaN(maxPages) ? undefined : maxPages,
-    postedWithinDays:
-      postedWithinDays === undefined || Number.isNaN(postedWithinDays)
-        ? datePostedDays
-        : postedWithinDays,
-    easyApplyOnly,
-    includeUnknownApplicants,
-    maxConnections: Number.isNaN(maxConnections) ? undefined : maxConnections,
-    delayMs: Number.isNaN(delayMs) ? undefined : delayMs,
-    maxScrollRounds: Number.isNaN(maxScrollRounds) ? undefined : maxScrollRounds,
-    maxIdleRounds: Number.isNaN(maxIdleRounds) ? undefined : maxIdleRounds,
-    headless
+    jobUrl: getStringArg(raw, 'jobUrl'),
+    tag: getStringArg(raw, 'tag'),
+    profileUrl: getStringArg(raw, 'profileUrl'),
+    message: getStringArg(raw, 'message'),
+    maxResults: parseOptionalNumber(raw.maxResults),
+    maxLikes: parseOptionalNumber(raw.maxLikes),
+    maxApplicants: parseOptionalNumber(raw.maxApplicants),
+    maxPages: parseOptionalNumber(raw.maxPages),
+    postedWithinDays: postedWithinDays ?? datePostedDays,
+    easyApplyOnly: parseOptionalBoolean(raw.easyApplyOnly),
+    includeUnknownApplicants: parseOptionalBoolean(raw.includeUnknownApplicants),
+    maxConnections: parseOptionalNumber(raw.maxConnections),
+    delayMs: parseOptionalNumber(raw.delayMs),
+    maxScrollRounds: parseOptionalNumber(raw.maxScrollRounds),
+    maxIdleRounds: parseOptionalNumber(raw.maxIdleRounds),
+    headless: parseOptionalBoolean(raw.headless)
   }
 }
 
 let browser: BrowserContext | undefined
 let shuttingDown = false
 
+type JobFilterLog = {
+  easyApplyOnly: boolean
+  maxApplicants?: number
+  includeUnknownApplicants?: boolean
+  postedWithinDays?: number
+}
+
+const buildJobSearchOptions = (args: ParsedArgs, easyApplyDefault: boolean) => {
+  const easyApplyOnly = args.easyApplyOnly ?? easyApplyDefault
+  const maxApplicants = args.maxApplicants
+  const includeUnknownApplicants = args.includeUnknownApplicants
+  const postedWithinDays = args.postedWithinDays
+  return {
+    filters: {
+      easyApplyOnly,
+      maxApplicants,
+      includeUnknownApplicants,
+      postedWithinDays
+    },
+    options: {
+      maxResults: args.maxResults,
+      maxPages: args.maxPages,
+      maxApplicants,
+      postedWithinDays,
+      easyApplyOnly,
+      includeUnknownApplicants
+    }
+  }
+}
+
+const logJobFilters = (filters: JobFilterLog) => {
+  console.log(
+    `[bot] Filtros: easyApplyOnly=${filters.easyApplyOnly} | maxApplicants=${filters.maxApplicants ?? '-'} | includeUnknownApplicants=${filters.includeUnknownApplicants ?? '-'} | postedWithinDays=${filters.postedWithinDays ?? '-'}`
+  )
+}
+
 const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
   const action = args.action || 'profile'
   const defaultTag = env.linkedinURLs.searchJobTag || ''
 
   switch (action) {
+    case 'session':
+      return features.ensureSession()
     case 'profile':
       {
         const profileUrl = args.profileUrl?.trim() || undefined
@@ -200,40 +191,18 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
       {
         const tag = (args.tag || defaultTag).trim()
         if (!tag) throw new Error('missing-tag')
-        const easyApplyOnly = args.easyApplyOnly ?? false
-        const maxApplicants = args.maxApplicants
-        const includeUnknownApplicants = args.includeUnknownApplicants
-        console.log(
-          `[bot] Filtros: easyApplyOnly=${easyApplyOnly} | maxApplicants=${maxApplicants ?? '-'} | includeUnknownApplicants=${includeUnknownApplicants ?? '-'} | postedWithinDays=${args.postedWithinDays ?? '-'}`
-        )
-        const results = await features.searchJobTag(tag, {
-          maxResults: args.maxResults,
-          maxPages: args.maxPages,
-          maxApplicants,
-          postedWithinDays: args.postedWithinDays,
-          easyApplyOnly,
-          includeUnknownApplicants
-        })
+        const { filters, options } = buildJobSearchOptions(args, false)
+        logJobFilters(filters)
+        const results = await features.searchJobTag(tag, options)
         logJobs('Buscar jobs', results)
         return results
       }
     case 'catch-jobs':
       {
         const tag = (args.tag || defaultTag).trim() || undefined
-        const easyApplyOnly = args.easyApplyOnly ?? true
-        const maxApplicants = args.maxApplicants
-        const includeUnknownApplicants = args.includeUnknownApplicants
-        console.log(
-          `[bot] Filtros: easyApplyOnly=${easyApplyOnly} | maxApplicants=${maxApplicants ?? '-'} | includeUnknownApplicants=${includeUnknownApplicants ?? '-'} | postedWithinDays=${args.postedWithinDays ?? '-'}`
-        )
-        const results = await features.catchJobs(tag, {
-          maxResults: args.maxResults,
-          maxPages: args.maxPages,
-          maxApplicants,
-          postedWithinDays: args.postedWithinDays,
-          easyApplyOnly,
-          includeUnknownApplicants
-        })
+        const { filters, options } = buildJobSearchOptions(args, true)
+        logJobFilters(filters)
+        const results = await features.catchJobs(tag, options)
         logJobs('Capturar jobs', results)
         if (results.length === 0) return results
 
@@ -253,11 +222,33 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
         return results
       }
     case 'connect':
-      if (!args.profileUrl) throw new Error('missing-profile-url')
-      return features.sendConnection(
-        args.profileUrl,
-        args.message ? { message: args.message } : undefined
-      )
+      if (args.profileUrl) {
+        return features.sendConnection(
+          args.profileUrl,
+          args.message ? { message: args.message } : undefined
+        )
+      }
+      {
+        const keyword = (args.tag || '').trim()
+        if (!keyword) throw new Error('missing-tag')
+        const results = await features.connectByKeyword(keyword, {
+          maxResults: args.maxResults,
+          maxPages: args.maxPages
+        })
+        logConnections('Conexoes encontradas', results)
+        return results
+      }
+    case 'account':
+      {
+        const summary = await features.accountSummary()
+        if (!summary) throw new Error('account-not-found')
+        if (summary.name) console.log(`[account] name: ${summary.name}`)
+        if (summary.headline) console.log(`[account] headline: ${summary.headline}`)
+        if (summary.location) console.log(`[account] location: ${summary.location}`)
+        if (summary.photoUrl) console.log(`[account] photo: ${summary.photoUrl}`)
+        if (summary.profileUrl) console.log(`[account] url: ${summary.profileUrl}`)
+        return summary
+      }
     case 'upvote':
       {
         const results = await features.upvoteOnPosts({
@@ -337,10 +328,10 @@ function logJobs(
     easyApply?: boolean
   }[]
 ) {
+  const clean = (value: string) => value.replace(/\s+/g, ' ').trim()
   console.log(`[bot] ${title}: ${jobs.length}`)
   if (!jobs.length) return
   for (const [idx, job] of jobs.entries()) {
-    const clean = (value: string) => value.replace(/\s+/g, ' ').trim()
     const posted = job.postedAt ? `Publicado: ${job.postedAt}` : 'Publicado: —'
     const applicants =
       typeof job.applicants === 'number' ? `Candidaturas: ${job.applicants}` : 'Candidaturas: —'
@@ -350,6 +341,28 @@ function logJobs(
       .map((value) => clean(String(value)))
       .join(' | ')
     console.log(`${idx + 1}. ${parts} | ${clean(job.url)}`)
+  }
+}
+
+function logConnections(
+  title: string,
+  connections: {
+    name?: string
+    headline?: string
+    location?: string
+    url: string
+  }[]
+) {
+  const clean = (value: string) => value.replace(/\s+/g, ' ').trim()
+  console.log(`[bot] ${title}: ${connections.length}`)
+  if (!connections.length) return
+  for (const [idx, connection] of connections.entries()) {
+    const parts = [connection.name, connection.headline, connection.location]
+      .filter(Boolean)
+      .map((value) => clean(String(value)))
+      .join(' | ')
+    const label = parts ? `${parts} | ${clean(connection.url)}` : clean(connection.url)
+    console.log(`${idx + 1}. ${label}`)
   }
 }
 
