@@ -29,6 +29,18 @@ const baseConfig = {
 
 const features = [
   {
+    name: 'session',
+    action: 'session',
+    args: {},
+    required: []
+  },
+  {
+    name: 'account',
+    action: 'account',
+    args: {},
+    required: []
+  },
+  {
     name: 'profile',
     action: 'profile',
     args: { profileUrl: baseConfig.profileUrl },
@@ -290,9 +302,19 @@ const validatePrereqs = () => {
   if (!fs.existsSync(CLI_PATH)) missing.push(`cli:${CLI_PATH}`)
   if (!readEnv('LINKEDIN_EMAIL')) missing.push('LINKEDIN_EMAIL')
   if (!readEnv('LINKEDIN_PASSWORD')) missing.push('LINKEDIN_PASSWORD')
-  if (!baseConfig.profileUrl) missing.push('BOT_TEST_PROFILE_URL or LINKEDIN_PROFILE_URL')
-  if (!baseConfig.jobUrl) missing.push('BOT_TEST_JOB_URL or LINKEDIN_JOB_URL')
-  if (!baseConfig.tag) missing.push('BOT_TEST_TAG or LINKEDIN_SEARCH_TAG')
+  const requiredKeys = new Set()
+  for (const feature of features) {
+    for (const key of feature.required || []) requiredKeys.add(key)
+  }
+  if (requiredKeys.has('profileUrl') && !baseConfig.profileUrl) {
+    missing.push('BOT_TEST_PROFILE_URL or LINKEDIN_PROFILE_URL')
+  }
+  if (requiredKeys.has('jobUrl') && !baseConfig.jobUrl) {
+    missing.push('BOT_TEST_JOB_URL or LINKEDIN_JOB_URL')
+  }
+  if (requiredKeys.has('tag') && !baseConfig.tag) {
+    missing.push('BOT_TEST_TAG or LINKEDIN_SEARCH_TAG')
+  }
   return missing
 }
 
