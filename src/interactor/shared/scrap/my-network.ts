@@ -1,19 +1,8 @@
 import { Locator, Page } from "playwright"
-import { LinkedinCoreFeatures } from "../../linkedin-core"
-import { rankWordsFromLines, type WordRanking } from "../../../shared/utils/word-ranking"
-
-export type MyNetworkScrapResult = {
-    subtitles: string[]
-    ranking: WordRanking[]
-    connectionsCount?: number
-}
-
-export type VisitConnectionsOptions = {
-    maxToVisit?: number
-    delayMs?: number
-    maxScrollRounds?: number
-    maxIdleRounds?: number
-}
+import { LinkedinCoreFeatures } from "../../features/linkedin-core"
+import { rankWordsFromLines } from "../utils/word-ranking"
+import { LINKEDIN_BASE_URL, LINKEDIN_URLS } from "../constants/linkedin-urls"
+import type { MyNetworkScrapResult, VisitConnectionsOptions } from "../interface/scrap/network.types"
 
 export class MyNetworkScrap {
     private readonly _page: Page
@@ -25,7 +14,7 @@ export class MyNetworkScrap {
     }
 
     async myConnections(): Promise<MyNetworkScrapResult> {
-        const url = 'https://www.linkedin.com/mynetwork/invite-connect/connections/'
+        const url = LINKEDIN_URLS.connections
         await this._navigator.goToLinkedinURL(url)
         await this._page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => undefined)
         await this._page.waitForTimeout(1200)
@@ -79,7 +68,7 @@ export class MyNetworkScrap {
     }
 
     async visitConnectionProfiles(options: VisitConnectionsOptions = {}): Promise<string[]> {
-        const url = 'https://www.linkedin.com/mynetwork/invite-connect/connections/'
+        const url = LINKEDIN_URLS.connections
         const delayMs = options.delayMs ?? 900
         const maxScrollRounds = options.maxScrollRounds ?? 40
         const maxIdleRounds = options.maxIdleRounds ?? 3
@@ -201,8 +190,8 @@ export class MyNetworkScrap {
         if ((await cards.count().catch(() => 0)) > 0) return
 
         const fallbackUrls = [
-            'https://www.linkedin.com/mynetwork/network-manager/people/',
-            'https://www.linkedin.com/mynetwork/invite-connect/connections/'
+            LINKEDIN_URLS.networkManager,
+            LINKEDIN_URLS.connections
         ]
         for (const url of fallbackUrls) {
             await this._navigator.goToLinkedinURL(url).catch(() => undefined)
@@ -694,10 +683,7 @@ export class MyNetworkScrap {
         const csrfToken = await this._getCsrfToken()
         if (!csrfToken) return null
 
-        const endpoints = [
-            'https://www.linkedin.com/voyager/api/relationships/dash/connections',
-            'https://www.linkedin.com/voyager/api/relationships/connections'
-        ]
+        const endpoints = LINKEDIN_URLS.voyagerConnections
 
         for (const endpoint of endpoints) {
             const subtitles: string[] = []
@@ -868,7 +854,7 @@ export class MyNetworkScrap {
     private _normalizeProfileUrl(raw: string) {
         if (!raw) return null
         try {
-            const url = new URL(raw, 'https://www.linkedin.com')
+            const url = new URL(raw, LINKEDIN_BASE_URL)
             if (!url.pathname.includes('/in/')) return null
             url.search = ''
             url.hash = ''

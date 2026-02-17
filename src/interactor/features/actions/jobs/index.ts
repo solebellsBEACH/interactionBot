@@ -1,20 +1,18 @@
 
 import {  Page } from "playwright";
 
-import { EasyApplyJobResult, LinkedinJobsScrap, SearchJobTagOptions } from "../scrap/jobs";
+import { LinkedinJobsScrap } from "../../../shared/scrap/jobs";
+import type { EasyApplyJobResult, SearchJobTagOptions } from "../../../shared/interface/scrap/jobs.types";
 import { LinkedinCoreFeatures } from "../../linkedin-core";
-import { DiscordClient } from "../../../shared/discord/discord-client";
 import { env } from "../../../shared/env";
 
 export class LinkedinJobsFlow {
 
-    private readonly _discord?: DiscordClient
         private readonly _page: Page
         private readonly _navigator: LinkedinCoreFeatures
         private readonly _linkedinJobsScrap :LinkedinJobsScrap
 
-    constructor( page: Page, navigator: LinkedinCoreFeatures, discord?: DiscordClient, ) {
-            this._discord = discord
+    constructor( page: Page, navigator: LinkedinCoreFeatures ) {
             this._page = page
             this._navigator = navigator
             this._linkedinJobsScrap = new LinkedinJobsScrap(page)
@@ -36,16 +34,6 @@ export class LinkedinJobsFlow {
         }
 
         const results = await this.searchJobTag(tag, searchOptions)
-
-        if (this._discord) {
-            await this._discord.log(`Easy Apply results for "${tag}": ${results.length}`)
-            if (results.length > 0) {
-                const lines = results.map((job, idx) =>
-                    `${idx + 1}. ${job.title} | ${job.company} | ${job.location} | ${job.url}`
-                )
-                await this._discord.log(lines.join('\n'))
-            }
-        }
 
         return results
     }

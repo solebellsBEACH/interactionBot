@@ -1,5 +1,5 @@
 import { WithId } from "mongodb";
-import { FormFieldValue } from "../../interactor/shared/utils/element-handle";
+import { FormFieldValue } from "../../interactor/shared/interface/forms/form.types";
 import { connectToDatabase, getCollection } from "../database";
 import { upsertFieldAnswers } from "./field-answers";
 

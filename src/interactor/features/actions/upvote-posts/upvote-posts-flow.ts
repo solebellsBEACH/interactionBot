@@ -2,6 +2,7 @@ import { ElementHandle as PlaywrightElementHandle, Page } from "playwright";
 
 import { env } from "../../../shared/env";
 import { LINKEDIN_SELECTORS } from "../../../shared/constants/linkedin";
+import { LINKEDIN_BASE_URL, LINKEDIN_URLS } from "../../../shared/constants/linkedin-urls";
 import { LinkedinCoreFeatures } from "../../linkedin-core";
 
 type UpvoteOptions = {
@@ -77,7 +78,7 @@ export class LinkedinUpvotePostsFlow {
 
         const params = new URLSearchParams()
         params.set('keywords', normalized)
-        return `https://www.linkedin.com/search/results/content/?${params.toString()}`
+        return `${LINKEDIN_URLS.contentSearch}?${params.toString()}`
     }
 
     private async _extractPostUrl(button: PlaywrightElementHandle<Element>) {
@@ -109,12 +110,12 @@ export class LinkedinUpvotePostsFlow {
     }
 
     private _buildPostUrlFromUrn(urn: string) {
-        return `https://www.linkedin.com/feed/update/${urn}`
+        return `${LINKEDIN_URLS.feedUpdateBase}${urn}`
     }
 
     private _normalizePostUrl(href: string) {
         try {
-            const url = new URL(href, 'https://www.linkedin.com')
+            const url = new URL(href, LINKEDIN_BASE_URL)
             url.search = ''
             url.hash = ''
             return url.toString()

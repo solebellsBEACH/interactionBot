@@ -1,14 +1,11 @@
 import { BrowserContext, chromium } from 'playwright';
 import { env } from './shared/env';
 import { LinkedinFeatures } from './features/linkedin';
-import { DiscordClient } from './shared/discord/discord-client';
 
 let browser: BrowserContext | undefined
 let shuttingDown = false
 
 async function main(): Promise<void> {
-  const discord = new DiscordClient(env.discord)
-
   process.once('SIGINT', async () => {
     shuttingDown = true
     console.log('Encerrando...')
@@ -28,10 +25,7 @@ async function main(): Promise<void> {
   )
 
   const page = await browser.pages()[0]
-  const linkedinFeatures = new LinkedinFeatures(page, discord)
-
-  // linkedinFeatures.registerDiscordCommands(discord)
-  // await discord.init()
+  const linkedinFeatures = new LinkedinFeatures(page)
 
   await linkedinFeatures.profile()
   console.log('LinkedIn aberto. Feche a janela para encerrar.');

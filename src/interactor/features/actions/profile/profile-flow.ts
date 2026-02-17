@@ -1,9 +1,11 @@
 import { Page } from "playwright"
 import { env } from "../../../shared/env"
 import { LinkedinCoreFeatures } from "../../linkedin-core"
-import { ProfileScraps } from "../scrap/profile"
-import { MyNetworkScrap } from "../scrap/my-network"
-import { rankWordsFromText, type WordRanking } from "../../../shared/utils/word-ranking"
+import { ProfileScraps } from "../../../shared/scrap/profile"
+import { MyNetworkScrap } from "../../../shared/scrap/my-network"
+import { rankWordsFromText } from "../../../shared/utils/word-ranking"
+import type { WordRanking } from "../../../shared/interface/ranking/word-ranking.types"
+import { ERROR_CODES } from "../../../shared/constants/errors"
 
 export class ProfileFlow{
 
@@ -29,7 +31,7 @@ export class ProfileFlow{
             }
 
             if (!targetUrl) {
-                throw new Error('missing-profile-url')
+                throw new Error(ERROR_CODES.missingProfileUrl)
             }
 
             console.log(`[profile] iniciando scrape: ${targetUrl}`)

@@ -1,16 +1,7 @@
-import { FormPromptField } from "../utils/element-handle";
-import { UserProfile } from "../user-profile";
+import { FormPromptField } from "../interface/forms/form.types";
+import type { UserProfile } from "../interface/user/user-profile.types";
 import { env } from "../env";
-
-export type GptConfig = {
-    enabled: boolean
-    apiKey?: string
-    model: string
-    baseUrl?: string
-    requestTimeoutMs: number
-    temperature: number
-    maxTokens: number
-}
+export type { GptConfig } from "../interface/ai/gpt.types";
 
 export class GptClient {
 

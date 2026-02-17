@@ -1,33 +1,7 @@
-
 import { Locator, Page } from "playwright";
-import { LinkedinCoreFeatures } from "../../linkedin-core";
-import { DiscordClient } from "../../../shared/discord/discord-client";
-import { SCRAP_SELECTORS } from "../../../shared/constants/scrap";
-
-
-export type EasyApplyJobResult = {
-    title: string
-    company: string
-    location: string
-    url: string
-    promoted: boolean
-    easyApply: boolean
-    applicants: number | null
-    postedAt?: string | null
-}
-
-export type SearchJobTagOptions = {
-    location?: string
-    geoId?: string | number
-    maxPages?: number
-    maxResults?: number
-    easyApplyOnly?: boolean
-    onlyNonPromoted?: boolean
-    maxApplicants?: number
-    includeUnknownApplicants?: boolean
-    includeDetails?: boolean
-    postedWithinDays?: number
-}
+import { SCRAP_SELECTORS } from "../constants/scrap";
+import { LINKEDIN_BASE_URL, LINKEDIN_URLS } from "../constants/linkedin-urls";
+import type { EasyApplyJobResult, SearchJobTagOptions } from "../interface/scrap/jobs.types";
 
 
 export class LinkedinJobsScrap {
@@ -69,7 +43,7 @@ export class LinkedinJobsScrap {
             if (start > 0) {
                 params.set('start', start.toString())
             }
-            return `https://www.linkedin.com/jobs/search/?${params.toString()}`
+            return `${LINKEDIN_URLS.jobSearch}?${params.toString()}`
         }
     
          async waitForJobResults(): Promise<boolean> {
@@ -197,7 +171,7 @@ export class LinkedinJobsScrap {
     
         private _normalizeJobUrl(href: string) {
             try {
-                const url = new URL(href, 'https://www.linkedin.com')
+                const url = new URL(href, LINKEDIN_BASE_URL)
                 url.search = ''
                 url.hash = ''
                 return url.toString()

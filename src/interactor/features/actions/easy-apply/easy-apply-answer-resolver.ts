@@ -2,10 +2,9 @@ import readline from "readline";
 
 import { getFieldAnswer } from "../../../../api/controllers/field-answers";
 import { createPrompt, waitForPromptAnswer } from "../../../../api/controllers/prompt-queue";
-import { DiscordClient } from "../../../shared/discord/discord-client";
 import { GptClient } from "../../../shared/ai/gpt-client";
-import { FormPromptField } from "../../../shared/utils/element-handle";
-import { UserProfile } from "../../../shared/user-profile";
+import { FormPromptField } from "../../../shared/interface/forms/form.types";
+import type { UserProfile } from "../../../shared/interface/user/user-profile.types";
 
 export class EasyApplyAbortError extends Error {
     constructor(message: string) {
@@ -15,7 +14,6 @@ export class EasyApplyAbortError extends Error {
 }
 
 type AnswerResolverOptions = {
-    discord?: DiscordClient
     gpt?: GptClient
     profile: UserProfile
     isStandalone: boolean
@@ -27,13 +25,11 @@ export class EasyApplyAnswerResolver {
     private readonly _historyCache = new Map<string, string>()
     private _historyAvailable = true
     private readonly _profile: UserProfile
-    private readonly _discord?: DiscordClient
     private readonly _isStandalone: boolean
     private readonly _promptTimeoutMs: number
 
     constructor(options: AnswerResolverOptions) {
         this._profile = options.profile
-        this._discord = options.discord
         this._isStandalone = options.isStandalone
         this._promptTimeoutMs = options.promptTimeoutMs
     }
@@ -113,9 +109,6 @@ export class EasyApplyAnswerResolver {
             const prompt = `[Easy Apply] Step ${step} - choose for "${label}":\n${optionsText}\nReply with number or text.`
             const webAnswer = await this._promptWeb(prompt, options)
             if (webAnswer) return webAnswer
-            if (this._discord) {
-                return this._discord.ask(prompt)
-            }
             if (forcePrompt) return this._promptCli(prompt)
             return null
         }
@@ -123,9 +116,6 @@ export class EasyApplyAnswerResolver {
         const prompt = `[Easy Apply] Step ${step} - fill "${label}":`
         const webAnswer = await this._promptWeb(prompt)
         if (webAnswer) return webAnswer
-        if (this._discord) {
-            return this._discord.ask(prompt)
-        }
         if (forcePrompt) return this._promptCli(prompt)
         return null
     }

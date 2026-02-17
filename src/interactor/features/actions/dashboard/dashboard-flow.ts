@@ -1,10 +1,12 @@
 import { Page } from "playwright"
 import { env } from "../../../shared/env"
-import { rankWordsFromLines, type WordRanking } from "../../../shared/utils/word-ranking"
+import { rankWordsFromLines } from "../../../shared/utils/word-ranking"
+import type { WordRanking } from "../../../shared/interface/ranking/word-ranking.types"
 import { LinkedinCoreFeatures } from "../../linkedin-core"
-import { MyNetworkScrap } from "../scrap/my-network"
-import { ProfileScraps } from "../scrap/profile"
+import { MyNetworkScrap } from "../../../shared/scrap/my-network"
+import { ProfileScraps } from "../../../shared/scrap/profile"
 import { saveDashboardAnalysis } from "../../../../api/controllers/dashboard-analyses"
+import { ERROR_CODES } from "../../../shared/constants/errors"
 
 type DashboardMode = 'full' | 'profile' | 'network'
 
@@ -55,7 +57,7 @@ export class DashboardFlow {
         targetUrl = (await this._navigator.getOwnProfileUrl()) || ''
       }
       if (!targetUrl) {
-        throw new Error('missing-profile-url')
+        throw new Error(ERROR_CODES.missingProfileUrl)
       }
     }
 

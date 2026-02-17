@@ -1,6 +1,7 @@
 import { Page } from "playwright";
 import { createPrompt, waitForPromptAnswer } from "../../api/controllers/prompt-queue";
 import { env } from "../shared/env";
+import { LINKEDIN_BASE_URL, LINKEDIN_URLS } from "../shared/constants/linkedin-urls";
 
 export class LinkedinCoreFeatures {
 
@@ -24,11 +25,11 @@ export class LinkedinCoreFeatures {
     const loggedAfterFeed = await this._isLoggedIn(3000)
     if (loggedAfterFeed) return
 
-    const loginUrl = 'https://www.linkedin.com/checkpoint/lg/sign-in-another-account'
+    const loginUrl = LINKEDIN_URLS.checkpointLogin
     await this._page
       .goto(loginUrl, { waitUntil: 'domcontentloaded' })
       .catch(async () => {
-        await this._page.goto('https://www.linkedin.com/login', {
+        await this._page.goto(LINKEDIN_URLS.login, {
           waitUntil: 'domcontentloaded'
         })
       })
@@ -70,7 +71,7 @@ export class LinkedinCoreFeatures {
   async relogin() {
     await this.logout()
     await this._page
-      .goto('https://www.linkedin.com/login', {
+      .goto(LINKEDIN_URLS.login, {
         waitUntil: 'domcontentloaded'
       })
       .catch(() => undefined)
@@ -91,7 +92,7 @@ export class LinkedinCoreFeatures {
     const isLoggedIn = await this._isLoggedIn()
     if (!isLoggedIn) {
       await this._page
-        .goto('https://www.linkedin.com/login', {
+        .goto(LINKEDIN_URLS.login, {
           waitUntil: 'domcontentloaded'
         })
         .catch(() => undefined)
@@ -108,8 +109,8 @@ export class LinkedinCoreFeatures {
     }
 
     const logoutUrls = [
-      'https://www.linkedin.com/m/logout/',
-      'https://www.linkedin.com/uas/logout'
+      LINKEDIN_URLS.logoutMobile,
+      LINKEDIN_URLS.logoutUas
     ]
 
     for (const url of logoutUrls) {
@@ -125,7 +126,7 @@ export class LinkedinCoreFeatures {
     }
 
     await this._page
-      .goto('https://www.linkedin.com/login', {
+      .goto(LINKEDIN_URLS.login, {
         waitUntil: 'domcontentloaded'
       })
       .catch(() => undefined)
@@ -159,7 +160,7 @@ export class LinkedinCoreFeatures {
     const fromNav = await this._findProfileUrlFromNav()
     if (fromNav) return fromNav
 
-    await this._page.goto('https://www.linkedin.com/in/me/', {
+    await this._page.goto(LINKEDIN_URLS.profileMe, {
       waitUntil: 'domcontentloaded'
     }).catch(() => undefined)
 
@@ -563,7 +564,7 @@ export class LinkedinCoreFeatures {
   private _normalizeProfileUrl(raw: string) {
     if (!raw) return null
     try {
-      const url = new URL(raw, 'https://www.linkedin.com')
+      const url = new URL(raw, LINKEDIN_BASE_URL)
       if (!url.pathname.includes('/in/')) return null
       if (url.pathname.includes('/in/me')) return null
       url.search = ''

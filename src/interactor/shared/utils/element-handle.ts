@@ -1,21 +1,6 @@
 import { Locator, Page, } from "playwright";
-import { HandleActions, Role } from "../interfaces/element-handle.types";
-
-export type FormFieldValue = {
-    key?: string
-    label?: string | null
-    value: string
-}
-
-export type FormPromptField = FormFieldValue & {
-    type: 'input' | 'select'
-    options?: string[]
-}
-
-export type FormValues = {
-    inputValues: FormFieldValue[]
-    selectValues: FormFieldValue[]
-}
+import { HandleActions, Role } from "../interface/element-handle/element-handle.types";
+import { FormFieldValue, FormPromptField, FormValues } from "../interface/forms/form.types";
 
 type SelectEntry = {
     label: string

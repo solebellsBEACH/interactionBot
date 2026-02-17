@@ -1,8 +1,8 @@
 import { BrowserContext, chromium } from 'playwright';
 import { env } from './shared/env';
 import { LinkedinFeatures } from './features/linkedin';
-import { DiscordClient } from './shared/discord/discord-client';
 import { disconnectFromDatabase } from '../api/database';
+import { ERROR_CODES } from './shared/constants/errors';
 
 type Action =
   | 'account'
@@ -190,7 +190,7 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
     case 'search-jobs':
       {
         const tag = (args.tag || defaultTag).trim()
-        if (!tag) throw new Error('missing-tag')
+        if (!tag) throw new Error(ERROR_CODES.missingTag)
         const { filters, options } = buildJobSearchOptions(args, false)
         logJobFilters(filters)
         const results = await features.searchJobTag(tag, options)
@@ -230,7 +230,7 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
       }
       {
         const keyword = (args.tag || '').trim()
-        if (!keyword) throw new Error('missing-tag')
+        if (!keyword) throw new Error(ERROR_CODES.missingTag)
         const results = await features.connectByKeyword(keyword, {
           maxResults: args.maxResults,
           maxPages: args.maxPages
@@ -267,8 +267,6 @@ const main = async (): Promise<void> => {
   const args = parseArgs(process.argv.slice(2))
   const headless = args.headless ?? false
 
-  const discord = new DiscordClient(env.discord)
-
   process.once('SIGINT', async () => {
     shuttingDown = true
     console.log('Encerrando...')
@@ -290,7 +288,7 @@ const main = async (): Promise<void> => {
     page = await browser.newPage()
   }
 
-  const linkedinFeatures = new LinkedinFeatures(page, discord)
+  const linkedinFeatures = new LinkedinFeatures(page)
   try {
     logHeader('Iniciando ação', args.action || 'profile')
     await runAction(linkedinFeatures, args)

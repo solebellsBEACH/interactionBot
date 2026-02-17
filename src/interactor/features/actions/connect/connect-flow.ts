@@ -1,5 +1,6 @@
 import { Page } from "playwright";
 import { LINKEDIN_ACTION_LABELS } from "../../../shared/constants/linkedin";
+import { LINKEDIN_BASE_URL, LINKEDIN_URLS } from "../../../shared/constants/linkedin-urls";
 import { ElementHandle } from "../../../shared/utils/element-handle";
 import { LinkedinCoreFeatures } from "../../linkedin-core";
 
@@ -37,7 +38,7 @@ export class LinkedinConnectFlow {
         const maxResults = options.maxResults ?? 6
         const maxRounds = options.maxPages ?? 3
 
-        const searchUrl = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(
+        const searchUrl = `${LINKEDIN_URLS.peopleSearch}?keywords=${encodeURIComponent(
             normalizedKeyword
         )}`
 
@@ -717,7 +718,7 @@ export class LinkedinConnectFlow {
     private _normalizeProfileUrl(raw: string) {
         if (!raw) return null
         try {
-            const url = new URL(raw, 'https://www.linkedin.com')
+            const url = new URL(raw, LINKEDIN_BASE_URL)
             if (!url.pathname.includes('/in/')) return null
             if (url.pathname.includes('/in/me')) return null
             url.search = ''

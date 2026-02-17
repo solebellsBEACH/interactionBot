@@ -1,5 +1,5 @@
 import { Locator, Page } from "playwright"
-import { LinkedinCoreFeatures } from "../../linkedin-core"
+import { LinkedinCoreFeatures } from "../../features/linkedin-core"
 
 type Experience = {
   label: string
