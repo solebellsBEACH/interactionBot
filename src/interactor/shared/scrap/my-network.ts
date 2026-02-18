@@ -1,8 +1,12 @@
 import { Locator, Page } from "playwright"
 import { LinkedinCoreFeatures } from "../../features/linkedin-core"
 import { rankWordsFromLines } from "../utils/word-ranking"
-import { LINKEDIN_BASE_URL, LINKEDIN_URLS } from "../constants/linkedin-urls"
+import { LINKEDIN_URLS } from "../constants/linkedin-urls"
+import { logger } from "../services/logger"
 import type { MyNetworkScrapResult, VisitConnectionsOptions } from "../interface/scrap/network.types"
+import { buildLinkedinConnectionsNextPageUrl, normalizeLinkedinProfileUrl } from "../utils/linkedin-url"
+import { normalizeTextBasic } from "../utils/normalize"
+import { parseConnectionsCount } from "../utils/parse-network"
 
 export class MyNetworkScrap {
     private readonly _page: Page
@@ -25,18 +29,18 @@ export class MyNetworkScrap {
         if (api && api.subtitles.length) {
             const ranking = rankWordsFromLines(api.subtitles)
             if (!ranking.length) {
-                console.log('[network] api: sem keywords detectadas')
+                logger.info('[network] api: sem keywords detectadas')
             }
-            console.log(`[network] api: conexões=${api.total ?? api.subtitles.length}, subtitulos=${api.subtitles.length}`)
+            logger.info(`[network] api: conexões=${api.total ?? api.subtitles.length}, subtitulos=${api.subtitles.length}`)
             return { subtitles: api.subtitles, ranking, connectionsCount: api.total }
         }
 
         const connectionsCount = await this._extractConnectionsCount()
         if (typeof connectionsCount === 'number') {
-            console.log(`[network] conexões totais detectadas: ${connectionsCount}`)
+            logger.info(`[network] conexões totais detectadas: ${connectionsCount}`)
         }
         const cardsCount = await this._connectionCardLocator().count().catch(() => 0)
-        console.log(`[network] cards detectados: ${cardsCount}`)
+        logger.info(`[network] cards detectados: ${cardsCount}`)
         const { subtitles } = await this._collectSubtitlesAcrossPages({
             maxRounds: 60,
             maxIdleRounds: 4,
@@ -51,17 +55,17 @@ export class MyNetworkScrap {
             if (filtered.length) {
                 subtitles.splice(0, subtitles.length, ...filtered)
                 ranking = rankWordsFromLines(filtered)
-                console.log(`[network] fallback usado (main text): ${filtered.length} linhas`)
+                logger.info(`[network] fallback usado (main text): ${filtered.length} linhas`)
             }
         }
 
         if (!subtitles.length) {
-            console.log('[network] nenhum subtitulo encontrado na rede')
+            logger.info('[network] nenhum subtitulo encontrado na rede')
         } else if (!ranking.length) {
-            console.log(`[network] subtitulos coletados: ${subtitles.length}, ranking vazio`)
+            logger.info(`[network] subtitulos coletados: ${subtitles.length}, ranking vazio`)
         } else {
             const preview = ranking.slice(0, 5).map((item) => `${item.word}(${item.count})`).join(', ')
-            console.log(`[network] ranking preview: ${preview}`)
+            logger.info(`[network] ranking preview: ${preview}`)
         }
 
         return { subtitles, ranking, connectionsCount }
@@ -90,7 +94,7 @@ export class MyNetworkScrap {
             for (const url of roundUrls) seen.add(url)
             const after = seen.size
 
-            console.log(`[network] rodada ${round + 1}: ${after} perfis únicos`)
+            logger.info(`[network] rodada ${round + 1}: ${after} perfis únicos`)
 
             if (after >= maxToVisit) break
             if (after === before) {
@@ -101,7 +105,7 @@ export class MyNetworkScrap {
 
             const clickedNext = await this._maybeClickNextPage()
             if (clickedNext) {
-                console.log('[network] paginação: avançando para próxima página')
+                logger.info('[network] paginação: avançando para próxima página')
                 await this._page.waitForTimeout(1200)
                 continue
             }
@@ -120,17 +124,17 @@ export class MyNetworkScrap {
 
         const urls = Array.from(seen)
         if (!urls.length) {
-            console.log('[network] nenhum perfil encontrado para visitar')
+            logger.info('[network] nenhum perfil encontrado para visitar')
             return []
         }
 
         const toVisit = urls.slice(0, Math.max(0, maxToVisit))
-        console.log(`[network] perfis para visitar: ${toVisit.length}`)
+        logger.info(`[network] perfis para visitar: ${toVisit.length}`)
 
         for (const [index, profileUrl] of toVisit.entries()) {
-            console.log(`[network] visitando ${index + 1}/${toVisit.length}: ${profileUrl}`)
+            logger.info(`[network] visitando ${index + 1}/${toVisit.length}: ${profileUrl}`)
             await this._navigator.goToLinkedinURL(profileUrl).catch((error) => {
-                console.warn(`[network] falha ao abrir perfil: ${profileUrl}`, error)
+                logger.warn(`[network] falha ao abrir perfil: ${profileUrl}`, error)
             })
             if (delayMs > 0) {
                 await this._page.waitForTimeout(delayMs)
@@ -452,28 +456,11 @@ export class MyNetworkScrap {
     private async _maybeGoToNextPageUrl(beforeKey?: string | null) {
         try {
             const current = this._page.url()
-            const url = new URL(current)
-            const params = url.searchParams
             const cardsCount = await this._connectionCardLocator().count().catch(() => 0)
             const pageSize = cardsCount > 0 ? cardsCount : 20
-
-            const pageParam = params.get('page')
-            const pageNumParam = params.get('pageNum')
-            const startParam = params.get('start')
-
-            if (pageParam && !Number.isNaN(Number(pageParam))) {
-                params.set('page', String(Number(pageParam) + 1))
-            } else if (pageNumParam && !Number.isNaN(Number(pageNumParam))) {
-                params.set('pageNum', String(Number(pageNumParam) + 1))
-            } else if (startParam && !Number.isNaN(Number(startParam))) {
-                params.set('start', String(Number(startParam) + pageSize))
-            } else {
-                params.set('start', String(pageSize))
-                params.set('count', String(pageSize))
-            }
-
-            url.search = params.toString()
-            await this._navigator.goToLinkedinURL(url.toString())
+            const nextUrl = buildLinkedinConnectionsNextPageUrl(current, pageSize)
+            if (!nextUrl) return false
+            await this._navigator.goToLinkedinURL(nextUrl)
             if (beforeKey) {
                 await this._waitForFirstConnectionChange(beforeKey)
             }
@@ -530,7 +517,7 @@ export class MyNetworkScrap {
             }
 
             const after = seenProfiles.size
-            console.log(`[network] rodada ${round + 1}: ${after} perfis únicos`)
+            logger.info(`[network] rodada ${round + 1}: ${after} perfis únicos`)
 
             if (typeof targetCount === 'number' && after >= targetCount) break
             if (added === 0) {
@@ -543,14 +530,14 @@ export class MyNetworkScrap {
                 const beforeKey = await this._getFirstConnectionKey()
                 const clickedNext = await this._maybeClickNextPage(beforeKey)
                 if (clickedNext) {
-                    console.log('[network] paginação: avançando para próxima página')
+                    logger.info('[network] paginação: avançando para próxima página')
                     await this._page.waitForTimeout(1200)
                     idleRounds = 0
                     continue
                 }
                 const advancedByUrl = await this._maybeGoToNextPageUrl(beforeKey)
                 if (advancedByUrl) {
-                    console.log('[network] paginação: avançando via URL')
+                    logger.info('[network] paginação: avançando via URL')
                     await this._page.waitForTimeout(1200)
                     idleRounds = 0
                     continue
@@ -608,7 +595,7 @@ export class MyNetworkScrap {
         for (let i = 0; i < fallbackCount; i++) {
             const link = fallbackLinks.nth(i)
             const href = await link.getAttribute('href')
-            const normalized = this._normalizeProfileUrl(href || '')
+            const normalized = normalizeLinkedinProfileUrl(href || '')
             if (normalized) fallbackUrls.push(normalized)
         }
 
@@ -621,7 +608,7 @@ export class MyNetworkScrap {
             .first()
         if ((await link.count().catch(() => 0)) === 0) return null
         const href = await link.getAttribute('href')
-        return this._normalizeProfileUrl(href || '')
+        return normalizeLinkedinProfileUrl(href || '')
     }
 
     private async _extractSubtitle(card: Locator) {
@@ -785,7 +772,7 @@ export class MyNetworkScrap {
             if ((await node.count().catch(() => 0)) === 0) continue
             const text = await node.innerText().catch(() => '')
             if (!text) continue
-            const count = this._parseConnectionsCount(text, patterns)
+            const count = parseConnectionsCount(text, patterns)
             if (typeof count === 'number') return count
         }
 
@@ -794,23 +781,10 @@ export class MyNetworkScrap {
         ).first()
         if ((await textMatch.count().catch(() => 0)) > 0) {
             const text = await textMatch.innerText().catch(() => '')
-            const count = this._parseConnectionsCount(text, patterns)
+            const count = parseConnectionsCount(text, patterns)
             if (typeof count === 'number') return count
         }
 
-        return undefined
-    }
-
-    private _parseConnectionsCount(text: string, patterns: RegExp[]) {
-        for (const pattern of patterns) {
-            const match = text.match(pattern)
-            if (!match) continue
-            const raw = match[1] || match[2] || ''
-            const digits = raw.replace(/[^\d]/g, '')
-            if (!digits) continue
-            const parsed = Number(digits)
-            if (!Number.isNaN(parsed) && parsed > 0) return parsed
-        }
         return undefined
     }
 
@@ -829,7 +803,7 @@ export class MyNetworkScrap {
     }
 
     private _isNoiseLine(line: string) {
-        const normalized = this._normalizeText(line)
+        const normalized = normalizeTextBasic(line)
         if (!normalized) return true
 
         const degreePatterns = /^(1st|2nd|3rd|1|2|3)$/
@@ -842,26 +816,4 @@ export class MyNetworkScrap {
         return false
     }
 
-    private _normalizeText(text: string) {
-        return text
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/\s+/g, ' ')
-            .trim()
-            .toLowerCase()
-    }
-
-    private _normalizeProfileUrl(raw: string) {
-        if (!raw) return null
-        try {
-            const url = new URL(raw, LINKEDIN_BASE_URL)
-            if (!url.pathname.includes('/in/')) return null
-            url.search = ''
-            url.hash = ''
-            return url.toString()
-        } catch {
-            if (!raw.includes('/in/')) return null
-            return raw.split('#')[0].split('?')[0]
-        }
-    }
 }

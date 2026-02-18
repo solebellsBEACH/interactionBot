@@ -1,7 +1,10 @@
 import { Locator, Page } from "playwright";
 import { SCRAP_SELECTORS } from "../constants/scrap";
-import { LINKEDIN_BASE_URL, LINKEDIN_URLS } from "../constants/linkedin-urls";
+import { logger } from "../services/logger";
 import type { EasyApplyJobResult, SearchJobTagOptions } from "../interface/scrap/jobs.types";
+import { buildLinkedinJobSearchUrl, normalizeLinkedinUrl } from "../utils/linkedin-url";
+import { normalizeTextAlphaNum } from "../utils/normalize";
+import { parseApplicantsCount, parsePostedAgeMinutes } from "../utils/parse-jobs";
 
 
 export class LinkedinJobsScrap {
@@ -22,28 +25,14 @@ export class LinkedinJobsScrap {
             easyApplyOnly = true,
             postedWithinDays?: number
         ) {
-            const params = new URLSearchParams()
-            params.set('keywords', tag)
-            if (easyApplyOnly) {
-                params.set('f_AL', 'true')
-            }
-            if (postedWithinDays !== undefined && postedWithinDays > 0) {
-                const seconds = Math.round(postedWithinDays * 24 * 60 * 60)
-                params.set('f_TPR', `r${seconds}`)
-            }
-            if (geoId !== undefined && geoId !== null) {
-                const normalized = String(geoId).trim()
-                if (normalized) {
-                    params.set('geoId', normalized)
-                }
-            }
-            if (location && location.trim()) {
-                params.set('location', location.trim())
-            }
-            if (start > 0) {
-                params.set('start', start.toString())
-            }
-            return `${LINKEDIN_URLS.jobSearch}?${params.toString()}`
+            return buildLinkedinJobSearchUrl({
+                tag,
+                location,
+                start,
+                geoId,
+                easyApplyOnly,
+                postedWithinDays
+            })
         }
     
          async waitForJobResults(): Promise<boolean> {
@@ -103,7 +92,7 @@ export class LinkedinJobsScrap {
                 if (!clicked) continue
                 await this._page.waitForTimeout(40)
                 const detail = this._page.locator(SCRAP_SELECTORS.jobDetailContainer).first()
-                const expectedUrl = href ? this._normalizeJobUrl(href) : ''
+                const expectedUrl = href ? normalizeLinkedinUrl(href) : ''
                 if (expectedUrl) {
                     for (let attempt = 0; attempt < 3; attempt++) {
                         const detailUrl = await this._getDetailUrl(detail)
@@ -119,9 +108,9 @@ export class LinkedinJobsScrap {
                 }
                 if (!href) continue
 
-                const url = this._normalizeJobUrl(href)
+                const url = normalizeLinkedinUrl(href)
                 let promoted = this._hasPromotedLabel(cardText)
-                let applicants = this._parseApplicantsCount(cardText)
+                let applicants = parseApplicantsCount(cardText)
                 let postedAt = await this._getPostedAtFromCard(card, cardText)
                 let easyApply = easyApplyOnly || this._hasEasyApplyLabel(cardText)
                 if (includeDetails && (applicants === null || !promoted || !easyApply || !postedAt)) {
@@ -132,7 +121,7 @@ export class LinkedinJobsScrap {
                     }
                     if (detailText) {
                         if (applicants === null) {
-                            applicants = this._parseApplicantsCount(detailText)
+                            applicants = parseApplicantsCount(detailText)
                             if (applicants === null) {
                                 applicants = await this._getApplicantsFromDetail()
                             }
@@ -169,17 +158,6 @@ export class LinkedinJobsScrap {
             return results
         }
     
-        private _normalizeJobUrl(href: string) {
-            try {
-                const url = new URL(href, LINKEDIN_BASE_URL)
-                url.search = ''
-                url.hash = ''
-                return url.toString()
-            } catch {
-                return href
-            }
-        }
-
         private _logTiming(action: string, data?: Record<string, unknown>) {
             if (!this._enableTimingLogs) return
             const now = new Date()
@@ -188,7 +166,7 @@ export class LinkedinJobsScrap {
                 .split(' ')[0]
                 .concat(`.${String(now.getMilliseconds()).padStart(3, '0')}`)
             const payload = data ? ` | ${JSON.stringify(data)}` : ''
-            console.log(`[jobs ${timestamp}] ${action}${payload}`)
+            logger.info(`[jobs ${timestamp}] ${action}${payload}`)
         }
     
         private async _safeInnerText(locator: Locator) {
@@ -243,7 +221,7 @@ export class LinkedinJobsScrap {
         private async _getDetailTextFromCard(card: Locator, expectedTitle?: string, expectedUrl?: string, skipClick = false) {
             const detail = this._page.locator(SCRAP_SELECTORS.jobDetailContainer).first()
             if ((await detail.count().catch(() => 0)) === 0) return ''
-            const expected = expectedTitle ? this._normalizeText(expectedTitle) : ''
+            const expected = expectedTitle ? normalizeTextAlphaNum(expectedTitle) : ''
             const before = await this._safeInnerText(detail)
             const beforeUrl = expectedUrl ? await this._getDetailUrl(detail) : ''
             const clicked = skipClick ? true : await this._clickJobCard(card)
@@ -267,7 +245,7 @@ export class LinkedinJobsScrap {
                 parts = await this._safeInnerText(detail)
                 if (!parts) continue
                 if (!expected) break
-                const normalized = this._normalizeText(parts)
+                const normalized = normalizeTextAlphaNum(parts)
                 if (normalized.includes(expected) || parts !== before) break
             }
             if (!parts) {
@@ -283,7 +261,7 @@ export class LinkedinJobsScrap {
             const selectors = SCRAP_SELECTORS.jobDetailLink.join(', ')
             const href = await detail.locator(selectors).first().getAttribute('href', { timeout: 500 }).catch(() => null)
             if (!href) return ''
-            return this._normalizeJobUrl(href)
+            return normalizeLinkedinUrl(href)
         }
 
         private async _getPostedAtFromCard(card: Locator, fallbackText?: string) {
@@ -317,13 +295,13 @@ export class LinkedinJobsScrap {
             for (let i = 0; i < count; i++) {
                 const text = await this._safeText(locator.nth(i))
                 if (!text) continue
-                const parsed = this._parseApplicantsCount(text)
+                const parsed = parseApplicantsCount(text)
                 if (parsed !== null) return parsed
             }
             const combined = await locator.allTextContents().catch(() => [])
             const merged = combined.map((item) => item.trim()).filter(Boolean).join(' ')
             if (!merged) return null
-            return this._parseApplicantsCount(merged)
+            return parseApplicantsCount(merged)
         }
     
         filterResults(
@@ -354,86 +332,9 @@ export class LinkedinJobsScrap {
 
         isPostedWithinDays(postedAt: string | null | undefined, maxDays: number) {
             if (!postedAt) return false
-            const ageMinutes = this._parsePostedAgeMinutes(postedAt)
+            const ageMinutes = parsePostedAgeMinutes(postedAt)
             if (ageMinutes === null) return false
             return ageMinutes <= maxDays * 24 * 60
-        }
-    
-        private _parseApplicantsCount(text: string) {
-            const normalized = this._normalizeText(text)
-            if (!normalized) return null
-            const keyword = '(?:applicants?|applications?|candidatos?|candidaturas?|aplicantes?)'
-            const prefixWords =
-                '(?:total|totais|received|recebidas?|recebido|ate|até|agora|no\\s*total|so\\s*far)'
-            const patterns: Array<{ regex: RegExp; over?: boolean }> = [
-                {
-                    regex:
-                        new RegExp(`(?:over|more than|mais de)\\s*([\\d.,]+)\\s*${keyword}`),
-                    over: true
-                },
-                {
-                    regex:
-                        new RegExp(`([\\d.,]+)\\s*\\+\\s*${keyword}`),
-                    over: true
-                },
-                {
-                    regex: new RegExp(
-                        `${keyword}\\s*(?:[:\\-]|\\s)*(?:${prefixWords}\\s*){0,3}([\\d.,]+)\\s*\\+`
-                    ),
-                    over: true
-                },
-                { regex: new RegExp(`([\\d.,]+)\\s*${keyword}`) },
-                {
-                    regex: new RegExp(
-                        `${keyword}\\s*(?:[:\\-]|\\s)*(?:${prefixWords}\\s*){0,3}([\\d.,]+)`
-                    )
-                },
-                { regex: /be among the first\s*([\d.,]+)/ },
-                { regex: /seja um dos primeiros\s*([\d.,]+)/ }
-            ]
-            for (const pattern of patterns) {
-                const match = normalized.match(pattern.regex)
-                if (match) {
-                    const raw = match[1].replace(/[^\d]/g, '')
-                    if (!raw) continue
-                    const value = Number(raw)
-                    if (Number.isNaN(value)) return null
-                    return pattern.over ? value + 1 : value
-                }
-            }
-            return null
-        }
-
-        private _parsePostedAgeMinutes(text: string) {
-            const normalized = this._normalizeText(text)
-            if (!normalized) return null
-            const cleaned = normalized
-                .replace(/\b(reposted|repostado|repostada|publicado|publicada|publicado ha|publicada ha)\b/g, '')
-                .trim()
-            if (!cleaned) return null
-            if (/(just now|agora mesmo|neste momento)/.test(cleaned)) return 0
-
-            const numberMatch = cleaned.match(/(\d+)/)
-            const wordOne = cleaned.match(/\b(um|uma|one|a)\b/)
-            const amount = numberMatch ? Number(numberMatch[1]) : wordOne ? 1 : null
-            if (!amount || Number.isNaN(amount)) return null
-
-            const unit =
-                cleaned.match(/\b(minuto|minutos|minute|minutes|min)\b/)?.[1] ||
-                cleaned.match(/\b(hora|horas|hour|hours|hr|hrs)\b/)?.[1] ||
-                cleaned.match(/\b(dia|dias|day|days)\b/)?.[1] ||
-                cleaned.match(/\b(semana|semanas|week|weeks|sem)\b/)?.[1] ||
-                cleaned.match(/\b(mes|meses|month|months)\b/)?.[1] ||
-                cleaned.match(/\b(ano|anos|year|years)\b/)?.[1]
-
-            if (!unit) return null
-            if (/min/.test(unit)) return amount
-            if (/hora|hour|hr/.test(unit)) return amount * 60
-            if (/dia|day/.test(unit)) return amount * 60 * 24
-            if (/semana|week|sem/.test(unit)) return amount * 60 * 24 * 7
-            if (/mes|month/.test(unit)) return amount * 60 * 24 * 30
-            if (/ano|year/.test(unit)) return amount * 60 * 24 * 365
-            return null
         }
         private _extractPostedAtFromText(text: string) {
             if (!text) return null
@@ -457,23 +358,15 @@ export class LinkedinJobsScrap {
         }
     
         private _hasPromotedLabel(text: string) {
-            const normalized = this._normalizeText(text)
+            const normalized = normalizeTextAlphaNum(text)
             if (!normalized) return false
             return /(promoted|promovida|promovido|patrocinada|patrocinado|sponsored)/.test(normalized)
         }
     
         private _hasEasyApplyLabel(text: string) {
-            const normalized = this._normalizeText(text)
+            const normalized = normalizeTextAlphaNum(text)
             if (!normalized) return false
             return /(easy apply|candidatura simplificada|candidatar[- ]se facilmente|candidatura facil|aplicar facilmente)/.test(normalized)
         }
     
-        private _normalizeText(text: string) {
-            return text
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .replace(/\s+/g, ' ')
-                .trim()
-                .toLowerCase()
-        }
 }

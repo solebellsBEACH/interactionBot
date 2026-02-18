@@ -5,6 +5,7 @@ import { createPrompt, waitForPromptAnswer } from "../../../../api/controllers/p
 import { GptClient } from "../../../shared/ai/gpt-client";
 import { FormPromptField } from "../../../shared/interface/forms/form.types";
 import type { UserProfile } from "../../../shared/interface/user/user-profile.types";
+import { normalizeKey } from "../../../shared/utils/normalize";
 
 export class EasyApplyAbortError extends Error {
     constructor(message: string) {
@@ -72,7 +73,7 @@ export class EasyApplyAnswerResolver {
 
         const candidateList = Array.from(candidates)
         for (const [key, value] of Object.entries(answers)) {
-            const normalizedKey = this._normalizeKey(key)
+            const normalizedKey = normalizeKey(key)
             if (candidateList.some((candidate) => candidate.includes(normalizedKey) || normalizedKey.includes(candidate))) {
                 return value
             }
@@ -130,10 +131,10 @@ export class EasyApplyAnswerResolver {
         if (field.key) candidates.add(field.key)
         const label = field.label || ''
         if (label) {
-            candidates.add(this._normalizeKey(label))
+            candidates.add(normalizeKey(label))
             const deduped = this._dedupeLabel(label)
             if (deduped && deduped !== label) {
-                candidates.add(this._normalizeKey(deduped))
+                candidates.add(normalizeKey(deduped))
             }
         }
         return Array.from(candidates).filter(Boolean)
@@ -209,17 +210,6 @@ export class EasyApplyAnswerResolver {
         }
 
         return trimmed.slice(0, cutIndex).trim()
-    }
-
-    private _normalizeKey(value?: string | null) {
-        if (!value) return ''
-        return value
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
     }
 
     private async _promptCli(prompt: string): Promise<string | null> {

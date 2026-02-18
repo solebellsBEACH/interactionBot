@@ -11,7 +11,7 @@ import { LinkedinConnectFlow } from "./actions/connect/connect-flow";
 import { LinkedinUpvotePostsFlow } from "./actions/upvote-posts/upvote-posts-flow";
 import { LinkedinJobsFlow } from "./actions/jobs";
 import type { EasyApplyJobResult, SearchJobTagOptions } from "../shared/interface/scrap/jobs.types";
-import { ProfileFlow } from "./actions/profile/profile-flow";
+
 import { DashboardFlow } from "./actions/dashboard/dashboard-flow";
 import { MyNetworkScrap } from "../shared/scrap/my-network";
 import type { VisitConnectionsOptions } from "../shared/interface/scrap/network.types";
@@ -30,7 +30,6 @@ export class LinkedinFeatures {
     private _jobFlow: LinkedinJobsFlow
     private _connectFlow: LinkedinConnectFlow
     private _upvoteFlow: LinkedinUpvotePostsFlow
-    private _profileFlow: ProfileFlow
     private _dashboardFlow: DashboardFlow
     private _networkScrap: MyNetworkScrap
 
@@ -45,8 +44,6 @@ export class LinkedinFeatures {
         )
         this._connectFlow = new LinkedinConnectFlow(page, this._elementHandle, this._linkedinCoreFeatures)
         this._upvoteFlow = new LinkedinUpvotePostsFlow(page, this._linkedinCoreFeatures)
-
-        this._profileFlow= new  ProfileFlow(page)
         this._dashboardFlow = new DashboardFlow(page, this._linkedinCoreFeatures)
         this._networkScrap = new MyNetworkScrap(page, this._linkedinCoreFeatures)
     }
@@ -79,25 +76,6 @@ export class LinkedinFeatures {
         return this._upvoteFlow.upvoteOnPosts(options)
     }
 
-    async ensureSession() {
-        return this._linkedinCoreFeatures.auth()
-    }
-
-    async login() {
-        return this._linkedinCoreFeatures.login()
-    }
-
-    async relogin() {
-        return this._linkedinCoreFeatures.relogin()
-    }
-
-    async logout() {
-        return this._linkedinCoreFeatures.logout()
-    }
-
-    async profile(profileUrl?: string){
-        return await this._profileFlow.main(profileUrl)
-    }
 
     async dashboard(profileUrl?: string) {
         return await this._dashboardFlow.main(profileUrl)
@@ -113,6 +91,23 @@ export class LinkedinFeatures {
 
     async visitConnections(options?: VisitConnectionsOptions) {
         return await this._networkScrap.visitConnectionProfiles(options)
+    }
+
+
+    async ensureSession() {
+        return this._linkedinCoreFeatures.auth()
+    }
+
+    async login() {
+        return this._linkedinCoreFeatures.login()
+    }
+
+    async relogin() {
+        return this._linkedinCoreFeatures.relogin()
+    }
+
+    async logout() {
+        return this._linkedinCoreFeatures.logout()
     }
 
 }

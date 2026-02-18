@@ -7,6 +7,8 @@ import { env } from "../../../shared/env";
 import { userProfile } from "../../../shared/user-profile";
 import { EasyApplyAnswerResolver, EasyApplyAbortError } from "./easy-apply-answer-resolver";
 import type { EasyApplyStepValues } from "../../../shared/interface/easy-apply/step-values.types";
+import { logger } from "../../../shared/services/logger";
+import { normalizeWhitespace } from "../../../shared/utils/normalize";
 import {
     EASY_APPLY_BUTTON_SELECTORS,
     EASY_APPLY_FORBIDDEN_REGEX,
@@ -62,7 +64,7 @@ export class EasyApplyFlow {
             pushTrace('modal-opened')
             let lastFingerprint = await this._waitForFormAndFingerprint()
             if (!lastFingerprint) {
-                console.warn('Easy Apply: form not found after opening modal')
+                logger.warn('Easy Apply: form not found after opening modal')
                 outcome.status = 'no-form'
                 outcome.reason = 'form-not-found'
                 pushTrace('no-form')
@@ -127,7 +129,7 @@ export class EasyApplyFlow {
                         break
                     }
 
-                    console.warn('Easy Apply: no next/review/submit button found, stopping at step', step)
+                    logger.warn('Easy Apply: no next/review/submit button found, stopping at step', step)
                     outcome.reason = 'no-action'
                     pushTrace('no-action')
                     break
@@ -153,7 +155,7 @@ export class EasyApplyFlow {
 
                     stagnantCount++
                     if (stagnantCount >= this._maxStagnantSteps) {
-                        console.warn('Easy Apply: form did not change after click, stopping at step', step)
+                        logger.warn('Easy Apply: form did not change after click, stopping at step', step)
                         outcome.reason = 'stagnant'
                         pushTrace('stagnant')
                         break
@@ -256,13 +258,13 @@ export class EasyApplyFlow {
                 step,
                 ...formValues
             }
-            console.log(`Easy Apply step ${step} values`, formValues)
+            logger.info(`Easy Apply step ${step} values`, formValues)
             return stepValues
         } catch (error) {
             if (error instanceof EasyApplyAbortError) {
                 throw error
             }
-            console.error('Unable to read Easy Apply form', error)
+            logger.error('Unable to read Easy Apply form', error)
             return null
         }
     }
@@ -319,17 +321,16 @@ export class EasyApplyFlow {
 
         if (candidates.length === 0) return
 
-        const normalize = (value: string) => value.replace(/\s+/g, ' ').trim().slice(0, 120)
         const lines = candidates.map((candidate, index) => {
-            const text = normalize(candidate.text)
-            const aria = normalize(candidate.aria)
-            const data = normalize(candidate.data)
-            const testId = normalize(candidate.testId)
+            const text = normalizeWhitespace(candidate.text).slice(0, 120)
+            const aria = normalizeWhitespace(candidate.aria).slice(0, 120)
+            const data = normalizeWhitespace(candidate.data).slice(0, 120)
+            const testId = normalizeWhitespace(candidate.testId).slice(0, 120)
             return `${index + 1}. text="${text}" aria="${aria}" data="${data}" testId="${testId}"`
         })
 
         const message = `Easy Apply debug: apply-like buttons found:\n${lines.join('\n')}`
-        console.warn(message)
+        logger.warn(message)
     }
 
     private async _finalizeSubmit(jobURL: string, stepsValues: EasyApplyStepValues[], submitButton: Locator) {
@@ -363,7 +364,7 @@ export class EasyApplyFlow {
         const reason = outcome.reason ? ` | ${outcome.reason}` : ''
         const traceInfo = trace && trace.length > 0 ? ` | trace: ${trace.join(' > ')}` : ''
         const message = `Easy Apply result: ${outcome.status}${reason} | steps: ${stepsValues.length} | fields: ${totalFields} | ${jobURL}${traceInfo}`
-        console.log(message)
+        logger.info(message)
     }
 
     private async _firstEnabled(locators: Locator[]) {
@@ -390,7 +391,7 @@ export class EasyApplyFlow {
         try {
             await saveEasyApplyResponses(jobURL, stepsValues)
         } catch (error) {
-            console.error("Erro ao salvar respostas Easy Apply", error)
+            logger.error("Erro ao salvar respostas Easy Apply", error)
         }
     }
 

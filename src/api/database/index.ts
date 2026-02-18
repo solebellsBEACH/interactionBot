@@ -1,4 +1,5 @@
 import { Collection, Db, Document, MongoClient } from "mongodb";
+import { logger } from "../../interactor/shared/services/logger";
 
 const DEFAULT_URI = "mongodb://root:example@localhost:27017";
 const DEFAULT_DB = "interactionbot";
@@ -16,7 +17,7 @@ export async function connectToDatabase(): Promise<Db> {
   await client.connect();
 
   db = client.db(dbName);
-  console.log(`MongoDB conectado em ${uri}, usando DB "${dbName}".`);
+  logger.info(`MongoDB conectado em ${uri}, usando DB "${dbName}".`);
 
   return db;
 }

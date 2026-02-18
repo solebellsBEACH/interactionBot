@@ -1,6 +1,8 @@
 import { Locator, Page, } from "playwright";
 import { HandleActions, Role } from "../interface/element-handle/element-handle.types";
 import { FormFieldValue, FormPromptField, FormValues } from "../interface/forms/form.types";
+import { logger } from "../services/logger";
+import { normalizeKey, normalizeTextBasic } from "../utils/normalize";
 
 type SelectEntry = {
     label: string
@@ -20,12 +22,12 @@ export class ElementHandle {
     async handleByRole(handle: HandleActions, role: Role, options: { name?: string | RegExp }, contentText?: string) {
         try {
             const element = this._page.getByRole(role, options);
-            await element.allInnerTexts().then(console.log)
+            await element.allInnerTexts().then((texts) => logger.debug('element-handle texts', texts))
             await element.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT });
             
             return this._runHandleActions(handle, element, contentText) || element
         } catch (error) {
-            console.error({
+            logger.error('element-handle error', {
                 label: options.name,
                 error
             })
@@ -44,7 +46,7 @@ export class ElementHandle {
             
             return this._runHandleActions(handle, element, contentText) || element
         } catch (error) {
-            console.error({
+            logger.error('element-handle error', {
                 label: selector,
                 error
             })
@@ -57,7 +59,7 @@ export class ElementHandle {
             await element.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT });
             return this._runHandleActions(handle, element, contentText) || element
         } catch (error) {
-            console.error({
+            logger.error('element-handle error', {
                 label: placeholder,
                 error
             })
@@ -99,7 +101,7 @@ export class ElementHandle {
             const value = await item.inputValue()
             const meta = await this._getControlMeta(item)
             const label = meta.labelText || meta.placeholder || meta.ariaLabel || meta.name || meta.id
-            const key = this._normalizeKey(label || undefined)
+            const key = normalizeKey(label || undefined)
             let finalValue = value
 
             if (prompt && !value.trim()) {
@@ -205,10 +207,7 @@ export class ElementHandle {
     }
 
     private _isTermsConsentLabel(label: string) {
-        const normalized = label
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
+        const normalized = normalizeTextBasic(label)
         if (!normalized) return false
         const keywords = [
             'terms',
@@ -247,7 +246,7 @@ export class ElementHandle {
             const allLabels = allEntries.map((entry) => entry.label)
 
             const label = meta.labelText || meta.ariaLabel || meta.name || meta.id
-            const key = this._normalizeKey(label || undefined)
+            const key = normalizeKey(label || undefined)
 
             const missing = !value || this._isSelectPlaceholder(value)
             if (prompt && missing) {
@@ -358,16 +357,6 @@ export class ElementHandle {
                 labelText
             }
         })
-    }
-
-    private _normalizeKey(label?: string | null) {
-        if (!label) return undefined
-        return label
-            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
     }
 
     private _isSelectPlaceholder(value: string) {

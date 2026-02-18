@@ -5,6 +5,7 @@ import { LinkedinJobsScrap } from "../../../shared/scrap/jobs";
 import type { EasyApplyJobResult, SearchJobTagOptions } from "../../../shared/interface/scrap/jobs.types";
 import { LinkedinCoreFeatures } from "../../linkedin-core";
 import { env } from "../../../shared/env";
+import { logger } from "../../../shared/services/logger";
 
 export class LinkedinJobsFlow {
 
@@ -56,7 +57,7 @@ export class LinkedinJobsFlow {
 
             for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
                 if (this._page.isClosed()) break
-                console.log(`Buscando jobs: pagina ${pageIndex + 1}/${maxPages}`)
+                logger.info(`Buscando jobs: pagina ${pageIndex + 1}/${maxPages}`)
                 const searchUrl = this._linkedinJobsScrap.buildSearchJobUrl(
                     tag,
                     options?.location,
@@ -120,7 +121,7 @@ export class LinkedinJobsFlow {
                         }
                     }
                     const kept = results.size - beforeCount
-                    console.log(
+                    logger.info(
                         `[bot] Filtro candidaturas: pagina ${pageIndex + 1} | total=${pageResults.length} | mantidas=${kept} | acimaMax=${aboveMax} | semNumero=${unknownApplicants} | naoEasy=${notEasyApply} | promovidas=${promotedBlocked} | foraData=${outOfDate}`
                     )
                 }

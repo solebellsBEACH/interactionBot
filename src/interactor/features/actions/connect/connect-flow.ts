@@ -1,7 +1,10 @@
 import { Page } from "playwright";
 import { LINKEDIN_ACTION_LABELS } from "../../../shared/constants/linkedin";
-import { LINKEDIN_BASE_URL, LINKEDIN_URLS } from "../../../shared/constants/linkedin-urls";
 import { ElementHandle } from "../../../shared/utils/element-handle";
+import { logger } from "../../../shared/services/logger";
+import { buildLinkedinPeopleSearchUrl, extractLinkedinProfileSlug, normalizeLinkedinProfileUrl } from "../../../shared/utils/linkedin-url";
+import { normalizeTextBasic, normalizeWhitespace } from "../../../shared/utils/normalize";
+import { parseConnectionLabelFields } from "../../../shared/utils/parse-connect";
 import { LinkedinCoreFeatures } from "../../linkedin-core";
 
 type ConnectionSearchResult = {
@@ -38,9 +41,7 @@ export class LinkedinConnectFlow {
         const maxResults = options.maxResults ?? 6
         const maxRounds = options.maxPages ?? 3
 
-        const searchUrl = `${LINKEDIN_URLS.peopleSearch}?keywords=${encodeURIComponent(
-            normalizedKeyword
-        )}`
+        const searchUrl = buildLinkedinPeopleSearchUrl(normalizedKeyword)
 
         await this._navigator.goToLinkedinURL(searchUrl)
         await this._page.waitForTimeout(600)
@@ -53,17 +54,13 @@ export class LinkedinConnectFlow {
         }
 
         if (!results.length) {
-            console.log('[connect] nenhuma conexao encontrada para a keyword')
+            logger.info('[connect] nenhuma conexao encontrada para a keyword')
         } else {
-            console.log(`[connect] perfis encontrados: ${results.length}`)
+            logger.info(`[connect] perfis encontrados: ${results.length}`)
         }
         return results
     }
-
-    private async _searchConnections(){
-
-    }
-
+    
     private async  _handleConnection(profileURL:string, inMailOptions?: { message: string }){
         await this._navigator.goToLinkedinURL(profileURL)
         await this._page.waitForTimeout(800)
@@ -72,10 +69,10 @@ export class LinkedinConnectFlow {
         if (!connected) {
             const state = await this._detectConnectionState()
             if (state) {
-                console.log(`[connect] convite nao enviado: ${state}`)
+                logger.info(`[connect] convite nao enviado: ${state}`)
                 return
             }
-            console.log('[connect] botao conectar nao encontrado')
+            logger.info('[connect] botao conectar nao encontrado')
             return
         }
         if (inMailOptions) {
@@ -90,15 +87,15 @@ export class LinkedinConnectFlow {
         if (!modal) {
             const toast = await this._detectInviteToast()
             if (toast) {
-                console.log(`[connect] ${toast}`)
+                logger.info(`[connect] ${toast}`)
                 return
             }
             const state = await this._detectConnectionState()
             if (state) {
-                console.log(`[connect] convite: ${state}`)
+                logger.info(`[connect] convite: ${state}`)
                 return
             }
-            console.log('[connect] modal de convite nao apareceu (inmail)')
+            logger.info('[connect] modal de convite nao apareceu (inmail)')
             return
         }
         const addNote = modal.getByRole('button', { name: LINKEDIN_ACTION_LABELS.addNote }).first()
@@ -122,26 +119,26 @@ export class LinkedinConnectFlow {
             const sendFallback = this._page.getByRole('button', { name: LINKEDIN_ACTION_LABELS.sendWithoutNote }).first()
             if (await sendFallback.count()) {
                 await sendFallback.click().catch(() => undefined)
-                console.log('[connect] convite enviado (fallback)')
+                logger.info('[connect] convite enviado (fallback)')
                 return
             }
             const genericSend = this._page.getByRole('button', { name: /Enviar|Send|Done|Feito/i }).first()
             if (await genericSend.count()) {
                 await genericSend.click().catch(() => undefined)
-                console.log('[connect] convite enviado (generico)')
+                logger.info('[connect] convite enviado (generico)')
                 return
             }
             const toast = await this._detectInviteToast()
             if (toast) {
-                console.log(`[connect] ${toast}`)
+                logger.info(`[connect] ${toast}`)
                 return
             }
             const state = await this._detectConnectionState()
             if (state) {
-                console.log(`[connect] convite: ${state}`)
+                logger.info(`[connect] convite: ${state}`)
                 return
             }
-            console.log('[connect] convite nao enviado: nenhum modal/botao encontrado')
+            logger.info('[connect] convite nao enviado: nenhum modal/botao encontrado')
             return
         }
         const sendButton = modal.getByRole('button', { name: LINKEDIN_ACTION_LABELS.sendWithoutNote }).first()
@@ -160,7 +157,7 @@ export class LinkedinConnectFlow {
         const connect = await this._findConnectButton(topCard)
         if (connect) {
             await connect.click()
-            console.log('[connect] clicou em conectar (top card)')
+            logger.info('[connect] clicou em conectar (top card)')
             return true
         }
 
@@ -173,7 +170,7 @@ export class LinkedinConnectFlow {
         const fallback = await this._findConnectButton(scope)
         if (fallback) {
             await fallback.click()
-            console.log('[connect] clicou em conectar (main)')
+            logger.info('[connect] clicou em conectar (main)')
             return true
         }
 
@@ -255,7 +252,7 @@ export class LinkedinConnectFlow {
         try {
             await modal.waitFor({ state: 'visible', timeout: 6_000 })
         } catch {
-            console.log('[connect] modal de convite nao apareceu')
+            logger.info('[connect] modal de convite nao apareceu')
             return null
         }
         return modal
@@ -269,7 +266,7 @@ export class LinkedinConnectFlow {
         const menuConnect = menu.getByRole('menuitem', { name: LINKEDIN_ACTION_LABELS.connect }).first()
         if (await menuConnect.count()) {
             await menuConnect.click()
-            console.log('[connect] clicou em conectar (menu)')
+            logger.info('[connect] clicou em conectar (menu)')
             return true
         }
 
@@ -285,7 +282,7 @@ export class LinkedinConnectFlow {
         ).first()
         if (await fallback.count()) {
             await fallback.click()
-            console.log('[connect] clicou em conectar (menu fallback)')
+            logger.info('[connect] clicou em conectar (menu fallback)')
             return true
         }
 
@@ -316,7 +313,7 @@ export class LinkedinConnectFlow {
             .catch(() => false)
 
         if (clicked) {
-            console.log('[connect] clicou em conectar (fallback texto)')
+            logger.info('[connect] clicou em conectar (fallback texto)')
         }
         return clicked
     }
@@ -361,7 +358,7 @@ export class LinkedinConnectFlow {
             .catch(() => false)
 
         if (clicked) {
-            console.log('[connect] clicou em conectar (fallback span)')
+            logger.info('[connect] clicou em conectar (fallback span)')
         }
         return clicked
     }
@@ -381,7 +378,7 @@ export class LinkedinConnectFlow {
         }
 
         const badges = await this._page.locator('main span, main button, main a').allInnerTexts().catch(() => [])
-        const normalized = badges.join(' ').toLowerCase()
+        const normalized = normalizeTextBasic(badges.join(' '))
         if (normalized.includes('pendente') || normalized.includes('pending')) return 'convite pendente'
         if (normalized.includes('conectado') || normalized.includes('connected')) return 'ja conectado'
         if (normalized.includes('convite enviado') || normalized.includes('invitation sent')) return 'convite pendente'
@@ -403,9 +400,9 @@ export class LinkedinConnectFlow {
             )
             .first()
         if ((await toast.count().catch(() => 0)) === 0) return null
-        const text = (await toast.innerText().catch(() => '')).replace(/\s+/g, ' ').trim()
+        const text = normalizeWhitespace(await toast.innerText().catch(() => ''))
         if (!text) return null
-        const lowered = text.toLowerCase()
+        const lowered = normalizeTextBasic(text)
         if (
             lowered.includes('convite enviado') ||
             lowered.includes('invitation sent') ||
@@ -487,20 +484,20 @@ export class LinkedinConnectFlow {
             const card = cards.nth(i)
             const link = card.locator('a[href*="/in/"]').first()
             const href = await link.getAttribute('href').catch(() => null)
-            const normalized = this._normalizeProfileUrl(href || '')
+            const normalized = normalizeLinkedinProfileUrl(href || '')
             if (!normalized) continue
             const lines = await this._extractCardLines(card)
             const picked = this._pickCardFields(lines)
             let name = picked.name
             let headline = picked.headline
             let location = picked.location
-            const slug = this._extractSlugFromUrl(normalized)
+            const slug = extractLinkedinProfileSlug(normalized)
 
             const linkTextRaw = (await link.innerText().catch(() => '')).trim()
             const linkText = linkTextRaw.split('\n')[0]?.trim() || ''
             if (linkText && !name) {
-                const normalizedLink = linkText.replace(/\s+/g, ' ').trim().toLowerCase()
-                const normalizedSlug = slug.replace(/\s+/g, ' ').trim().toLowerCase()
+                const normalizedLink = normalizeTextBasic(linkText)
+                const normalizedSlug = normalizeTextBasic(slug)
                 const looksLikeSlug = normalizedSlug && normalizedLink === normalizedSlug
                 if (
                     !linkText.includes('/in/') &&
@@ -516,7 +513,7 @@ export class LinkedinConnectFlow {
             const titleAttr = (await link.getAttribute('title').catch(() => null)) || ''
             const label = ariaLabel.trim() || titleAttr.trim()
             if (label) {
-                const parsed = this._parseLabelFields(label)
+                const parsed = parseConnectionLabelFields(label)
                 if (parsed.name && !name) name = parsed.name
                 if (parsed.headline && !headline) headline = parsed.headline
                 if (parsed.location && !location) location = parsed.location
@@ -542,14 +539,14 @@ export class LinkedinConnectFlow {
         for (let i = 0; i < count; i++) {
             const anchor = anchors.nth(i)
             const href = await anchor.getAttribute('href').catch(() => null)
-            const normalized = this._normalizeProfileUrl(href || '')
+            const normalized = normalizeLinkedinProfileUrl(href || '')
             if (!normalized) continue
-            const slug = this._extractSlugFromUrl(normalized)
+            const slug = extractLinkedinProfileSlug(normalized)
             const raw = (await anchor.innerText().catch(() => '')).trim()
             let name = raw
             if (raw) {
-                const normalizedLink = raw.replace(/\s+/g, ' ').trim().toLowerCase()
-                const normalizedSlug = slug.replace(/\s+/g, ' ').trim().toLowerCase()
+                const normalizedLink = normalizeTextBasic(raw)
+                const normalizedSlug = normalizeTextBasic(slug)
                 const looksLikeSlug = normalizedSlug && normalizedLink === normalizedSlug
                 if (raw.includes('/in/') || raw.includes('linkedin.com') || looksLikeSlug) {
                     name = ''
@@ -579,8 +576,8 @@ export class LinkedinConnectFlow {
 
         const altName = await scope.locator('img[alt]').first().getAttribute('alt').catch(() => '')
         if (altName) {
-            const cleanedAlt = altName.replace(/\s+/g, ' ').trim()
-            if (cleanedAlt && !this._isNoiseLine(cleanedAlt.toLowerCase())) {
+            const cleanedAlt = normalizeWhitespace(altName)
+            if (cleanedAlt && !this._isNoiseLine(normalizeTextBasic(cleanedAlt))) {
                 lines.push(cleanedAlt)
             }
         }
@@ -619,9 +616,9 @@ export class LinkedinConnectFlow {
         const cleaned: string[] = []
         const seen = new Set<string>()
         for (const line of lines) {
-            const normalized = line.replace(/\s+/g, ' ').trim()
+            const normalized = normalizeWhitespace(line)
             if (!normalized) continue
-            const key = normalized.toLowerCase()
+            const key = normalizeTextBasic(normalized)
             if (seen.has(key)) continue
             if (this._isNoiseLine(key)) continue
             seen.add(key)
@@ -653,35 +650,9 @@ export class LinkedinConnectFlow {
         return { name, headline, location }
     }
 
-    private _parseLabelFields(label: string) {
-        const cleaned = label.replace(/\s+/g, ' ').trim()
-        if (!cleaned) return { name: '', headline: '', location: '' }
-        const lowered = cleaned.toLowerCase()
-        if (lowered.includes('profile') || lowered.includes('perfil')) {
-            return { name: '', headline: '', location: '' }
-        }
-        let parts: string[] = []
-        if (cleaned.includes(' - ')) {
-            parts = cleaned.split(' - ')
-        } else if (cleaned.includes(' | ')) {
-            parts = cleaned.split(' | ')
-        } else if (cleaned.includes(' · ')) {
-            parts = cleaned.split(' · ')
-        } else {
-            parts = [cleaned]
-        }
-        const filtered = parts.map((part) => part.trim()).filter(Boolean)
-        const [name, headline, location] = filtered
-        return {
-            name: name || '',
-            headline: headline || '',
-            location: location || ''
-        }
-    }
-
     private _looksLikeLocation(line: string) {
         if (!line) return false
-        const normalized = line.toLowerCase()
+        const normalized = normalizeTextBasic(line)
         if (/[·•]/.test(line)) return false
         if (normalized.includes('conectar') || normalized.includes('connect')) return false
         if (normalized.includes('seguir') || normalized.includes('follow')) return false
@@ -713,27 +684,6 @@ export class LinkedinConnectFlow {
         if (normalized.includes('premium')) return true
         if (normalized === 'ver mais' || normalized === 'see more') return true
         return false
-    }
-
-    private _normalizeProfileUrl(raw: string) {
-        if (!raw) return null
-        try {
-            const url = new URL(raw, LINKEDIN_BASE_URL)
-            if (!url.pathname.includes('/in/')) return null
-            if (url.pathname.includes('/in/me')) return null
-            url.search = ''
-            url.hash = ''
-            return url.toString()
-        } catch {
-            if (!raw.includes('/in/') || raw.includes('/in/me')) return null
-            return raw.split('#')[0].split('?')[0]
-        }
-    }
-
-    private _extractSlugFromUrl(url: string) {
-        const match = url.match(/\/in\/([^/?#]+)/i)
-        if (!match) return ''
-        return decodeURIComponent(match[1]).replace(/[-_]+/g, ' ').trim()
     }
 
     private async _scrollResultsPage() {

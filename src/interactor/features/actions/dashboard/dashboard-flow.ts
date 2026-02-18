@@ -7,6 +7,7 @@ import { MyNetworkScrap } from "../../../shared/scrap/my-network"
 import { ProfileScraps } from "../../../shared/scrap/profile"
 import { saveDashboardAnalysis } from "../../../../api/controllers/dashboard-analyses"
 import { ERROR_CODES } from "../../../shared/constants/errors"
+import { logger } from "../../../shared/services/logger"
 
 type DashboardMode = 'full' | 'profile' | 'network'
 
@@ -74,8 +75,8 @@ export class DashboardFlow {
       const network = await this._networkScrap.myConnections()
       networkWords = network.ranking
       connectionsCount = network.connectionsCount ?? network.subtitles.length
-      if (!networkWords.length) {
-        console.log('[dashboard] network: sem keywords detectadas')
+        if (!networkWords.length) {
+        logger.info('[dashboard] network: sem keywords detectadas')
       }
     }
 
@@ -99,10 +100,10 @@ export class DashboardFlow {
         connectionsCount
       })
     } catch (error) {
-      console.warn('[dashboard] falha ao salvar no banco:', error)
+      logger.warn('[dashboard] falha ao salvar no banco:', error)
     }
 
-    console.log(`[dashboard] data: ${JSON.stringify(payload)}`)
+    logger.info(`[dashboard] data: ${JSON.stringify(payload)}`)
     return payload
   }
 
