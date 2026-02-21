@@ -1,5 +1,4 @@
-import { WithId } from "mongodb";
-import { getCollection } from "../database";
+import { apiGet, apiPost } from "../api-client";
 
 export type AnalysisType = "profile" | "network" | "full";
 
@@ -17,28 +16,17 @@ export type DashboardAnalysis = {
   createdAt: Date;
 };
 
-const COLLECTION = "dashboard-analyses";
-
 export async function saveDashboardAnalysis(
   payload: Omit<DashboardAnalysis, "createdAt">
-): Promise<WithId<DashboardAnalysis>> {
-  const collection = await getCollection<DashboardAnalysis>(COLLECTION);
-  const document: DashboardAnalysis = {
-    ...payload,
-    createdAt: new Date(),
-  };
-
-  const { insertedId } = await collection.insertOne(document);
-  return { ...document, _id: insertedId };
+): Promise<DashboardAnalysis> {
+  return apiPost<DashboardAnalysis>('/dashboard/analyses', payload);
 }
 
-export async function listDashboardAnalyses(limit = 20): Promise<WithId<DashboardAnalysis>[]> {
-  const collection = await getCollection<DashboardAnalysis>(COLLECTION);
-  return collection.find({}).sort({ createdAt: -1 }).limit(limit).toArray();
+export async function listDashboardAnalyses(limit = 20): Promise<DashboardAnalysis[]> {
+  return apiGet<DashboardAnalysis[]>(`/dashboard/analyses?limit=${limit}`);
 }
 
-export async function getLatestDashboardAnalysis(type?: AnalysisType): Promise<WithId<DashboardAnalysis> | null> {
-  const collection = await getCollection<DashboardAnalysis>(COLLECTION);
-  const query = type ? { type } : {};
-  return collection.find(query).sort({ createdAt: -1 }).limit(1).next();
+export async function getLatestDashboardAnalysis(type?: AnalysisType): Promise<DashboardAnalysis | null> {
+  const query = type ? `?type=${encodeURIComponent(type)}` : '';
+  return apiGet<DashboardAnalysis | null>(`/dashboard/analyses/latest${query}`);
 }

@@ -1,9 +1,9 @@
-import { Locator, Page } from "playwright";
+import { Frame, Locator, Page } from "playwright";
 import { SCRAP_SELECTORS } from "../constants/scrap";
 import { logger } from "../services/logger";
 import type { EasyApplyJobResult, SearchJobTagOptions } from "../interface/scrap/jobs.types";
 import { buildLinkedinJobSearchUrl, normalizeLinkedinUrl } from "../utils/linkedin-url";
-import { normalizeTextAlphaNum } from "../utils/normalize";
+import { normalizeTextAlphaNum, normalizeWhitespace } from "../utils/normalize";
 import { parseApplicantsCount, parsePostedAgeMinutes } from "../utils/parse-jobs";
 
 
@@ -23,7 +23,8 @@ export class LinkedinJobsScrap {
             start = 0,
             geoId?: string | number,
             easyApplyOnly = true,
-            postedWithinDays?: number
+            postedWithinDays?: number,
+            workplaceTypes?: string[]
         ) {
             return buildLinkedinJobSearchUrl({
                 tag,
@@ -31,7 +32,8 @@ export class LinkedinJobsScrap {
                 start,
                 geoId,
                 easyApplyOnly,
-                postedWithinDays
+                postedWithinDays,
+                workplaceTypes
             })
         }
     
@@ -84,10 +86,31 @@ export class LinkedinJobsScrap {
                 const card = cards.nth(i)
                 const link = card.locator(SCRAP_SELECTORS.jobLink)
                 let href = await link.first().getAttribute('href').catch(() => null)
-                const title = await this._safeInnerText(link.first())
-                const company = await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobCompany))
-                const location = await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobLocation))
+                let title = this._cleanValue(await this._safeText(link.first()))
+                let company = this._cleanValue(await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobCompany)))
+                let location = this._cleanValue(await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobLocation)))
                 const cardText = await this._safeInnerText(card)
+                if (title && company && this._isSimilarValue(company, title)) {
+                    company = ''
+                }
+                if (location && (this._isSimilarValue(location, title) || (company && this._isSimilarValue(location, company)))) {
+                    location = ''
+                }
+                if ((!title || !company || !location) && cardText) {
+                    const cardMeta = this._extractMetaCandidates(cardText, title ? [title] : [])
+                    let metaIndex = 0
+                    if (!title && cardMeta[metaIndex]) {
+                        title = cardMeta[metaIndex]
+                        metaIndex += 1
+                    }
+                    if (!company && cardMeta[metaIndex]) {
+                        company = cardMeta[metaIndex]
+                        metaIndex += 1
+                    }
+                    if (!location && cardMeta[metaIndex]) {
+                        location = cardMeta[metaIndex]
+                    }
+                }
                 const clicked = await this._clickJobCard(card)
                 if (!clicked) continue
                 await this._page.waitForTimeout(40)
@@ -113,12 +136,39 @@ export class LinkedinJobsScrap {
                 let applicants = parseApplicantsCount(cardText)
                 let postedAt = await this._getPostedAtFromCard(card, cardText)
                 let easyApply = easyApplyOnly || this._hasEasyApplyLabel(cardText)
-                if (includeDetails && (applicants === null || !promoted || !easyApply || !postedAt)) {
+                if (includeDetails && (applicants === null || !promoted || !easyApply || !postedAt || !company || !location)) {
                     const detailTextSelectors = SCRAP_SELECTORS.jobDetailText.join(', ')
                     let detailText = await this._safeInnerText(detail)
                     if (!detailText) {
                         detailText = await this._safeInnerText(this._page.locator(detailTextSelectors))
                     }
+
+                    if (!company || !location) {
+                        const detailCompany = this._cleanValue(await this._safeText(
+                            detail.locator(SCRAP_SELECTORS.jobDetailCompany.join(', '))
+                        ))
+                        if (
+                            !company &&
+                            detailCompany &&
+                            !this._isMetaLine(detailCompany) &&
+                            !this._isSimilarValue(detailCompany, title)
+                        ) {
+                            company = detailCompany
+                        }
+                        const detailLocation = this._cleanValue(await this._safeText(
+                            detail.locator(SCRAP_SELECTORS.jobDetailLocation.join(', '))
+                        ))
+                        if (
+                            !location &&
+                            detailLocation &&
+                            !this._isMetaLine(detailLocation) &&
+                            !this._isSimilarValue(detailLocation, title) &&
+                            (!company || !this._isSimilarValue(detailLocation, company))
+                        ) {
+                            location = detailLocation
+                        }
+                    }
+
                     if (detailText) {
                         if (applicants === null) {
                             applicants = parseApplicantsCount(detailText)
@@ -134,6 +184,20 @@ export class LinkedinJobsScrap {
                         }
                         if (!postedAt) {
                             postedAt = (await this._getPostedAtFromDetail()) || this._extractPostedAtFromText(detailText)
+                        }
+                        if (!company || !location) {
+                            const detailMeta = this._extractMetaCandidates(
+                                detailText,
+                                [title, company, location].filter(Boolean) as string[]
+                            )
+                            let metaIndex = 0
+                            if (!company && detailMeta[metaIndex]) {
+                                company = detailMeta[metaIndex]
+                                metaIndex += 1
+                            }
+                            if (!location && detailMeta[metaIndex]) {
+                                location = detailMeta[metaIndex]
+                            }
                         }
                     } else if (applicants === null) {
                         applicants = await this._getApplicantsFromDetail()
@@ -291,17 +355,131 @@ export class LinkedinJobsScrap {
             const selectors = SCRAP_SELECTORS.jobDetailApplicants.join(', ')
             const locator = this._page.locator(selectors)
             const count = await locator.count().catch(() => 0)
-            if (count === 0) return null
-            for (let i = 0; i < count; i++) {
-                const text = await this._safeText(locator.nth(i))
-                if (!text) continue
-                const parsed = parseApplicantsCount(text)
-                if (parsed !== null) return parsed
+            if (count > 0) {
+                for (let i = 0; i < count; i++) {
+                    const text = await this._safeText(locator.nth(i))
+                    if (!text) continue
+                    const parsed = parseApplicantsCount(text)
+                    if (parsed !== null) return parsed
+                }
+                const combined = await locator.allTextContents().catch(() => [])
+                const merged = combined.map((item) => item.trim()).filter(Boolean).join(' ')
+                if (merged) {
+                    const parsed = parseApplicantsCount(merged)
+                    if (parsed !== null) return parsed
+                }
             }
-            const combined = await locator.allTextContents().catch(() => [])
-            const merged = combined.map((item) => item.trim()).filter(Boolean).join(' ')
-            if (!merged) return null
-            return parseApplicantsCount(merged)
+
+            const insights = await this._getApplicantsFromInsightPanel()
+            if (insights !== null) return insights
+            return null
+        }
+
+        private async _getApplicantsFromInsightPanel() {
+            const extractFromFrame = async (frame: Frame) => {
+                try {
+                    const value = await frame.evaluate(() => {
+                        const normalize = (input: string) =>
+                            input
+                                .normalize('NFD')
+                                .replace(/[\u0300-\u036f]/g, '')
+                                .toLowerCase()
+
+                        const headingMatchers = [
+                            'applicants for this job',
+                            'see how you compare to other applicants',
+                            'candidatos para esta vaga',
+                            'candidaturas para esta vaga',
+                            'candidatos para este cargo',
+                            'candidaturas para este cargo',
+                            'veja como voce se compara a outros candidatos',
+                            'veja como voce se compara a outros aplicantes'
+                        ]
+
+                        const isExactLabel = (text: string) => {
+                            const normalized = normalize(text)
+                            return (
+                                normalized === 'applicants' ||
+                                normalized === 'candidatos' ||
+                                normalized === 'candidaturas' ||
+                                normalized === 'aplicantes'
+                            )
+                        }
+
+                        const extractDigits = (raw: string) => {
+                            if (!raw) return ''
+                            if (raw.includes('%')) return ''
+                            const digits = raw.replace(/[^\d]/g, '')
+                            return digits
+                        }
+
+                        const nodes = Array.from(
+                            document.querySelectorAll('h1, h2, h3, h4, h5, p, span, strong, div')
+                        )
+
+                        const findInScope = (scope: Element) => {
+                            const labels = Array.from(scope.querySelectorAll('p, span, strong, div'))
+                            for (const label of labels) {
+                                const text = label.textContent || ''
+                                if (!isExactLabel(text)) continue
+
+                                const prev = label.previousElementSibling
+                                if (prev) {
+                                    const digits = extractDigits(prev.textContent || '')
+                                    if (digits) return digits
+                                }
+
+                                const parent = label.parentElement
+                                if (parent) {
+                                    const siblings = Array.from(parent.children)
+                                    for (const sibling of siblings) {
+                                        if (sibling === label) continue
+                                        const digits = extractDigits(sibling.textContent || '')
+                                        if (digits) return digits
+                                    }
+                                }
+                            }
+                            return ''
+                        }
+
+                        for (const node of nodes) {
+                            const raw = node.textContent || ''
+                            if (!raw) continue
+                            const normalized = normalize(raw)
+                            if (!headingMatchers.some((match) => normalized.includes(match))) continue
+
+                            const scope =
+                                node.closest('section, article, div, tbody') ||
+                                node.parentElement
+                            if (!scope) continue
+
+                            const digits = findInScope(scope)
+                            if (digits) return digits
+                        }
+
+                        return ''
+                    })
+
+                    if (!value) return null
+                    const digits = value.replace(/[^\d]/g, '')
+                    if (!digits) return null
+                    const parsed = Number(digits)
+                    return Number.isNaN(parsed) ? null : parsed
+                } catch {
+                    return null
+                }
+            }
+
+            const mainValue = await extractFromFrame(this._page.mainFrame())
+            if (mainValue !== null) return mainValue
+
+            for (const frame of this._page.frames()) {
+                if (frame === this._page.mainFrame()) continue
+                const value = await extractFromFrame(frame)
+                if (value !== null) return value
+            }
+
+            return null
         }
     
         filterResults(
@@ -367,6 +545,84 @@ export class LinkedinJobsScrap {
             const normalized = normalizeTextAlphaNum(text)
             if (!normalized) return false
             return /(easy apply|candidatura simplificada|candidatar[- ]se facilmente|candidatura facil|aplicar facilmente)/.test(normalized)
+        }
+
+        private _extractMetaCandidates(text: string, ignore: string[] = []) {
+            if (!text) return []
+            const ignored = new Set(
+                ignore
+                    .map((value) => normalizeTextAlphaNum(value))
+                    .filter((value) => value)
+            )
+            const parts = text
+                .split(/[\n•·|]/g)
+                .map((part) => part.trim())
+                .filter(Boolean)
+            const results: string[] = []
+            for (const part of parts) {
+                const cleaned = this._cleanValue(part)
+                if (!cleaned) continue
+                const normalized = normalizeTextAlphaNum(cleaned)
+                if (!normalized) continue
+                if (this._matchesIgnored(normalized, ignored)) continue
+                if (this._isMetaLine(cleaned)) continue
+                if (results.some((existing) => normalizeTextAlphaNum(existing) === normalized)) continue
+                results.push(cleaned)
+            }
+            return results
+        }
+
+        private _isMetaLine(text: string) {
+            if (!text) return false
+            if (this._extractPostedAtFromText(text)) return true
+            if (parseApplicantsCount(text) !== null) return true
+            if (this._hasEasyApplyLabel(text)) return true
+            if (this._hasPromotedLabel(text)) return true
+            return false
+        }
+
+        private _matchesIgnored(normalized: string, ignored: Set<string>) {
+            if (!normalized || ignored.size === 0) return false
+            for (const value of ignored) {
+                if (!value) continue
+                if (normalized === value) return true
+                if (normalized.includes(value) || value.includes(normalized)) return true
+            }
+            return false
+        }
+
+        private _isSimilarValue(a: string, b: string) {
+            if (!a || !b) return false
+            const na = normalizeTextAlphaNum(a)
+            const nb = normalizeTextAlphaNum(b)
+            if (!na || !nb) return false
+            if (na === nb) return true
+            if (na.includes(nb) || nb.includes(na)) return true
+            return false
+        }
+
+        private _cleanValue(value: string) {
+            if (!value) return ''
+            const cleaned = normalizeWhitespace(value)
+            if (!cleaned) return ''
+            const stripped = cleaned
+                .replace(/\b(with verification|com verificação|verified|verificado)\b/gi, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+            return this._dedupeRepeatedPhrase(stripped)
+        }
+
+        private _dedupeRepeatedPhrase(value: string) {
+            if (!value) return ''
+            const words = value.split(' ').filter(Boolean)
+            if (words.length < 2 || words.length % 2 !== 0) return value
+            const mid = words.length / 2
+            const first = words.slice(0, mid).join(' ')
+            const second = words.slice(mid).join(' ')
+            if (normalizeTextAlphaNum(first) === normalizeTextAlphaNum(second)) {
+                return first
+            }
+            return value
         }
     
 }

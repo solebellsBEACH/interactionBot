@@ -1,4 +1,5 @@
 import { LINKEDIN_BASE_URL, LINKEDIN_URLS } from "../constants/linkedin-urls"
+import { normalizeTextBasic } from "./normalize"
 
 type JobSearchOptions = {
   tag: string
@@ -7,6 +8,7 @@ type JobSearchOptions = {
   geoId?: string | number
   easyApplyOnly?: boolean
   postedWithinDays?: number
+  workplaceTypes?: string[]
 }
 
 export const normalizeLinkedinUrl = (href: string) => {
@@ -87,6 +89,10 @@ export const buildLinkedinJobSearchUrl = (options: JobSearchOptions) => {
     const seconds = Math.round(options.postedWithinDays * 24 * 60 * 60)
     params.set('f_TPR', `r${seconds}`)
   }
+  const workplaceTypes = normalizeWorkplaceTypes(options.workplaceTypes)
+  if (workplaceTypes.length > 0) {
+    params.set('f_WT', workplaceTypes.join(','))
+  }
   if (options.geoId !== undefined && options.geoId !== null) {
     const normalized = String(options.geoId).trim()
     if (normalized) {
@@ -100,6 +106,38 @@ export const buildLinkedinJobSearchUrl = (options: JobSearchOptions) => {
     params.set('start', options.start.toString())
   }
   return `${LINKEDIN_URLS.jobSearch}?${params.toString()}`
+}
+
+const normalizeWorkplaceTypes = (types?: string[]) => {
+  if (!types || types.length === 0) return []
+  const results: string[] = []
+  const map: Record<string, string> = {
+    onsite: '1',
+    'on-site': '1',
+    'on site': '1',
+    presencial: '1',
+    remote: '2',
+    remoto: '2',
+    hybrid: '3',
+    hibrido: '3'
+  }
+
+  for (const raw of types) {
+    if (!raw) continue
+    const trimmed = String(raw).trim()
+    if (!trimmed) continue
+    if (/^\\d+$/.test(trimmed)) {
+      if (!results.includes(trimmed)) results.push(trimmed)
+      continue
+    }
+    const normalized = normalizeTextBasic(trimmed)
+    const mapped = map[normalized]
+    if (mapped && !results.includes(mapped)) {
+      results.push(mapped)
+    }
+  }
+
+  return results
 }
 
 export const buildLinkedinContentSearchUrl = (tag: string) => {

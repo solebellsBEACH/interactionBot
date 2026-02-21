@@ -241,7 +241,7 @@ export class EasyApplyAnswerResolver {
         if (!jobId) return null
         try {
             const record = await createPrompt(jobId, prompt, options)
-            const answer = await waitForPromptAnswer(record._id.toString(), this._promptTimeoutMs)
+            const answer = await waitForPromptAnswer(record?._id||''.toString(), this._promptTimeoutMs)
             return answer
         } catch {
             return null

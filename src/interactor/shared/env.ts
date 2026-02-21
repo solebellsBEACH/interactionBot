@@ -66,6 +66,9 @@ export const env = {
     isStandalone: readBool('EASY_APPLY_STANDALONE'),
     promptTimeoutMs: readNumber('EASY_APPLY_PROMPT_TIMEOUT_MS', 120_000),
   },
+  api: {
+    baseUrl: readString('API_BASE_URL', 'http://localhost:3001'),
+  },
   linkedinURLs: {
     postUrl: readString('LINKEDIN_POST_URL', DEFAULTS.linkedin.postUrl),
     feedURL: readString('LINKEDIN_FEED_URL', DEFAULTS.linkedin.feedURL),

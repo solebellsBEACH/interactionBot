@@ -243,7 +243,7 @@ export const promptWeb = async (prompt: string, timeoutMs = 180_000) => {
   if (!jobId) return null
   try {
     const record = await createPrompt(jobId, prompt)
-    return await waitForPromptAnswer(record._id.toString(), timeoutMs)
+    return await waitForPromptAnswer(record._id||''.toString(), timeoutMs)
   } catch {
     return null
   }

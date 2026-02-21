@@ -20,4 +20,5 @@ export type SearchJobTagOptions = {
   includeUnknownApplicants?: boolean
   includeDetails?: boolean
   postedWithinDays?: number
+  workplaceTypes?: string[]
 }

@@ -4,9 +4,14 @@ export const parseApplicantsCount = (text: string) => {
   const normalized = normalizeTextAlphaNum(text)
   if (!normalized) return null
   const keyword = '(?:applicants?|applications?|candidatos?|candidaturas?|aplicantes?)'
+  const forJobWords =
+    '(?:for\\s*this\\s*(?:job|position)|para\\s*(?:esta|essa)\\s*(?:vaga|posicao|cargo))'
   const prefixWords =
     '(?:total|totais|received|recebidas?|recebido|ate|até|agora|no\\s*total|so\\s*far)'
   const patterns: Array<{ regex: RegExp; over?: boolean }> = [
+    {
+      regex: new RegExp(`${keyword}\\s*${forJobWords}\\s*([\\d.,]+)`)
+    },
     {
       regex:
         new RegExp(`(?:over|more than|mais de)\\s*([\\d.,]+)\\s*${keyword}`),

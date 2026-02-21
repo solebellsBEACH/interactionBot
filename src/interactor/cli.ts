@@ -1,7 +1,6 @@
 import { BrowserContext, chromium } from 'playwright';
 import { env } from './shared/env';
 import { LinkedinFeatures } from './features/linkedin';
-import { disconnectFromDatabase } from '../api/database';
 import { ERROR_CODES } from './shared/constants/errors';
 import { logger } from './shared/services/logger';
 import { parseArgs, ParsedArgs } from './shared/utils/parse-cli-args';
@@ -14,19 +13,22 @@ type JobFilterLog = {
   maxApplicants?: number
   includeUnknownApplicants?: boolean
   postedWithinDays?: number
+  workplaceTypes?: string[]
 }
 
 const buildJobSearchOptions = (args: ParsedArgs, easyApplyDefault: boolean) => {
   const easyApplyOnly = args.easyApplyOnly ?? easyApplyDefault
   const maxApplicants = args.maxApplicants
-  const includeUnknownApplicants = args.includeUnknownApplicants
+  const includeUnknownApplicants = maxApplicants === undefined ? args.includeUnknownApplicants : false
   const postedWithinDays = args.postedWithinDays
+  const workplaceTypes = args.workplaceTypes
   return {
     filters: {
       easyApplyOnly,
       maxApplicants,
       includeUnknownApplicants,
-      postedWithinDays
+      postedWithinDays,
+      workplaceTypes
     },
     options: {
       maxResults: args.maxResults,
@@ -34,14 +36,16 @@ const buildJobSearchOptions = (args: ParsedArgs, easyApplyDefault: boolean) => {
       maxApplicants,
       postedWithinDays,
       easyApplyOnly,
-      includeUnknownApplicants
+      includeUnknownApplicants,
+      workplaceTypes
     }
   }
 }
 
 const logJobFilters = (filters: JobFilterLog) => {
+  const workplace = filters.workplaceTypes?.length ? filters.workplaceTypes.join(',') : '-'
   logger.info(
-    `[bot] Filtros: easyApplyOnly=${filters.easyApplyOnly} | maxApplicants=${filters.maxApplicants ?? '-'} | includeUnknownApplicants=${filters.includeUnknownApplicants ?? '-'} | postedWithinDays=${filters.postedWithinDays ?? '-'}`
+    `[bot] Filtros: easyApplyOnly=${filters.easyApplyOnly} | maxApplicants=${filters.maxApplicants ?? '-'} | includeUnknownApplicants=${filters.includeUnknownApplicants ?? '-'} | postedWithinDays=${filters.postedWithinDays ?? '-'} | workplaceTypes=${workplace}`
   )
 }
 
@@ -152,7 +156,7 @@ const main = async (): Promise<void> => {
     logger.info('Encerrando...')
     try {
       await browser?.close()
-      await disconnectFromDatabase().catch(() => undefined)
+      // no-op: API handles DB connections
     } finally {
       process.exit(0)
     }
@@ -170,16 +174,26 @@ const main = async (): Promise<void> => {
 
   const linkedinFeatures = new LinkedinFeatures(page)
   try {
-    logHeader('Iniciando ação', args.action || 'profile')
-    await runAction(linkedinFeatures, args)
+    const action = args.action || 'profile'
+    logHeader('Iniciando ação', action)
+    const result = await runAction(linkedinFeatures, args)
     logger.info('Ação concluída.')
+    if (action === 'search-jobs' || action === 'catch-jobs') {
+      printJobsTable(result as Array<{
+        title: string
+        company: string
+        location: string
+        url: string
+        applicants?: number | null
+        postedAt?: string | null
+        easyApply?: boolean
+      }>)
+    }
   } finally {
     await browser?.close().catch((error) => {
       logger.warn('Falha ao fechar o navegador:', error)
     })
-    await disconnectFromDatabase().catch((error) => {
-      logger.warn('Falha ao fechar o MongoDB:', error)
-    })
+    // no-op: API handles DB connections
   }
 }
 
@@ -219,6 +233,38 @@ function logJobs(
       .map((value) => clean(String(value)))
       .join(' | ')
     logger.info(`${idx + 1}. ${parts} | ${clean(job.url)}`)
+  }
+}
+
+function printJobsTable(
+  jobs: {
+    title: string
+    company: string
+    location: string
+    url: string
+    applicants?: number | null
+    postedAt?: string | null
+    easyApply?: boolean
+  }[]
+) {
+  if (!jobs || jobs.length === 0) return
+  const clean = (value: string) => value.replace(/\s+/g, ' ').trim()
+  const header = ['Vaga', 'Empresa', 'Local', 'Publicado', 'Candidaturas', 'Easy Apply', 'Link']
+  console.log(`--\t${header.join('\t')}`)
+  for (const job of jobs) {
+    const posted = job.postedAt ?? ''
+    const applicants = typeof job.applicants === 'number' ? String(job.applicants) : ''
+    const easyApply = job.easyApply ? 'Sim' : 'Nao'
+    const row = [
+      job.title,
+      job.company,
+      job.location,
+      posted,
+      applicants,
+      easyApply,
+      job.url
+    ].map((value) => clean(String(value ?? '')))
+    console.log(row.join('\t'))
   }
 }
 

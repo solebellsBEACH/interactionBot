@@ -50,9 +50,12 @@ export class LinkedinJobsFlow {
             const easyApplyOnly = options?.easyApplyOnly !== false
             const onlyNonPromoted = options?.onlyNonPromoted === true
             const maxApplicants = options?.maxApplicants
-            const includeUnknownApplicants = options?.includeUnknownApplicants ?? false
+            const includeUnknownApplicants = maxApplicants === undefined
+                ? (options?.includeUnknownApplicants ?? false)
+                : false
             const includeDetails = options?.includeDetails ?? true
             const postedWithinDays = options?.postedWithinDays
+            const workplaceTypes = options?.workplaceTypes
             const results = new Map<string, EasyApplyJobResult>()
 
             for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
@@ -64,7 +67,8 @@ export class LinkedinJobsFlow {
                     pageIndex * 25,
                     options?.geoId,
                     easyApplyOnly,
-                    postedWithinDays
+                    postedWithinDays,
+                    workplaceTypes
                 )
                 await this._navigator.goToLinkedinURL(searchUrl)
     

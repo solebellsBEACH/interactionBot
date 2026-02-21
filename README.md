@@ -4,6 +4,10 @@ Aplicação mínima em Node.js/Playwright que abre o LinkedIn com interface grá
 
 ## Pré-requisitos
 - Node.js 18+ instalado.
+- API NestJS rodando em `http://localhost:3001` (repo `/home/lucas/projects/interactionBot-api`).
+
+### Variáveis
+- `API_BASE_URL` (default: `http://localhost:3001`)
 
 ## Instalação
 ```bash
@@ -15,6 +19,8 @@ npm run install:browsers
 ```bash
 npm run open:linkedin
 ```
+
+Se você vai usar recursos que dependem de prompt/analises, garanta que a API esteja ativa.
 
 Isso inicia o Chromium do Playwright em modo UI (executado com `ts-node`) e navega para `https://www.linkedin.com/`. Feche a janela para encerrar o script.
 

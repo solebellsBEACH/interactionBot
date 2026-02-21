@@ -1,7 +1,5 @@
-import { WithId } from "mongodb";
 import { FormFieldValue } from "../../interactor/shared/interface/forms/form.types";
-import { connectToDatabase, getCollection } from "../database";
-import { upsertFieldAnswers } from "./field-answers";
+import { apiPost } from "../api-client";
 
 export type EasyApplyStepSnapshot = {
   step: number;
@@ -25,68 +23,9 @@ export type EasyApplyResponse = {
   createdAt: Date;
 };
 
-const COLLECTION = "easy-apply-responses";
-
 export async function saveEasyApplyResponses(
   jobUrl: string,
   stepsValues: EasyApplyStepSnapshot[]
-): Promise<WithId<EasyApplyResponse>> {
-  await connectToDatabase();
-  const collection = await getCollection<EasyApplyResponse>(COLLECTION);
-
-  const uniqueFields = dedupeByKey(flattenFields(stepsValues));
-
-  await upsertFieldAnswers(jobUrl, uniqueFields);
-
-  const document: EasyApplyResponse = {
-    jobUrl,
-    fields: uniqueFields,
-    createdAt: new Date(),
-  };
-
-  const { insertedId } = await collection.insertOne(document);
-  return { ...document, _id: insertedId };
-}
-
-function flattenFields(stepsValues: EasyApplyStepSnapshot[]): EasyApplyField[] {
-  const fields: EasyApplyField[] = [];
-
-  for (const step of stepsValues) {
-    for (const input of step.inputValues || []) {
-      if (!input.key) continue;
-      fields.push({
-        key: input.key,
-        label: input.label,
-        value: input.value,
-        step: step.step,
-        source: "input",
-      });
-    }
-
-    for (const select of step.selectValues || []) {
-      if (!select.key) continue;
-      fields.push({
-        key: select.key,
-        label: select.label,
-        value: select.value,
-        step: step.step,
-        source: "select",
-      });
-    }
-  }
-
-  return fields;
-}
-
-function dedupeByKey(fields: EasyApplyField[]): EasyApplyField[] {
-  const seen = new Set<string>();
-  const unique: EasyApplyField[] = [];
-
-  for (const field of fields) {
-    if (seen.has(field.key)) continue;
-    seen.add(field.key);
-    unique.push(field);
-  }
-
-  return unique;
+): Promise<EasyApplyResponse> {
+  return apiPost<EasyApplyResponse>('/easy-apply/responses', { jobUrl, stepsValues });
 }

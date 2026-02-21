@@ -32,6 +32,7 @@ export type ParsedArgs = {
   maxScrollRounds?: number
   maxIdleRounds?: number
   headless?: boolean
+  workplaceTypes?: string[]
 };
 
 type RawArgs = Record<string, string | boolean>
@@ -73,6 +74,16 @@ const parseOptionalBoolean = (value: string | boolean | undefined) => {
   return undefined
 }
 
+const parseOptionalList = (value: string | boolean | undefined) => {
+  if (typeof value !== 'string') return undefined
+  const normalized = normalizeWhitespace(value)
+  if (!normalized) return undefined
+  return normalized
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
 const parseDatePostedDays = (value: string | undefined) => {
   if (!value) return undefined
   const normalized = normalizeTextBasic(value)
@@ -97,6 +108,7 @@ export const parseArgs = (argv: string[]): ParsedArgs => {
   const raw = parseRawArgs(argv)
   const postedWithinDays = parseOptionalNumber(raw.postedWithinDays)
   const datePostedDays = parseDatePostedDays(getStringArg(raw, 'datePosted'))
+  const workplaceTypes = parseOptionalList(raw.workplaceTypes ?? raw.workplaceType)
 
   return {
     action: typeof raw.action === 'string' ? (raw.action as Action) : undefined,
@@ -115,6 +127,7 @@ export const parseArgs = (argv: string[]): ParsedArgs => {
     delayMs: parseOptionalNumber(raw.delayMs),
     maxScrollRounds: parseOptionalNumber(raw.maxScrollRounds),
     maxIdleRounds: parseOptionalNumber(raw.maxIdleRounds),
-    headless: parseOptionalBoolean(raw.headless)
+    headless: parseOptionalBoolean(raw.headless),
+    workplaceTypes
   }
 }

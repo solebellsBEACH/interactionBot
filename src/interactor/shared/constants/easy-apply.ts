@@ -1,6 +1,16 @@
 export const EASY_APPLY_SELECTORS = {
-    modal: '.jobs-easy-apply-modal, .artdeco-modal',
-    form: '.jobs-easy-apply-content form, .jobs-easy-apply-modal form, form'
+    modal: '.jobs-easy-apply-modal, .artdeco-modal, [data-easy-apply-modal], [data-test-easy-apply-modal]',
+    form: [
+        '.jobs-easy-apply-content form',
+        '.jobs-easy-apply-modal form',
+        '.artdeco-modal form',
+        '[data-easy-apply-modal] form',
+        '[data-test-easy-apply-modal] form',
+        '.jobs-easy-apply-content',
+        '.jobs-easy-apply-modal',
+        '[data-easy-apply-modal]',
+        '[data-test-easy-apply-modal]'
+    ].join(', ')
 }
 
 export const EASY_APPLY_TIMEOUTS = {
@@ -13,7 +23,7 @@ export const EASY_APPLY_TIMEOUTS = {
 
 export const EASY_APPLY_LABELS = {
     easyApplyButton: /candidatura simplificada|candidatar-se facilmente|easy apply/i,
-    submit: /enviar candidatura|submit application/i,
+    submit: /enviar candidatura|enviar inscri[cç][aã]o|enviar|submit application|submit/i,
     next: /proximo|próximo|continuar|next|avancar|avançar|seguinte/i,
     review: /revisar candidatura|review application|revisar|review/i
 }
