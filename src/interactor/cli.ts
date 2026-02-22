@@ -278,14 +278,14 @@ function logConnections(
   }[]
 ) {
   const clean = (value: string) => value.replace(/\s+/g, ' ').trim()
+  const dash = '—'
   logger.info(`[bot] ${title}: ${connections.length}`)
   if (!connections.length) return
   for (const [idx, connection] of connections.entries()) {
-    const parts = [connection.name, connection.headline, connection.location]
-      .filter(Boolean)
-      .map((value) => clean(String(value)))
-      .join(' | ')
-    const label = parts ? `${parts} | ${clean(connection.url)}` : clean(connection.url)
+    const name = connection.name ? clean(String(connection.name)) : dash
+    const headline = connection.headline ? clean(String(connection.headline)) : dash
+    const location = connection.location ? clean(String(connection.location)) : dash
+    const label = `${name} | ${headline} | ${location} | ${clean(connection.url)}`
     logger.info(`${idx + 1}. ${label}`)
   }
 }
