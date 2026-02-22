@@ -1,10 +1,11 @@
 import readline from "readline";
 
-import { getFieldAnswer } from "../../api/controllers/field-answers";
-import { DiscordClient } from "../shared/discord/discord-client";
-import { GptClient } from "../shared/ai/gpt-client";
-import { FormPromptField } from "../shared/utils/element-handle";
-import { UserProfile } from "../shared/user-profile";
+import { getFieldAnswer } from "../../../../api/controllers/field-answers";
+import { createPrompt, waitForPromptAnswer } from "../../../../api/controllers/prompt-queue";
+import { GptClient } from "../../../shared/ai/gpt-client";
+import { FormPromptField } from "../../../shared/interface/forms/form.types";
+import type { UserProfile } from "../../../shared/interface/user/user-profile.types";
+import { normalizeKey } from "../../../shared/utils/normalize";
 
 export class EasyApplyAbortError extends Error {
     constructor(message: string) {
@@ -14,7 +15,6 @@ export class EasyApplyAbortError extends Error {
 }
 
 type AnswerResolverOptions = {
-    discord?: DiscordClient
     gpt?: GptClient
     profile: UserProfile
     isStandalone: boolean
@@ -26,15 +26,11 @@ export class EasyApplyAnswerResolver {
     private readonly _historyCache = new Map<string, string>()
     private _historyAvailable = true
     private readonly _profile: UserProfile
-    private readonly _discord?: DiscordClient
-    private readonly _gpt?: GptClient
     private readonly _isStandalone: boolean
     private readonly _promptTimeoutMs: number
 
     constructor(options: AnswerResolverOptions) {
         this._profile = options.profile
-        this._discord = options.discord
-        this._gpt = options.gpt
         this._isStandalone = options.isStandalone
         this._promptTimeoutMs = options.promptTimeoutMs
     }
@@ -54,14 +50,6 @@ export class EasyApplyAnswerResolver {
             this._storeCachedAnswer(field, historyAnswer)
             return historyAnswer
         }
-
-        const historyContext = await this._historyContext(field)
-        const gptAnswer = this._coerceSelectAnswer(field, await this._askWithGpt(field, historyContext))
-        if (gptAnswer) {
-            this._storeCachedAnswer(field, gptAnswer)
-            return gptAnswer
-        }
-
         if (this._isStandalone) {
             const label = field.label || field.key || 'field'
             throw new EasyApplyAbortError(`standalone-missing:${label}`)
@@ -85,7 +73,7 @@ export class EasyApplyAnswerResolver {
 
         const candidateList = Array.from(candidates)
         for (const [key, value] of Object.entries(answers)) {
-            const normalizedKey = this._normalizeKey(key)
+            const normalizedKey = normalizeKey(key)
             if (candidateList.some((candidate) => candidate.includes(normalizedKey) || normalizedKey.includes(candidate))) {
                 return value
             }
@@ -114,54 +102,21 @@ export class EasyApplyAnswerResolver {
 
         return null
     }
-
-    private async _historyContext(field: FormPromptField): Promise<Record<string, string>> {
-        const context: Record<string, string> = {}
-        if (!this._historyAvailable) return context
-
-        for (const candidate of this._buildAnswerCandidates(field)) {
-            const cached = this._historyCache.get(candidate)
-            if (cached) {
-                context[candidate] = cached
-                continue
-            }
-            try {
-                const record = await getFieldAnswer(candidate, field.label)
-                if (record?.value) {
-                    this._historyCache.set(candidate, record.value)
-                    context[candidate] = record.value
-                }
-            } catch {
-                this._historyAvailable = false
-                break
-            }
-        }
-
-        return context
-    }
-
-    private async _askWithGpt(field: FormPromptField, historyAnswers?: Record<string, string>) {
-        if (!this._gpt) return null
-        return this._gpt.answerField(field, this._profile, historyAnswers)
-    }
-
     private async _askForField(field: FormPromptField, step: number, forcePrompt = false) {
         const label = field.label || field.key || 'field'
         if (field.type === 'select') {
             const options = field.options || []
             const optionsText = options.map((option, idx) => `${idx + 1}) ${option}`).join('\n')
             const prompt = `[Easy Apply] Step ${step} - choose for "${label}":\n${optionsText}\nReply with number or text.`
-            if (this._discord) {
-                return this._discord.ask(prompt)
-            }
+            const webAnswer = await this._promptWeb(prompt, options)
+            if (webAnswer) return webAnswer
             if (forcePrompt) return this._promptCli(prompt)
             return null
         }
 
         const prompt = `[Easy Apply] Step ${step} - fill "${label}":`
-        if (this._discord) {
-            return this._discord.ask(prompt)
-        }
+        const webAnswer = await this._promptWeb(prompt)
+        if (webAnswer) return webAnswer
         if (forcePrompt) return this._promptCli(prompt)
         return null
     }
@@ -176,10 +131,10 @@ export class EasyApplyAnswerResolver {
         if (field.key) candidates.add(field.key)
         const label = field.label || ''
         if (label) {
-            candidates.add(this._normalizeKey(label))
+            candidates.add(normalizeKey(label))
             const deduped = this._dedupeLabel(label)
             if (deduped && deduped !== label) {
-                candidates.add(this._normalizeKey(deduped))
+                candidates.add(normalizeKey(deduped))
             }
         }
         return Array.from(candidates).filter(Boolean)
@@ -257,17 +212,6 @@ export class EasyApplyAnswerResolver {
         return trimmed.slice(0, cutIndex).trim()
     }
 
-    private _normalizeKey(value?: string | null) {
-        if (!value) return ''
-        return value
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-    }
-
     private async _promptCli(prompt: string): Promise<string | null> {
         if (!process.stdin.isTTY) return null
 
@@ -290,5 +234,17 @@ export class EasyApplyAnswerResolver {
         if (!result) return null
         const trimmed = result.trim()
         return trimmed ? trimmed : null
+    }
+
+    private async _promptWeb(prompt: string, options?: string[]) {
+        const jobId = (process.env.BOT_JOB_ID || '').trim()
+        if (!jobId) return null
+        try {
+            const record = await createPrompt(jobId, prompt, options)
+            const answer = await waitForPromptAnswer(record?._id||''.toString(), this._promptTimeoutMs)
+            return answer
+        } catch {
+            return null
+        }
     }
 }

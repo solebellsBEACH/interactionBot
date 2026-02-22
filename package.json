@@ -8,14 +8,13 @@
     "open:linkedin": "npx ts-node src/interactor/main.ts",
     "install:chrome": "npx playwright install chrome",
     "install:browsers": "npx playwright install chromium",
-    "test": "playwright test",
+    "test": "node scripts/test-functions.mjs",
+    "test:playwright": "playwright test",
     "test:ui": "playwright test --ui --headed"
   },
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.16.3",
-    "mongodb": "^7.0.0",
     "playwright": "^1.48.2"
   },
   "devDependencies": {
