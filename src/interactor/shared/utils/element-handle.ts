@@ -1,21 +1,9 @@
 import { Locator, Page, } from "playwright";
-import { HandleActions, Role } from "../interfaces/element-handle.types";
-
-export type FormFieldValue = {
-    key?: string
-    label?: string | null
-    value: string
-}
-
-export type FormPromptField = FormFieldValue & {
-    type: 'input' | 'select'
-    options?: string[]
-}
-
-export type FormValues = {
-    inputValues: FormFieldValue[]
-    selectValues: FormFieldValue[]
-}
+import { EASY_APPLY_SELECTORS } from "../constants/easy-apply";
+import { HandleActions, Role } from "../interface/element-handle/element-handle.types";
+import { FormFieldValue, FormPromptField, FormValues } from "../interface/forms/form.types";
+import { logger } from "../services/logger";
+import { normalizeKey, normalizeTextBasic } from "../utils/normalize";
 
 type SelectEntry = {
     label: string
@@ -35,12 +23,12 @@ export class ElementHandle {
     async handleByRole(handle: HandleActions, role: Role, options: { name?: string | RegExp }, contentText?: string) {
         try {
             const element = this._page.getByRole(role, options);
-            await element.allInnerTexts().then(console.log)
+            await element.allInnerTexts().then((texts) => logger.debug('element-handle texts', texts))
             await element.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT });
             
             return this._runHandleActions(handle, element, contentText) || element
         } catch (error) {
-            console.error({
+            logger.error('element-handle error', {
                 label: options.name,
                 error
             })
@@ -59,7 +47,7 @@ export class ElementHandle {
             
             return this._runHandleActions(handle, element, contentText) || element
         } catch (error) {
-            console.error({
+            logger.error('element-handle error', {
                 label: selector,
                 error
             })
@@ -72,7 +60,7 @@ export class ElementHandle {
             await element.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT });
             return this._runHandleActions(handle, element, contentText) || element
         } catch (error) {
-            console.error({
+            logger.error('element-handle error', {
                 label: placeholder,
                 error
             })
@@ -80,7 +68,7 @@ export class ElementHandle {
     }
 
     async handleForm(prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormValues | undefined> {
-        const forms = this._page.locator('.jobs-easy-apply-modal form, .jobs-easy-apply-content form, form')
+        const forms = this._page.locator(EASY_APPLY_SELECTORS.form)
         const count = await forms.count()
 
         for (let i = 0; i < count; i++) {
@@ -98,27 +86,81 @@ export class ElementHandle {
     private async _getFormValues(element: Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormValues> {
         await this._handleCheckboxes(element)
         const selectValues = await this._getSelectValues(element, prompt)
+        const radioValues = await this._getRadioValues(element, prompt)
         const inputValues = await this._getInputValues(element, prompt)
 
         return {
-            selectValues,
+            selectValues: [...selectValues, ...radioValues],
             inputValues
         };
     }
 
     private async _getInputValues(element: Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormFieldValue[]> {
-        const inputs = await element.getByRole('textbox').all();
+        const inputs = await element
+            .locator('input, textarea, [contenteditable="true"], [contenteditable=""], [role="textbox"], [role="spinbutton"], [role="combobox"]')
+            .all()
         const values: FormFieldValue[] = []
+        const seenKeys = new Set<string>()
 
         for (const item of inputs) {
-            const value = await item.inputValue()
-            const meta = await this._getControlMeta(item)
+            const visible = await item.isVisible().catch(() => false)
+            if (!visible) continue
+
+            const tag = await item.evaluate((el) => el.tagName.toLowerCase()).catch(() => '')
+            const type = tag === 'input' ? (await item.getAttribute('type'))?.toLowerCase() : null
+            if (tag === 'input' && type && this._isSkippableInputType(type)) continue
+
+            if (tag === 'input' && type === 'file') {
+                const meta = await this._getControlMeta(item)
+                const label = meta.labelText || meta.placeholder || meta.ariaLabel || meta.name || meta.id
+                const key = normalizeKey(label || undefined)
+                const uniqueKey = meta.id || meta.name || key
+                if (uniqueKey && seenKeys.has(uniqueKey)) continue
+                if (uniqueKey) seenKeys.add(uniqueKey)
+
+                const value = await this._readFieldValue(item)
+                let finalValue = value
+                if (prompt && !value.trim()) {
+                    const answer = await prompt({
+                        type: 'input',
+                        key,
+                        label,
+                        value
+                    })
+                    if (answer && answer.trim()) {
+                        await item.setInputFiles(answer.trim()).catch(() => undefined)
+                        finalValue = answer.trim()
+                    }
+                }
+
+                values.push({
+                    key,
+                    label,
+                    value: finalValue
+                })
+                continue
+            }
+
+            const target = await this._resolveEditableTarget(item)
+            const targetVisible = await target.isVisible().catch(() => false)
+            if (!targetVisible) continue
+
+            const meta = await this._getControlMeta(target)
             const label = meta.labelText || meta.placeholder || meta.ariaLabel || meta.name || meta.id
-            const key = this._normalizeKey(label || undefined)
+            const key = normalizeKey(label || undefined)
+            const uniqueKey = meta.id || meta.name || key
+            if (uniqueKey && seenKeys.has(uniqueKey)) continue
+            if (uniqueKey) seenKeys.add(uniqueKey)
+
+            const value = await this._readFieldValue(target)
             let finalValue = value
 
-            if (prompt && !value.trim()) {
-                const editable = await item.isEditable().catch(() => false)
+            const missing =
+                !value.trim() ||
+                (meta.placeholder && value.trim() === meta.placeholder.trim()) ||
+                this._isSelectPlaceholder(value)
+            if (prompt && missing) {
+                const editable = await target.isEditable().catch(() => false)
                 if (editable) {
                     const answer = await prompt({
                         type: 'input',
@@ -127,7 +169,7 @@ export class ElementHandle {
                         value
                     })
                     if (answer && answer.trim()) {
-                        await item.fill(answer)
+                        await this._fillField(target, answer, item)
                         finalValue = answer
                     }
                 }
@@ -220,10 +262,7 @@ export class ElementHandle {
     }
 
     private _isTermsConsentLabel(label: string) {
-        const normalized = label
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
+        const normalized = normalizeTextBasic(label)
         if (!normalized) return false
         const keywords = [
             'terms',
@@ -248,6 +287,38 @@ export class ElementHandle {
         return keywords.some((keyword) => normalized.includes(keyword))
     }
 
+    private async _getRadioValues(element: Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormFieldValue[]> {
+        const values: FormFieldValue[] = []
+
+        const inputRadios = await element.locator('input[type="radio"]').all()
+        if (inputRadios.length > 0) {
+            const groups = new Map<string, Locator[]>()
+            for (let i = 0; i < inputRadios.length; i++) {
+                const radio = inputRadios[i]
+                const name = (await radio.getAttribute('name')) || `__radio_${i}`
+                const list = groups.get(name) || []
+                list.push(radio)
+                groups.set(name, list)
+            }
+
+            for (const [name, radios] of groups.entries()) {
+                const entry = await this._handleRadioGroup(radios, prompt, name)
+                if (entry) values.push(entry)
+            }
+        }
+
+        const radioGroups = await element.locator('[role="radiogroup"]').all()
+        for (const group of radioGroups) {
+            const hasInputRadio = await group.locator('input[type="radio"]').count().catch(() => 0)
+            if (hasInputRadio > 0) continue
+            const radios = await group.locator('[role="radio"]').all()
+            const entry = await this._handleRadioGroup(radios, prompt)
+            if (entry) values.push(entry)
+        }
+
+        return values
+    }
+
     private async _getSelectValues(element: Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormFieldValue[]> {
         const selects = await element.locator('select').all()
         if (selects.length === 0) return []
@@ -262,7 +333,7 @@ export class ElementHandle {
             const allLabels = allEntries.map((entry) => entry.label)
 
             const label = meta.labelText || meta.ariaLabel || meta.name || meta.id
-            const key = this._normalizeKey(label || undefined)
+            const key = normalizeKey(label || undefined)
 
             const missing = !value || this._isSelectPlaceholder(value)
             if (prompt && missing) {
@@ -292,6 +363,163 @@ export class ElementHandle {
         }
 
         return values
+    }
+
+    private _isSkippableInputType(type: string) {
+        return ['hidden', 'checkbox', 'radio', 'button', 'submit', 'reset', 'image'].includes(type)
+    }
+
+    private async _resolveEditableTarget(control: Locator): Promise<Locator> {
+        try {
+            const nested = control.locator('input, textarea, [contenteditable="true"], [contenteditable=""]')
+            if ((await nested.count()) > 0) return nested.first()
+        } catch {
+            // ignore
+        }
+        return control
+    }
+
+    private async _readFieldValue(control: Locator): Promise<string> {
+        try {
+            const value = await control.inputValue()
+            return value || ''
+        } catch {
+            // ignore
+        }
+
+        try {
+            const text = await control.innerText()
+            return text.trim()
+        } catch {
+            // ignore
+        }
+
+        try {
+            const text = await control.textContent()
+            return (text || '').trim()
+        } catch {
+            return ''
+        }
+    }
+
+    private async _fillField(target: Locator, value: string, source?: Locator) {
+        const trimmed = value.trim()
+        try {
+            await target.fill(trimmed)
+        } catch {
+            try {
+                await target.click({ force: true })
+                await target.press('Control+A').catch(() => undefined)
+                await target.type(trimmed, { delay: 15 })
+            } catch {
+                // ignore
+            }
+        }
+
+        const ref = source || target
+        const role = await ref.getAttribute('role').catch(() => null)
+        const hasPopup = await ref.getAttribute('aria-haspopup').catch(() => null)
+        if (role === 'combobox' || hasPopup === 'listbox') {
+            await target.press('Enter').catch(() => undefined)
+        }
+    }
+
+    private async _handleRadioGroup(
+        radios: Locator[],
+        prompt?: (field: FormPromptField) => Promise<string | null>,
+        groupName?: string
+    ): Promise<FormFieldValue | null> {
+        if (radios.length === 0) return null
+
+        const options: Array<{ label: string; locator: Locator }> = []
+        let selected: string | null = null
+
+        for (let i = 0; i < radios.length; i++) {
+            const radio = radios[i]
+            const visible = await radio.isVisible().catch(() => false)
+            if (!visible) continue
+
+            const label = await this._getRadioOptionLabel(radio)
+            const fallback = (await radio.getAttribute('value')) || `option ${i + 1}`
+            const optionLabel = label || fallback
+
+            options.push({ label: optionLabel, locator: radio })
+
+            const checked = await this._isRadioChecked(radio)
+            if (checked) selected = optionLabel
+        }
+
+        if (options.length === 0) return null
+
+        const groupLabel = await this._getRadioGroupLabel(radios[0])
+        const label = groupLabel || groupName || options[0].label
+        const key = normalizeKey(label || undefined)
+
+        if (!selected && prompt) {
+            const entries = options.map((option, index) => ({
+                label: option.label,
+                value: option.label,
+                index
+            }))
+            const answer = await prompt({
+                type: 'select',
+                key,
+                label,
+                value: '',
+                options: options.map((option) => option.label)
+            })
+            const resolvedIndex = this._resolveSelectIndex(answer, entries)
+            if (resolvedIndex !== null) {
+                const chosen = options[resolvedIndex]
+                await chosen.locator.click({ force: true }).catch(() => undefined)
+                selected = chosen.label
+            }
+        }
+
+        return {
+            key,
+            label,
+            value: selected || ''
+        }
+    }
+
+    private async _getRadioGroupLabel(radio: Locator) {
+        try {
+            const container = radio.locator(
+                'xpath=ancestor-or-self::*[self::fieldset or @role=\"radiogroup\" or @data-test-form-element or contains(@class,\"jobs-easy-apply-form-element\")][1]'
+            )
+            if ((await container.count()) > 0) {
+                const meta = await this._getControlMeta(container.first())
+                const label = meta.labelText || meta.ariaLabel || meta.name || meta.id
+                if (label) return label
+            }
+        } catch {
+            // ignore
+        }
+
+        const meta = await this._getControlMeta(radio)
+        return meta.labelText || meta.ariaLabel || meta.name || meta.id || null
+    }
+
+    private async _getRadioOptionLabel(radio: Locator) {
+        const meta = await this._getControlMeta(radio)
+        const label = meta.labelText || meta.ariaLabel || meta.name || meta.id
+        if (label) return label
+        const text = await radio.innerText().catch(() => '')
+        return text.trim() || null
+    }
+
+    private async _isRadioChecked(radio: Locator) {
+        try {
+            const type = await radio.getAttribute('type')
+            if (type === 'radio') {
+                return await radio.isChecked().catch(() => false)
+            }
+            const aria = await radio.getAttribute('aria-checked')
+            return aria === 'true'
+        } catch {
+            return false
+        }
     }
 
     private async _runHandleActions(handle: HandleActions, element: Locator, contentText?: string) {
@@ -373,16 +601,6 @@ export class ElementHandle {
                 labelText
             }
         })
-    }
-
-    private _normalizeKey(label?: string | null) {
-        if (!label) return undefined
-        return label
-            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
     }
 
     private _isSelectPlaceholder(value: string) {

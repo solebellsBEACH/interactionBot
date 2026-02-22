@@ -1,125 +1,9 @@
 import { BrowserContext, chromium } from 'playwright';
 import { env } from './shared/env';
 import { LinkedinFeatures } from './features/linkedin';
-import { DiscordClient } from './shared/discord/discord-client';
-import { disconnectFromDatabase } from '../api/database';
-
-type Action =
-  | 'account'
-  | 'session'
-  | 'profile'
-  | 'dashboard'
-  | 'dashboard-profile'
-  | 'dashboard-network'
-  | 'connections-visit'
-  | 'easy-apply'
-  | 'search-jobs'
-  | 'catch-jobs'
-  | 'connect'
-  | 'upvote';
-
-type ParsedArgs = {
-  action?: Action
-  jobUrl?: string
-  tag?: string
-  profileUrl?: string
-  message?: string
-  maxResults?: number
-  maxLikes?: number
-  maxApplicants?: number
-  maxPages?: number
-  postedWithinDays?: number
-  easyApplyOnly?: boolean
-  includeUnknownApplicants?: boolean
-  maxConnections?: number
-  delayMs?: number
-  maxScrollRounds?: number
-  maxIdleRounds?: number
-  headless?: boolean
-};
-
-const TRUTHY_VALUES = new Set(['1', 'true', 'yes'])
-const FALSEY_VALUES = new Set(['0', 'false', 'no'])
-
-const parseRawArgs = (argv: string[]): Record<string, string | boolean> => {
-  const raw: Record<string, string | boolean> = {}
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i]
-    if (!arg.startsWith('--')) continue
-    const key = arg.slice(2)
-    const next = argv[i + 1]
-    if (!next || next.startsWith('--')) {
-      raw[key] = true
-      continue
-    }
-    raw[key] = next
-    i++
-  }
-  return raw
-}
-
-const parseOptionalNumber = (value: string | boolean | undefined) => {
-  if (typeof value !== 'string') return undefined
-  const normalized = value.trim()
-  if (!normalized) return undefined
-  const parsed = Number(normalized)
-  return Number.isNaN(parsed) ? undefined : parsed
-}
-
-const parseOptionalBoolean = (value: string | boolean | undefined) => {
-  if (value === true) return true
-  if (typeof value !== 'string') return undefined
-  const normalized = value.trim().toLowerCase()
-  if (TRUTHY_VALUES.has(normalized)) return true
-  if (FALSEY_VALUES.has(normalized)) return false
-  return undefined
-}
-
-const parseDatePostedDays = (value: string | undefined) => {
-  if (!value) return undefined
-  const normalized = value.trim().toLowerCase()
-  if (['24h', '24hours', '24hrs', 'day', '1d', 'hoje'].includes(normalized)) {
-    return 1
-  }
-  if (['week', 'semana', '7d', '1w'].includes(normalized)) {
-    return 7
-  }
-  if (['month', 'mes', 'mês', '30d', '1m'].includes(normalized)) {
-    return 30
-  }
-  return undefined
-}
-
-const getStringArg = (raw: Record<string, string | boolean>, key: string) => {
-  const value = raw[key]
-  return typeof value === 'string' ? value : undefined
-}
-
-const parseArgs = (argv: string[]): ParsedArgs => {
-  const raw = parseRawArgs(argv)
-  const postedWithinDays = parseOptionalNumber(raw.postedWithinDays)
-  const datePostedDays = parseDatePostedDays(getStringArg(raw, 'datePosted'))
-
-  return {
-    action: typeof raw.action === 'string' ? (raw.action as Action) : undefined,
-    jobUrl: getStringArg(raw, 'jobUrl'),
-    tag: getStringArg(raw, 'tag'),
-    profileUrl: getStringArg(raw, 'profileUrl'),
-    message: getStringArg(raw, 'message'),
-    maxResults: parseOptionalNumber(raw.maxResults),
-    maxLikes: parseOptionalNumber(raw.maxLikes),
-    maxApplicants: parseOptionalNumber(raw.maxApplicants),
-    maxPages: parseOptionalNumber(raw.maxPages),
-    postedWithinDays: postedWithinDays ?? datePostedDays,
-    easyApplyOnly: parseOptionalBoolean(raw.easyApplyOnly),
-    includeUnknownApplicants: parseOptionalBoolean(raw.includeUnknownApplicants),
-    maxConnections: parseOptionalNumber(raw.maxConnections),
-    delayMs: parseOptionalNumber(raw.delayMs),
-    maxScrollRounds: parseOptionalNumber(raw.maxScrollRounds),
-    maxIdleRounds: parseOptionalNumber(raw.maxIdleRounds),
-    headless: parseOptionalBoolean(raw.headless)
-  }
-}
+import { ERROR_CODES } from './shared/constants/errors';
+import { logger } from './shared/services/logger';
+import { parseArgs, ParsedArgs } from './shared/utils/parse-cli-args';
 
 let browser: BrowserContext | undefined
 let shuttingDown = false
@@ -129,19 +13,22 @@ type JobFilterLog = {
   maxApplicants?: number
   includeUnknownApplicants?: boolean
   postedWithinDays?: number
+  workplaceTypes?: string[]
 }
 
 const buildJobSearchOptions = (args: ParsedArgs, easyApplyDefault: boolean) => {
   const easyApplyOnly = args.easyApplyOnly ?? easyApplyDefault
   const maxApplicants = args.maxApplicants
-  const includeUnknownApplicants = args.includeUnknownApplicants
+  const includeUnknownApplicants = maxApplicants === undefined ? args.includeUnknownApplicants : false
   const postedWithinDays = args.postedWithinDays
+  const workplaceTypes = args.workplaceTypes
   return {
     filters: {
       easyApplyOnly,
       maxApplicants,
       includeUnknownApplicants,
-      postedWithinDays
+      postedWithinDays,
+      workplaceTypes
     },
     options: {
       maxResults: args.maxResults,
@@ -149,14 +36,16 @@ const buildJobSearchOptions = (args: ParsedArgs, easyApplyDefault: boolean) => {
       maxApplicants,
       postedWithinDays,
       easyApplyOnly,
-      includeUnknownApplicants
+      includeUnknownApplicants,
+      workplaceTypes
     }
   }
 }
 
 const logJobFilters = (filters: JobFilterLog) => {
-  console.log(
-    `[bot] Filtros: easyApplyOnly=${filters.easyApplyOnly} | maxApplicants=${filters.maxApplicants ?? '-'} | includeUnknownApplicants=${filters.includeUnknownApplicants ?? '-'} | postedWithinDays=${filters.postedWithinDays ?? '-'}`
+  const workplace = filters.workplaceTypes?.length ? filters.workplaceTypes.join(',') : '-'
+  logger.info(
+    `[bot] Filtros: easyApplyOnly=${filters.easyApplyOnly} | maxApplicants=${filters.maxApplicants ?? '-'} | includeUnknownApplicants=${filters.includeUnknownApplicants ?? '-'} | postedWithinDays=${filters.postedWithinDays ?? '-'} | workplaceTypes=${workplace}`
   )
 }
 
@@ -167,11 +56,6 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
   switch (action) {
     case 'session':
       return features.ensureSession()
-    case 'profile':
-      {
-        const profileUrl = args.profileUrl?.trim() || undefined
-        return features.profile(profileUrl)
-      }
     case 'dashboard':
       return features.dashboard(args.profileUrl)
     case 'dashboard-profile':
@@ -190,7 +74,7 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
     case 'search-jobs':
       {
         const tag = (args.tag || defaultTag).trim()
-        if (!tag) throw new Error('missing-tag')
+        if (!tag) throw new Error(ERROR_CODES.missingTag)
         const { filters, options } = buildJobSearchOptions(args, false)
         logJobFilters(filters)
         const results = await features.searchJobTag(tag, options)
@@ -206,19 +90,19 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
         logJobs('Capturar jobs', results)
         if (results.length === 0) return results
 
-        console.log(`[bot] Iniciando Easy Apply em ${results.length} vagas...`)
+        logger.info(`[bot] Iniciando Easy Apply em ${results.length} vagas...`)
         let applied = 0
         for (const [index, job] of results.entries()) {
-          console.log(`[bot] Easy Apply ${index + 1}/${results.length}: ${job.title} | ${job.company}`)
+          logger.info(`[bot] Easy Apply ${index + 1}/${results.length}: ${job.title} | ${job.company}`)
           try {
             await features.easyApply(job.url)
             applied++
           } catch (error) {
-            console.warn(`[bot] Falha Easy Apply: ${job.url}`, error)
+            logger.warn(`[bot] Falha Easy Apply: ${job.url}`, error)
           }
           await wait(1500)
         }
-        console.log(`[bot] Easy Apply finalizado. Sucesso: ${applied}/${results.length}`)
+        logger.info(`[bot] Easy Apply finalizado. Sucesso: ${applied}/${results.length}`)
         return results
       }
     case 'connect':
@@ -230,7 +114,7 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
       }
       {
         const keyword = (args.tag || '').trim()
-        if (!keyword) throw new Error('missing-tag')
+        if (!keyword) throw new Error(ERROR_CODES.missingTag)
         const results = await features.connectByKeyword(keyword, {
           maxResults: args.maxResults,
           maxPages: args.maxPages
@@ -242,11 +126,11 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
       {
         const summary = await features.accountSummary()
         if (!summary) throw new Error('account-not-found')
-        if (summary.name) console.log(`[account] name: ${summary.name}`)
-        if (summary.headline) console.log(`[account] headline: ${summary.headline}`)
-        if (summary.location) console.log(`[account] location: ${summary.location}`)
-        if (summary.photoUrl) console.log(`[account] photo: ${summary.photoUrl}`)
-        if (summary.profileUrl) console.log(`[account] url: ${summary.profileUrl}`)
+        if (summary.name) logger.info(`[account] name: ${summary.name}`)
+        if (summary.headline) logger.info(`[account] headline: ${summary.headline}`)
+        if (summary.location) logger.info(`[account] location: ${summary.location}`)
+        if (summary.photoUrl) logger.info(`[account] photo: ${summary.photoUrl}`)
+        if (summary.profileUrl) logger.info(`[account] url: ${summary.profileUrl}`)
         return summary
       }
     case 'upvote':
@@ -267,14 +151,12 @@ const main = async (): Promise<void> => {
   const args = parseArgs(process.argv.slice(2))
   const headless = args.headless ?? false
 
-  const discord = new DiscordClient(env.discord)
-
   process.once('SIGINT', async () => {
     shuttingDown = true
-    console.log('Encerrando...')
+    logger.info('Encerrando...')
     try {
       await browser?.close()
-      await disconnectFromDatabase().catch(() => undefined)
+      // no-op: API handles DB connections
     } finally {
       process.exit(0)
     }
@@ -290,30 +172,40 @@ const main = async (): Promise<void> => {
     page = await browser.newPage()
   }
 
-  const linkedinFeatures = new LinkedinFeatures(page, discord)
+  const linkedinFeatures = new LinkedinFeatures(page)
   try {
-    logHeader('Iniciando ação', args.action || 'profile')
-    await runAction(linkedinFeatures, args)
-    console.log('Ação concluída.')
+    const action = args.action || 'profile'
+    logHeader('Iniciando ação', action)
+    const result = await runAction(linkedinFeatures, args)
+    logger.info('Ação concluída.')
+    if (action === 'search-jobs' || action === 'catch-jobs') {
+      printJobsTable(result as Array<{
+        title: string
+        company: string
+        location: string
+        url: string
+        applicants?: number | null
+        postedAt?: string | null
+        easyApply?: boolean
+      }>)
+    }
   } finally {
     await browser?.close().catch((error) => {
-      console.warn('Falha ao fechar o navegador:', error)
+      logger.warn('Falha ao fechar o navegador:', error)
     })
-    await disconnectFromDatabase().catch((error) => {
-      console.warn('Falha ao fechar o MongoDB:', error)
-    })
+    // no-op: API handles DB connections
   }
 }
 
 main().catch((error) => {
   if (shuttingDown) return
-  console.error('Falha ao executar ação:', error)
+  logger.error('Falha ao executar ação:', error)
   process.exit(1)
 })
 
 function logHeader(title: string, value: string) {
   const padded = value || 'profile'
-  console.log(`[bot] ${title}: ${padded}`)
+  logger.info(`[bot] ${title}: ${padded}`)
 }
 
 function logJobs(
@@ -329,7 +221,7 @@ function logJobs(
   }[]
 ) {
   const clean = (value: string) => value.replace(/\s+/g, ' ').trim()
-  console.log(`[bot] ${title}: ${jobs.length}`)
+  logger.info(`[bot] ${title}: ${jobs.length}`)
   if (!jobs.length) return
   for (const [idx, job] of jobs.entries()) {
     const posted = job.postedAt ? `Publicado: ${job.postedAt}` : 'Publicado: —'
@@ -340,7 +232,39 @@ function logJobs(
       .filter(Boolean)
       .map((value) => clean(String(value)))
       .join(' | ')
-    console.log(`${idx + 1}. ${parts} | ${clean(job.url)}`)
+    logger.info(`${idx + 1}. ${parts} | ${clean(job.url)}`)
+  }
+}
+
+function printJobsTable(
+  jobs: {
+    title: string
+    company: string
+    location: string
+    url: string
+    applicants?: number | null
+    postedAt?: string | null
+    easyApply?: boolean
+  }[]
+) {
+  if (!jobs || jobs.length === 0) return
+  const clean = (value: string) => value.replace(/\s+/g, ' ').trim()
+  const header = ['Vaga', 'Empresa', 'Local', 'Publicado', 'Candidaturas', 'Easy Apply', 'Link']
+  console.log(`--\t${header.join('\t')}`)
+  for (const job of jobs) {
+    const posted = job.postedAt ?? ''
+    const applicants = typeof job.applicants === 'number' ? String(job.applicants) : ''
+    const easyApply = job.easyApply ? 'Sim' : 'Nao'
+    const row = [
+      job.title,
+      job.company,
+      job.location,
+      posted,
+      applicants,
+      easyApply,
+      job.url
+    ].map((value) => clean(String(value ?? '')))
+    console.log(row.join('\t'))
   }
 }
 
@@ -354,23 +278,23 @@ function logConnections(
   }[]
 ) {
   const clean = (value: string) => value.replace(/\s+/g, ' ').trim()
-  console.log(`[bot] ${title}: ${connections.length}`)
+  const dash = '—'
+  logger.info(`[bot] ${title}: ${connections.length}`)
   if (!connections.length) return
   for (const [idx, connection] of connections.entries()) {
-    const parts = [connection.name, connection.headline, connection.location]
-      .filter(Boolean)
-      .map((value) => clean(String(value)))
-      .join(' | ')
-    const label = parts ? `${parts} | ${clean(connection.url)}` : clean(connection.url)
-    console.log(`${idx + 1}. ${label}`)
+    const name = connection.name ? clean(String(connection.name)) : dash
+    const headline = connection.headline ? clean(String(connection.headline)) : dash
+    const location = connection.location ? clean(String(connection.location)) : dash
+    const label = `${name} | ${headline} | ${location} | ${clean(connection.url)}`
+    logger.info(`${idx + 1}. ${label}`)
   }
 }
 
 function logList(title: string, items: string[]) {
-  console.log(`[bot] ${title}: ${items.length}`)
+  logger.info(`[bot] ${title}: ${items.length}`)
   if (!items.length) return
   for (const [idx, item] of items.entries()) {
-    console.log(`${idx + 1}. ${item}`)
+    logger.info(`${idx + 1}. ${item}`)
   }
 }
 

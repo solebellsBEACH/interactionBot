@@ -1,16 +1,8 @@
-import { FormPromptField } from "../utils/element-handle";
-import { UserProfile } from "../user-profile";
+import { FormPromptField } from "../interface/forms/form.types";
+import type { UserProfile } from "../interface/user/user-profile.types";
 import { env } from "../env";
-
-export type GptConfig = {
-    enabled: boolean
-    apiKey?: string
-    model: string
-    baseUrl?: string
-    requestTimeoutMs: number
-    temperature: number
-    maxTokens: number
-}
+import { logger } from "../services/logger";
+export type { GptConfig } from "../interface/ai/gpt.types";
 
 export class GptClient {
 
@@ -38,9 +30,9 @@ export class GptClient {
         })
 
         const data = await res.json()
-        console.log(data)
+        logger.info('gpt response', data)
         } catch (error) {
-            console.log(error)
+            logger.error('gpt error', error)
         }
     }
 }

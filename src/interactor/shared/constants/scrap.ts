@@ -33,6 +33,22 @@ export const SCRAP_SELECTORS = {
         '.jobs-unified-top-card__applicant-count',
         '.job-details-jobs-unified-top-card__tertiary-description-container'
     ],
+    jobDetailCompany: [
+        '.jobs-unified-top-card__company-name',
+        '.jobs-unified-top-card__company-name a',
+        '.job-details-jobs-unified-top-card__company-name',
+        '.jobs-unified-top-card__subtitle-primary-grouping a',
+        '.jobs-unified-top-card__subtitle-primary-grouping span',
+        '.jobs-unified-top-card__primary-description a',
+        '.jobs-unified-top-card__primary-description span'
+    ],
+    jobDetailLocation: [
+        '.jobs-unified-top-card__subtitle-secondary-grouping .jobs-unified-top-card__bullet',
+        '.jobs-unified-top-card__subtitle-secondary-grouping span',
+        '.jobs-unified-top-card__subtitle-secondary-grouping li',
+        '.jobs-unified-top-card__primary-description span',
+        '.job-details-jobs-unified-top-card__primary-description-container span'
+    ],
     jobDetailLink: [
         '.jobs-unified-top-card__title a',
         '.jobs-unified-top-card__content--two-pane a',
@@ -41,6 +57,9 @@ export const SCRAP_SELECTORS = {
     jobDetailApplicants: [
         '.jobs-unified-top-card__applicant-count',
         '.job-details-jobs-unified-top-card__applicant-count',
+        '.jobs-unified-top-card__job-insight',
+        '.jobs-unified-top-card__job-insight li',
+        '.jobs-unified-top-card__job-insight-text',
         '.job-details-jobs-unified-top-card__tertiary-description-container',
         '.job-details-jobs-unified-top-card__tertiary-description-container .tvm__text',
         '.jobs-unified-top-card__subtitle-secondary-grouping .tvm__text',

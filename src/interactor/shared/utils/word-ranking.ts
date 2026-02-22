@@ -1,6 +1,6 @@
 import { STOPWORDS } from "../constants/stopwords"
 
-export type WordRanking = { word: string; count: number }
+import type { WordRanking } from "../interface/ranking/word-ranking.types"
 
 const normalizeForRanking = (text: string) => {
   return text

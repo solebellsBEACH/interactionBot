@@ -2,19 +2,19 @@ import { Page } from "playwright";
 
 import { LinkedinCoreFeatures } from "./linkedin-core";
 import { ElementHandle } from "../shared/utils/element-handle";
-import { DiscordClient } from "../shared/discord/discord-client";
 import { env } from "../shared/env";
 
-import { EasyApplyFlow, EasyApplyStepValues } from "./actions/easy-apply/easy-apply-flow";
+import { EasyApplyFlow } from "./actions/easy-apply/easy-apply-flow";
+import type { EasyApplyStepValues } from "../shared/interface/easy-apply/step-values.types";
 
 import { LinkedinConnectFlow } from "./actions/connect/connect-flow";
 import { LinkedinUpvotePostsFlow } from "./actions/upvote-posts/upvote-posts-flow";
-import { LinkedinDiscordCommands } from "./actions/commands/discord-commands";
 import { LinkedinJobsFlow } from "./actions/jobs";
-import { EasyApplyJobResult, SearchJobTagOptions } from "./actions/scrap/jobs";
-import { ProfileFlow } from "./actions/profile/profile-flow";
+import type { EasyApplyJobResult, SearchJobTagOptions } from "../shared/interface/scrap/jobs.types";
+
 import { DashboardFlow } from "./actions/dashboard/dashboard-flow";
-import { MyNetworkScrap, VisitConnectionsOptions } from "./actions/scrap/my-network";
+import { MyNetworkScrap } from "../shared/scrap/my-network";
+import type { VisitConnectionsOptions } from "../shared/interface/scrap/network.types";
 
 
 type UpvoteOptions = {
@@ -30,41 +30,22 @@ export class LinkedinFeatures {
     private _jobFlow: LinkedinJobsFlow
     private _connectFlow: LinkedinConnectFlow
     private _upvoteFlow: LinkedinUpvotePostsFlow
-    private _discord?: DiscordClient
-    private _commands: LinkedinDiscordCommands
-    private _profileFlow: ProfileFlow
     private _dashboardFlow: DashboardFlow
     private _networkScrap: MyNetworkScrap
 
-    constructor(page: Page, discord?: DiscordClient) {
+    constructor(page: Page) {
         this._elementHandle = new ElementHandle(page)
         this._linkedinCoreFeatures = new LinkedinCoreFeatures(page)
-        this._jobFlow = new LinkedinJobsFlow(page, this._linkedinCoreFeatures, discord)
+        this._jobFlow = new LinkedinJobsFlow(page, this._linkedinCoreFeatures)
         this._easyApplyFlow = new EasyApplyFlow(
             page,
             this._elementHandle,
-            this._linkedinCoreFeatures,
-            discord
+            this._linkedinCoreFeatures
         )
         this._connectFlow = new LinkedinConnectFlow(page, this._elementHandle, this._linkedinCoreFeatures)
         this._upvoteFlow = new LinkedinUpvotePostsFlow(page, this._linkedinCoreFeatures)
-        this._discord = discord
-
-        this._profileFlow= new  ProfileFlow(page)
         this._dashboardFlow = new DashboardFlow(page, this._linkedinCoreFeatures)
         this._networkScrap = new MyNetworkScrap(page, this._linkedinCoreFeatures)
-        this._commands = new LinkedinDiscordCommands({
-            easyApply: this.easyApply.bind(this),
-            searchJobTag: this.searchJobTag.bind(this),
-            sendConnection: this.sendConnection.bind(this),
-            upvoteOnPosts: this.upvoteOnPosts.bind(this)
-        })
-    }
-
-    registerDiscordCommands(discord?: DiscordClient) {
-        const client = discord || this._discord
-        if (!client) return
-        this._commands.register(client)
     }
 
     async catchJobs(searchJobTag?: string, options?: SearchJobTagOptions): Promise<EasyApplyJobResult[]> {
@@ -95,25 +76,6 @@ export class LinkedinFeatures {
         return this._upvoteFlow.upvoteOnPosts(options)
     }
 
-    async ensureSession() {
-        return this._linkedinCoreFeatures.auth()
-    }
-
-    async login() {
-        return this._linkedinCoreFeatures.login()
-    }
-
-    async relogin() {
-        return this._linkedinCoreFeatures.relogin()
-    }
-
-    async logout() {
-        return this._linkedinCoreFeatures.logout()
-    }
-
-    async profile(profileUrl?: string){
-        return await this._profileFlow.main(profileUrl)
-    }
 
     async dashboard(profileUrl?: string) {
         return await this._dashboardFlow.main(profileUrl)
@@ -129,6 +91,23 @@ export class LinkedinFeatures {
 
     async visitConnections(options?: VisitConnectionsOptions) {
         return await this._networkScrap.visitConnectionProfiles(options)
+    }
+
+
+    async ensureSession() {
+        return this._linkedinCoreFeatures.auth()
+    }
+
+    async login() {
+        return this._linkedinCoreFeatures.login()
+    }
+
+    async relogin() {
+        return this._linkedinCoreFeatures.relogin()
+    }
+
+    async logout() {
+        return this._linkedinCoreFeatures.logout()
     }
 
 }

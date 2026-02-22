@@ -1,33 +1,10 @@
-
-import { Locator, Page } from "playwright";
-import { LinkedinCoreFeatures } from "../../linkedin-core";
-import { DiscordClient } from "../../../shared/discord/discord-client";
-import { SCRAP_SELECTORS } from "../../../shared/constants/scrap";
-
-
-export type EasyApplyJobResult = {
-    title: string
-    company: string
-    location: string
-    url: string
-    promoted: boolean
-    easyApply: boolean
-    applicants: number | null
-    postedAt?: string | null
-}
-
-export type SearchJobTagOptions = {
-    location?: string
-    geoId?: string | number
-    maxPages?: number
-    maxResults?: number
-    easyApplyOnly?: boolean
-    onlyNonPromoted?: boolean
-    maxApplicants?: number
-    includeUnknownApplicants?: boolean
-    includeDetails?: boolean
-    postedWithinDays?: number
-}
+import { Frame, Locator, Page } from "playwright";
+import { SCRAP_SELECTORS } from "../constants/scrap";
+import { logger } from "../services/logger";
+import type { EasyApplyJobResult, SearchJobTagOptions } from "../interface/scrap/jobs.types";
+import { buildLinkedinJobSearchUrl, normalizeLinkedinUrl } from "../utils/linkedin-url";
+import { normalizeTextAlphaNum, normalizeWhitespace } from "../utils/normalize";
+import { parseApplicantsCount, parsePostedAgeMinutes } from "../utils/parse-jobs";
 
 
 export class LinkedinJobsScrap {
@@ -46,30 +23,18 @@ export class LinkedinJobsScrap {
             start = 0,
             geoId?: string | number,
             easyApplyOnly = true,
-            postedWithinDays?: number
+            postedWithinDays?: number,
+            workplaceTypes?: string[]
         ) {
-            const params = new URLSearchParams()
-            params.set('keywords', tag)
-            if (easyApplyOnly) {
-                params.set('f_AL', 'true')
-            }
-            if (postedWithinDays !== undefined && postedWithinDays > 0) {
-                const seconds = Math.round(postedWithinDays * 24 * 60 * 60)
-                params.set('f_TPR', `r${seconds}`)
-            }
-            if (geoId !== undefined && geoId !== null) {
-                const normalized = String(geoId).trim()
-                if (normalized) {
-                    params.set('geoId', normalized)
-                }
-            }
-            if (location && location.trim()) {
-                params.set('location', location.trim())
-            }
-            if (start > 0) {
-                params.set('start', start.toString())
-            }
-            return `https://www.linkedin.com/jobs/search/?${params.toString()}`
+            return buildLinkedinJobSearchUrl({
+                tag,
+                location,
+                start,
+                geoId,
+                easyApplyOnly,
+                postedWithinDays,
+                workplaceTypes
+            })
         }
     
          async waitForJobResults(): Promise<boolean> {
@@ -121,15 +86,36 @@ export class LinkedinJobsScrap {
                 const card = cards.nth(i)
                 const link = card.locator(SCRAP_SELECTORS.jobLink)
                 let href = await link.first().getAttribute('href').catch(() => null)
-                const title = await this._safeInnerText(link.first())
-                const company = await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobCompany))
-                const location = await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobLocation))
+                let title = this._cleanValue(await this._safeText(link.first()))
+                let company = this._cleanValue(await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobCompany)))
+                let location = this._cleanValue(await this._safeInnerText(card.locator(SCRAP_SELECTORS.jobLocation)))
                 const cardText = await this._safeInnerText(card)
+                if (title && company && this._isSimilarValue(company, title)) {
+                    company = ''
+                }
+                if (location && (this._isSimilarValue(location, title) || (company && this._isSimilarValue(location, company)))) {
+                    location = ''
+                }
+                if ((!title || !company || !location) && cardText) {
+                    const cardMeta = this._extractMetaCandidates(cardText, title ? [title] : [])
+                    let metaIndex = 0
+                    if (!title && cardMeta[metaIndex]) {
+                        title = cardMeta[metaIndex]
+                        metaIndex += 1
+                    }
+                    if (!company && cardMeta[metaIndex]) {
+                        company = cardMeta[metaIndex]
+                        metaIndex += 1
+                    }
+                    if (!location && cardMeta[metaIndex]) {
+                        location = cardMeta[metaIndex]
+                    }
+                }
                 const clicked = await this._clickJobCard(card)
                 if (!clicked) continue
                 await this._page.waitForTimeout(40)
                 const detail = this._page.locator(SCRAP_SELECTORS.jobDetailContainer).first()
-                const expectedUrl = href ? this._normalizeJobUrl(href) : ''
+                const expectedUrl = href ? normalizeLinkedinUrl(href) : ''
                 if (expectedUrl) {
                     for (let attempt = 0; attempt < 3; attempt++) {
                         const detailUrl = await this._getDetailUrl(detail)
@@ -145,20 +131,47 @@ export class LinkedinJobsScrap {
                 }
                 if (!href) continue
 
-                const url = this._normalizeJobUrl(href)
+                const url = normalizeLinkedinUrl(href)
                 let promoted = this._hasPromotedLabel(cardText)
-                let applicants = this._parseApplicantsCount(cardText)
+                let applicants = parseApplicantsCount(cardText)
                 let postedAt = await this._getPostedAtFromCard(card, cardText)
                 let easyApply = easyApplyOnly || this._hasEasyApplyLabel(cardText)
-                if (includeDetails && (applicants === null || !promoted || !easyApply || !postedAt)) {
+                if (includeDetails && (applicants === null || !promoted || !easyApply || !postedAt || !company || !location)) {
                     const detailTextSelectors = SCRAP_SELECTORS.jobDetailText.join(', ')
                     let detailText = await this._safeInnerText(detail)
                     if (!detailText) {
                         detailText = await this._safeInnerText(this._page.locator(detailTextSelectors))
                     }
+
+                    if (!company || !location) {
+                        const detailCompany = this._cleanValue(await this._safeText(
+                            detail.locator(SCRAP_SELECTORS.jobDetailCompany.join(', '))
+                        ))
+                        if (
+                            !company &&
+                            detailCompany &&
+                            !this._isMetaLine(detailCompany) &&
+                            !this._isSimilarValue(detailCompany, title)
+                        ) {
+                            company = detailCompany
+                        }
+                        const detailLocation = this._cleanValue(await this._safeText(
+                            detail.locator(SCRAP_SELECTORS.jobDetailLocation.join(', '))
+                        ))
+                        if (
+                            !location &&
+                            detailLocation &&
+                            !this._isMetaLine(detailLocation) &&
+                            !this._isSimilarValue(detailLocation, title) &&
+                            (!company || !this._isSimilarValue(detailLocation, company))
+                        ) {
+                            location = detailLocation
+                        }
+                    }
+
                     if (detailText) {
                         if (applicants === null) {
-                            applicants = this._parseApplicantsCount(detailText)
+                            applicants = parseApplicantsCount(detailText)
                             if (applicants === null) {
                                 applicants = await this._getApplicantsFromDetail()
                             }
@@ -171,6 +184,20 @@ export class LinkedinJobsScrap {
                         }
                         if (!postedAt) {
                             postedAt = (await this._getPostedAtFromDetail()) || this._extractPostedAtFromText(detailText)
+                        }
+                        if (!company || !location) {
+                            const detailMeta = this._extractMetaCandidates(
+                                detailText,
+                                [title, company, location].filter(Boolean) as string[]
+                            )
+                            let metaIndex = 0
+                            if (!company && detailMeta[metaIndex]) {
+                                company = detailMeta[metaIndex]
+                                metaIndex += 1
+                            }
+                            if (!location && detailMeta[metaIndex]) {
+                                location = detailMeta[metaIndex]
+                            }
                         }
                     } else if (applicants === null) {
                         applicants = await this._getApplicantsFromDetail()
@@ -195,17 +222,6 @@ export class LinkedinJobsScrap {
             return results
         }
     
-        private _normalizeJobUrl(href: string) {
-            try {
-                const url = new URL(href, 'https://www.linkedin.com')
-                url.search = ''
-                url.hash = ''
-                return url.toString()
-            } catch {
-                return href
-            }
-        }
-
         private _logTiming(action: string, data?: Record<string, unknown>) {
             if (!this._enableTimingLogs) return
             const now = new Date()
@@ -214,7 +230,7 @@ export class LinkedinJobsScrap {
                 .split(' ')[0]
                 .concat(`.${String(now.getMilliseconds()).padStart(3, '0')}`)
             const payload = data ? ` | ${JSON.stringify(data)}` : ''
-            console.log(`[jobs ${timestamp}] ${action}${payload}`)
+            logger.info(`[jobs ${timestamp}] ${action}${payload}`)
         }
     
         private async _safeInnerText(locator: Locator) {
@@ -269,7 +285,7 @@ export class LinkedinJobsScrap {
         private async _getDetailTextFromCard(card: Locator, expectedTitle?: string, expectedUrl?: string, skipClick = false) {
             const detail = this._page.locator(SCRAP_SELECTORS.jobDetailContainer).first()
             if ((await detail.count().catch(() => 0)) === 0) return ''
-            const expected = expectedTitle ? this._normalizeText(expectedTitle) : ''
+            const expected = expectedTitle ? normalizeTextAlphaNum(expectedTitle) : ''
             const before = await this._safeInnerText(detail)
             const beforeUrl = expectedUrl ? await this._getDetailUrl(detail) : ''
             const clicked = skipClick ? true : await this._clickJobCard(card)
@@ -293,7 +309,7 @@ export class LinkedinJobsScrap {
                 parts = await this._safeInnerText(detail)
                 if (!parts) continue
                 if (!expected) break
-                const normalized = this._normalizeText(parts)
+                const normalized = normalizeTextAlphaNum(parts)
                 if (normalized.includes(expected) || parts !== before) break
             }
             if (!parts) {
@@ -309,7 +325,7 @@ export class LinkedinJobsScrap {
             const selectors = SCRAP_SELECTORS.jobDetailLink.join(', ')
             const href = await detail.locator(selectors).first().getAttribute('href', { timeout: 500 }).catch(() => null)
             if (!href) return ''
-            return this._normalizeJobUrl(href)
+            return normalizeLinkedinUrl(href)
         }
 
         private async _getPostedAtFromCard(card: Locator, fallbackText?: string) {
@@ -339,17 +355,131 @@ export class LinkedinJobsScrap {
             const selectors = SCRAP_SELECTORS.jobDetailApplicants.join(', ')
             const locator = this._page.locator(selectors)
             const count = await locator.count().catch(() => 0)
-            if (count === 0) return null
-            for (let i = 0; i < count; i++) {
-                const text = await this._safeText(locator.nth(i))
-                if (!text) continue
-                const parsed = this._parseApplicantsCount(text)
-                if (parsed !== null) return parsed
+            if (count > 0) {
+                for (let i = 0; i < count; i++) {
+                    const text = await this._safeText(locator.nth(i))
+                    if (!text) continue
+                    const parsed = parseApplicantsCount(text)
+                    if (parsed !== null) return parsed
+                }
+                const combined = await locator.allTextContents().catch(() => [])
+                const merged = combined.map((item) => item.trim()).filter(Boolean).join(' ')
+                if (merged) {
+                    const parsed = parseApplicantsCount(merged)
+                    if (parsed !== null) return parsed
+                }
             }
-            const combined = await locator.allTextContents().catch(() => [])
-            const merged = combined.map((item) => item.trim()).filter(Boolean).join(' ')
-            if (!merged) return null
-            return this._parseApplicantsCount(merged)
+
+            const insights = await this._getApplicantsFromInsightPanel()
+            if (insights !== null) return insights
+            return null
+        }
+
+        private async _getApplicantsFromInsightPanel() {
+            const extractFromFrame = async (frame: Frame) => {
+                try {
+                    const value = await frame.evaluate(() => {
+                        const normalize = (input: string) =>
+                            input
+                                .normalize('NFD')
+                                .replace(/[\u0300-\u036f]/g, '')
+                                .toLowerCase()
+
+                        const headingMatchers = [
+                            'applicants for this job',
+                            'see how you compare to other applicants',
+                            'candidatos para esta vaga',
+                            'candidaturas para esta vaga',
+                            'candidatos para este cargo',
+                            'candidaturas para este cargo',
+                            'veja como voce se compara a outros candidatos',
+                            'veja como voce se compara a outros aplicantes'
+                        ]
+
+                        const isExactLabel = (text: string) => {
+                            const normalized = normalize(text)
+                            return (
+                                normalized === 'applicants' ||
+                                normalized === 'candidatos' ||
+                                normalized === 'candidaturas' ||
+                                normalized === 'aplicantes'
+                            )
+                        }
+
+                        const extractDigits = (raw: string) => {
+                            if (!raw) return ''
+                            if (raw.includes('%')) return ''
+                            const digits = raw.replace(/[^\d]/g, '')
+                            return digits
+                        }
+
+                        const nodes = Array.from(
+                            document.querySelectorAll('h1, h2, h3, h4, h5, p, span, strong, div')
+                        )
+
+                        const findInScope = (scope: Element) => {
+                            const labels = Array.from(scope.querySelectorAll('p, span, strong, div'))
+                            for (const label of labels) {
+                                const text = label.textContent || ''
+                                if (!isExactLabel(text)) continue
+
+                                const prev = label.previousElementSibling
+                                if (prev) {
+                                    const digits = extractDigits(prev.textContent || '')
+                                    if (digits) return digits
+                                }
+
+                                const parent = label.parentElement
+                                if (parent) {
+                                    const siblings = Array.from(parent.children)
+                                    for (const sibling of siblings) {
+                                        if (sibling === label) continue
+                                        const digits = extractDigits(sibling.textContent || '')
+                                        if (digits) return digits
+                                    }
+                                }
+                            }
+                            return ''
+                        }
+
+                        for (const node of nodes) {
+                            const raw = node.textContent || ''
+                            if (!raw) continue
+                            const normalized = normalize(raw)
+                            if (!headingMatchers.some((match) => normalized.includes(match))) continue
+
+                            const scope =
+                                node.closest('section, article, div, tbody') ||
+                                node.parentElement
+                            if (!scope) continue
+
+                            const digits = findInScope(scope)
+                            if (digits) return digits
+                        }
+
+                        return ''
+                    })
+
+                    if (!value) return null
+                    const digits = value.replace(/[^\d]/g, '')
+                    if (!digits) return null
+                    const parsed = Number(digits)
+                    return Number.isNaN(parsed) ? null : parsed
+                } catch {
+                    return null
+                }
+            }
+
+            const mainValue = await extractFromFrame(this._page.mainFrame())
+            if (mainValue !== null) return mainValue
+
+            for (const frame of this._page.frames()) {
+                if (frame === this._page.mainFrame()) continue
+                const value = await extractFromFrame(frame)
+                if (value !== null) return value
+            }
+
+            return null
         }
     
         filterResults(
@@ -380,86 +510,9 @@ export class LinkedinJobsScrap {
 
         isPostedWithinDays(postedAt: string | null | undefined, maxDays: number) {
             if (!postedAt) return false
-            const ageMinutes = this._parsePostedAgeMinutes(postedAt)
+            const ageMinutes = parsePostedAgeMinutes(postedAt)
             if (ageMinutes === null) return false
             return ageMinutes <= maxDays * 24 * 60
-        }
-    
-        private _parseApplicantsCount(text: string) {
-            const normalized = this._normalizeText(text)
-            if (!normalized) return null
-            const keyword = '(?:applicants?|applications?|candidatos?|candidaturas?|aplicantes?)'
-            const prefixWords =
-                '(?:total|totais|received|recebidas?|recebido|ate|até|agora|no\\s*total|so\\s*far)'
-            const patterns: Array<{ regex: RegExp; over?: boolean }> = [
-                {
-                    regex:
-                        new RegExp(`(?:over|more than|mais de)\\s*([\\d.,]+)\\s*${keyword}`),
-                    over: true
-                },
-                {
-                    regex:
-                        new RegExp(`([\\d.,]+)\\s*\\+\\s*${keyword}`),
-                    over: true
-                },
-                {
-                    regex: new RegExp(
-                        `${keyword}\\s*(?:[:\\-]|\\s)*(?:${prefixWords}\\s*){0,3}([\\d.,]+)\\s*\\+`
-                    ),
-                    over: true
-                },
-                { regex: new RegExp(`([\\d.,]+)\\s*${keyword}`) },
-                {
-                    regex: new RegExp(
-                        `${keyword}\\s*(?:[:\\-]|\\s)*(?:${prefixWords}\\s*){0,3}([\\d.,]+)`
-                    )
-                },
-                { regex: /be among the first\s*([\d.,]+)/ },
-                { regex: /seja um dos primeiros\s*([\d.,]+)/ }
-            ]
-            for (const pattern of patterns) {
-                const match = normalized.match(pattern.regex)
-                if (match) {
-                    const raw = match[1].replace(/[^\d]/g, '')
-                    if (!raw) continue
-                    const value = Number(raw)
-                    if (Number.isNaN(value)) return null
-                    return pattern.over ? value + 1 : value
-                }
-            }
-            return null
-        }
-
-        private _parsePostedAgeMinutes(text: string) {
-            const normalized = this._normalizeText(text)
-            if (!normalized) return null
-            const cleaned = normalized
-                .replace(/\b(reposted|repostado|repostada|publicado|publicada|publicado ha|publicada ha)\b/g, '')
-                .trim()
-            if (!cleaned) return null
-            if (/(just now|agora mesmo|neste momento)/.test(cleaned)) return 0
-
-            const numberMatch = cleaned.match(/(\d+)/)
-            const wordOne = cleaned.match(/\b(um|uma|one|a)\b/)
-            const amount = numberMatch ? Number(numberMatch[1]) : wordOne ? 1 : null
-            if (!amount || Number.isNaN(amount)) return null
-
-            const unit =
-                cleaned.match(/\b(minuto|minutos|minute|minutes|min)\b/)?.[1] ||
-                cleaned.match(/\b(hora|horas|hour|hours|hr|hrs)\b/)?.[1] ||
-                cleaned.match(/\b(dia|dias|day|days)\b/)?.[1] ||
-                cleaned.match(/\b(semana|semanas|week|weeks|sem)\b/)?.[1] ||
-                cleaned.match(/\b(mes|meses|month|months)\b/)?.[1] ||
-                cleaned.match(/\b(ano|anos|year|years)\b/)?.[1]
-
-            if (!unit) return null
-            if (/min/.test(unit)) return amount
-            if (/hora|hour|hr/.test(unit)) return amount * 60
-            if (/dia|day/.test(unit)) return amount * 60 * 24
-            if (/semana|week|sem/.test(unit)) return amount * 60 * 24 * 7
-            if (/mes|month/.test(unit)) return amount * 60 * 24 * 30
-            if (/ano|year/.test(unit)) return amount * 60 * 24 * 365
-            return null
         }
         private _extractPostedAtFromText(text: string) {
             if (!text) return null
@@ -483,23 +536,93 @@ export class LinkedinJobsScrap {
         }
     
         private _hasPromotedLabel(text: string) {
-            const normalized = this._normalizeText(text)
+            const normalized = normalizeTextAlphaNum(text)
             if (!normalized) return false
             return /(promoted|promovida|promovido|patrocinada|patrocinado|sponsored)/.test(normalized)
         }
     
         private _hasEasyApplyLabel(text: string) {
-            const normalized = this._normalizeText(text)
+            const normalized = normalizeTextAlphaNum(text)
             if (!normalized) return false
             return /(easy apply|candidatura simplificada|candidatar[- ]se facilmente|candidatura facil|aplicar facilmente)/.test(normalized)
         }
-    
-        private _normalizeText(text: string) {
-            return text
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
+
+        private _extractMetaCandidates(text: string, ignore: string[] = []) {
+            if (!text) return []
+            const ignored = new Set(
+                ignore
+                    .map((value) => normalizeTextAlphaNum(value))
+                    .filter((value) => value)
+            )
+            const parts = text
+                .split(/[\n•·|]/g)
+                .map((part) => part.trim())
+                .filter(Boolean)
+            const results: string[] = []
+            for (const part of parts) {
+                const cleaned = this._cleanValue(part)
+                if (!cleaned) continue
+                const normalized = normalizeTextAlphaNum(cleaned)
+                if (!normalized) continue
+                if (this._matchesIgnored(normalized, ignored)) continue
+                if (this._isMetaLine(cleaned)) continue
+                if (results.some((existing) => normalizeTextAlphaNum(existing) === normalized)) continue
+                results.push(cleaned)
+            }
+            return results
+        }
+
+        private _isMetaLine(text: string) {
+            if (!text) return false
+            if (this._extractPostedAtFromText(text)) return true
+            if (parseApplicantsCount(text) !== null) return true
+            if (this._hasEasyApplyLabel(text)) return true
+            if (this._hasPromotedLabel(text)) return true
+            return false
+        }
+
+        private _matchesIgnored(normalized: string, ignored: Set<string>) {
+            if (!normalized || ignored.size === 0) return false
+            for (const value of ignored) {
+                if (!value) continue
+                if (normalized === value) return true
+                if (normalized.includes(value) || value.includes(normalized)) return true
+            }
+            return false
+        }
+
+        private _isSimilarValue(a: string, b: string) {
+            if (!a || !b) return false
+            const na = normalizeTextAlphaNum(a)
+            const nb = normalizeTextAlphaNum(b)
+            if (!na || !nb) return false
+            if (na === nb) return true
+            if (na.includes(nb) || nb.includes(na)) return true
+            return false
+        }
+
+        private _cleanValue(value: string) {
+            if (!value) return ''
+            const cleaned = normalizeWhitespace(value)
+            if (!cleaned) return ''
+            const stripped = cleaned
+                .replace(/\b(with verification|com verificação|verified|verificado)\b/gi, '')
                 .replace(/\s+/g, ' ')
                 .trim()
-                .toLowerCase()
+            return this._dedupeRepeatedPhrase(stripped)
         }
+
+        private _dedupeRepeatedPhrase(value: string) {
+            if (!value) return ''
+            const words = value.split(' ').filter(Boolean)
+            if (words.length < 2 || words.length % 2 !== 0) return value
+            const mid = words.length / 2
+            const first = words.slice(0, mid).join(' ')
+            const second = words.slice(mid).join(' ')
+            if (normalizeTextAlphaNum(first) === normalizeTextAlphaNum(second)) {
+                return first
+            }
+            return value
+        }
+    
 }

@@ -3,6 +3,8 @@ import { ElementHandle as PlaywrightElementHandle, Page } from "playwright";
 import { env } from "../../../shared/env";
 import { LINKEDIN_SELECTORS } from "../../../shared/constants/linkedin";
 import { LinkedinCoreFeatures } from "../../linkedin-core";
+import { logger } from "../../../shared/services/logger";
+import { buildLinkedinContentSearchUrl, buildLinkedinPostUrlFromUrn, normalizeLinkedinUrl } from "../../../shared/utils/linkedin-url";
 
 type UpvoteOptions = {
     maxLikes?: number
@@ -52,7 +54,7 @@ export class LinkedinUpvotePostsFlow {
                     if (postUrl) likedUrls.add(postUrl)
                     await this._page.waitForTimeout(1200)
                 } catch (e) {
-                    console.log(e)
+                    logger.warn('Falha ao curtir post', e)
                 }
             }
 
@@ -72,12 +74,7 @@ export class LinkedinUpvotePostsFlow {
     }
 
     private _buildPostSearchUrl(tag: string) {
-        const normalized = tag.replace(/\+/g, ' ').trim()
-        if (!normalized) return env.linkedinURLs.postUrl
-
-        const params = new URLSearchParams()
-        params.set('keywords', normalized)
-        return `https://www.linkedin.com/search/results/content/?${params.toString()}`
+        return buildLinkedinContentSearchUrl(tag)
     }
 
     private async _extractPostUrl(button: PlaywrightElementHandle<Element>) {
@@ -92,7 +89,7 @@ export class LinkedinUpvotePostsFlow {
                 const dataEntityUrn = container?.getAttribute('data-entity-urn') || null
                 return { href, dataUrn, dataEntityUrn }
             }, LINKEDIN_SELECTORS.postLinks)
-            if (result.href) return this._normalizePostUrl(result.href)
+            if (result.href) return normalizeLinkedinUrl(result.href)
 
             const urn = this._extractUrn(result.dataUrn || '') || this._extractUrn(result.dataEntityUrn || '')
             if (!urn) return null
@@ -109,17 +106,7 @@ export class LinkedinUpvotePostsFlow {
     }
 
     private _buildPostUrlFromUrn(urn: string) {
-        return `https://www.linkedin.com/feed/update/${urn}`
+        return buildLinkedinPostUrlFromUrn(urn)
     }
 
-    private _normalizePostUrl(href: string) {
-        try {
-            const url = new URL(href, 'https://www.linkedin.com')
-            url.search = ''
-            url.hash = ''
-            return url.toString()
-        } catch {
-            return href
-        }
-    }
 }

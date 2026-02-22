@@ -161,11 +161,7 @@ const runFeature = async (feature) => {
 
     const args = buildArgs(feature)
     const env = {
-      ...process.env,
-      DISCORD_ENABLED: 'false',
-      DISCORD_INTERACTIVE: 'false',
-      DISCORD_COMMANDS_ENABLED: 'false',
-      DISCORD_CONSOLE_ONLY: 'true'
+      ...process.env
     }
 
     const child = spawn(process.execPath, args, {
