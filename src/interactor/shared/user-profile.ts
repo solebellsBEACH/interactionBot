@@ -1,10 +1,6 @@
 import fs from "fs";
 import path from "path";
-
-export type UserProfile = {
-    summary: string
-    answers: Record<string, string>
-}
+import type { UserProfile } from "./interface/user/user-profile.types";
 
 const defaultProfile: UserProfile = {
     summary: "",
