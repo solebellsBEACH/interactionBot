@@ -24,3 +24,4 @@ blob-report/
 .DS_Store
 .whatsapp-auth/
 data/user-profile.json
+.yarn/

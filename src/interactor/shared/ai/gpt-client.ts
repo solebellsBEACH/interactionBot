@@ -1,18 +1,46 @@
 import { FormPromptField } from "../utils/element-handle";
 import { UserProfile } from "../user-profile";
+import OpenAI from "openai";
+
 
 export type GptConfig = {
-    enabled: boolean
+    enabled?: boolean
     apiKey?: string
-    model: string
+    model?: string
     baseUrl?: string
-    requestTimeoutMs: number
-    temperature: number
-    maxTokens: number
+    requestTimeoutMs?: number
+    temperature?: number
+    maxTokens?: number
 }
 
 export class GptClient {
-    constructor(private readonly _config: GptConfig) { }
+    private readonly _config: Required<Omit<GptConfig, "apiKey" | "baseUrl">> & Pick<GptConfig, "apiKey" | "baseUrl">
+
+    constructor(config: GptConfig = {}) {
+        this._config = {
+            enabled: config.enabled ?? Boolean(config.apiKey),
+            apiKey: config.apiKey,
+            model: config.model ?? "gpt-4o-mini",
+            baseUrl: config.baseUrl,
+            requestTimeoutMs: config.requestTimeoutMs ?? 20_000,
+            temperature: config.temperature ?? 0.2,
+            maxTokens: config.maxTokens ?? 64
+        }
+    }
+
+    async testClient(prompt: string) {
+        const openai = new OpenAI({
+            apiKey: this._config.apiKey
+        });
+
+        const response = await openai.responses.create({
+            model: "gpt-5-nano",
+            input: prompt,
+            store: true,
+        });
+
+        console.log(response)
+    }
 
     async answerField(
         field: FormPromptField,
