@@ -101,7 +101,29 @@ export class AdminServer {
       }
 
       if (method === "GET" && pathname === "/api/admin/prompts/current") {
-        this._sendJson(res, 200, { item: this._promptBroker?.getPendingPrompt() || null });
+        this._sendJson(res, 200, {
+          item: this._promptBroker?.getPendingPrompt() || null,
+          settings: this._promptBroker?.getSettings() || {
+            autoConfirmGpt: false,
+            autoConfirmDelayMs: 1000,
+          },
+        });
+        return;
+      }
+
+      if (method === "POST" && pathname === "/api/admin/prompts/settings") {
+        const body = await this._readJsonBody(req);
+        const promptBroker = this._promptBroker;
+        if (!promptBroker) {
+          throw new ProcessValidationError("Prompt interativo do admin não está habilitado.");
+        }
+
+        const settings = promptBroker.updateSettings({
+          autoConfirmGpt: this._readBool(body.autoConfirmGpt),
+          autoConfirmDelayMs: this._readNumber(body.autoConfirmDelayMs),
+        });
+
+        this._sendJson(res, 200, { settings });
         return;
       }
 

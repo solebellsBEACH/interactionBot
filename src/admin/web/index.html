@@ -614,7 +614,17 @@
 
         <article class="card">
           <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px">
-            <h2 style="margin: 0">Respostas GPT</h2>
+            <div>
+              <h2 style="margin: 0">Respostas GPT</h2>
+              <div class="meta" style="margin-top: 6px">
+                GPT automático:
+                <select id="gpt-auto-confirm" style="width: auto; min-width: 92px; margin-left: 6px">
+                  <option value="false">não</option>
+                  <option value="true">sim</option>
+                </select>
+                <span id="gpt-auto-meta" style="margin-left: 8px">Se sim, confirma em 1000ms.</span>
+              </div>
+            </div>
             <button id="refresh-gpt" type="button" style="width: auto; padding: 8px 10px">
               Atualizar
             </button>
@@ -691,6 +701,8 @@
       const adminPromptConfirm = document.getElementById("admin-prompt-confirm");
       const adminPromptSubmit = document.getElementById("admin-prompt-submit");
       const adminPromptCancel = document.getElementById("admin-prompt-cancel");
+      const gptAutoConfirm = document.getElementById("gpt-auto-confirm");
+      const gptAutoMeta = document.getElementById("gpt-auto-meta");
 
       const searchForm = document.getElementById("search-form");
       const searchSubmit = document.getElementById("search-submit");
@@ -724,6 +736,12 @@
       const adminPromptState = {
         item: null,
         isSubmitting: false,
+      };
+
+      const adminPromptSettings = {
+        autoConfirmGpt: false,
+        autoConfirmDelayMs: 1000,
+        isSaving: false,
       };
 
       function toNumber(value) {
@@ -893,6 +911,51 @@
         }
       }
 
+      function renderPromptSettings(settings) {
+        if (!settings || typeof settings !== "object") return;
+
+        adminPromptSettings.autoConfirmGpt = Boolean(settings.autoConfirmGpt);
+        if (typeof settings.autoConfirmDelayMs === "number" && Number.isFinite(settings.autoConfirmDelayMs)) {
+          adminPromptSettings.autoConfirmDelayMs = settings.autoConfirmDelayMs;
+        }
+
+        gptAutoConfirm.value = adminPromptSettings.autoConfirmGpt ? "true" : "false";
+        gptAutoConfirm.disabled = adminPromptSettings.isSaving;
+        gptAutoMeta.textContent = adminPromptSettings.autoConfirmGpt
+          ? `Se ninguém responder, confirma em ${adminPromptSettings.autoConfirmDelayMs}ms.`
+          : `Quando desativado, o painel aguarda sua resposta.`;
+      }
+
+      async function savePromptSettings() {
+        const nextValue = gptAutoConfirm.value === "true";
+        const previousSettings = {
+          autoConfirmGpt: adminPromptSettings.autoConfirmGpt,
+          autoConfirmDelayMs: adminPromptSettings.autoConfirmDelayMs,
+        };
+        adminPromptSettings.autoConfirmGpt = nextValue;
+        adminPromptSettings.isSaving = true;
+        renderPromptSettings(adminPromptSettings);
+
+        try {
+          const data = await request("POST", "/api/admin/prompts/settings", {
+            autoConfirmGpt: nextValue,
+            autoConfirmDelayMs: 1000,
+          });
+          renderPromptSettings(data.settings || {});
+        } catch (error) {
+          adminPromptSettings.autoConfirmGpt = previousSettings.autoConfirmGpt;
+          adminPromptSettings.autoConfirmDelayMs = previousSettings.autoConfirmDelayMs;
+          setStatus(
+            adminPromptStatus,
+            `Falha ao salvar configuração do GPT: ${error.message}`,
+            true
+          );
+        } finally {
+          adminPromptSettings.isSaving = false;
+          renderPromptSettings(adminPromptSettings);
+        }
+      }
+
       function syncAdminPromptButtons() {
         const disabled = adminPromptState.isSubmitting || !adminPromptState.item;
         adminPromptConfirm.disabled = disabled;
@@ -926,6 +989,13 @@
         adminPromptMeta.textContent = meta.join(" | ");
         adminPromptMessage.textContent = item.prompt || "";
         setStatus(adminPromptStatus, "");
+
+        if (isConfirm && adminPromptSettings.autoConfirmGpt) {
+          setStatus(
+            adminPromptStatus,
+            `Modo automático ativo: se ninguém responder em ${adminPromptSettings.autoConfirmDelayMs}ms, a resposta do GPT será usada.`
+          );
+        }
 
         setHidden(adminPromptSuggestedWrap, !suggestedAnswer);
         adminPromptSuggested.textContent = suggestedAnswer || "";
@@ -1012,6 +1082,9 @@
       async function refreshAdminPrompt() {
         try {
           const data = await request("GET", "/api/admin/prompts/current");
+          if (!adminPromptSettings.isSaving) {
+            renderPromptSettings(data.settings || {});
+          }
           const item = data.item || null;
           const currentId = adminPromptState.item ? adminPromptState.item.id : "";
           const nextId = item ? item.id : "";
@@ -1442,6 +1515,10 @@
         refreshGpt();
       });
 
+      gptAutoConfirm.addEventListener("change", () => {
+        savePromptSettings();
+      });
+
       renderJobsTable();
       refreshProcesses();
       refreshGpt();
@@ -1449,7 +1526,7 @@
 
       setInterval(refreshProcesses, 3000);
       setInterval(refreshGpt, 7000);
-      setInterval(refreshAdminPrompt, 1000);
+      setInterval(refreshAdminPrompt, 200);
     </script>
   </body>
 </html>
