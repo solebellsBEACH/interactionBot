@@ -4,7 +4,12 @@ import {
     GptInteractionSource,
     saveGptInteraction,
 } from "../../../api/controllers/gpt-interactions";
-import { UserProfile } from "../user-profile";
+import {
+    UserProfile,
+    UserProfileCompensation,
+    UserProfileLinkedinSnapshot,
+    UserProfileStackExperience
+} from "../user-profile";
 import { FormPromptField } from "../utils/element-handle";
 
 export type GptConfig = {
@@ -19,6 +24,11 @@ export type GptConfig = {
 
 export type GptAnswerContext = {
     step?: number
+}
+
+export type GptProfileReview = {
+    raw: string
+    parsed: Record<string, unknown> | null
 }
 
 export class GptClient {
@@ -70,7 +80,8 @@ export class GptClient {
         const prompt = this._buildPrompt(field, profile, historyAnswers)
         if (!prompt) return null
 
-        const systemPrompt = "You fill job application fields. Reply with only the value, no extra text."
+        const systemPrompt =
+            "You fill job application fields. Reply with only the value, no extra text. If the answer is numeric, reply with a rounded integer only."
 
         let responsesError: unknown = null
         const responsesStartedAt = Date.now()
@@ -185,6 +196,133 @@ export class GptClient {
         }
     }
 
+    async reviewLinkedinProfile(
+        profile: UserProfileLinkedinSnapshot,
+        compensation?: UserProfileCompensation,
+        stackExperience?: Record<string, UserProfileStackExperience>,
+        birthDate?: string
+    ): Promise<GptProfileReview | null> {
+        if (!this._config.enabled) {
+            this._logDisabledOnce()
+            return null
+        }
+
+        const openai = this._getClient()
+        if (!openai) return null
+
+        const prompt = this._buildProfileReviewPrompt(profile, compensation, stackExperience, birthDate)
+        const field: FormPromptField = {
+            type: "input",
+            key: "profile-review",
+            label: "Profile review",
+            value: ""
+        }
+
+        const systemPrompt =
+            "You are a senior recruiter and LinkedIn profile reviewer for software engineers. Reply with valid JSON only."
+        const maxTokens = Math.max(this._config.maxTokens, 1_200)
+
+        let responsesError: unknown = null
+        const responsesStartedAt = Date.now()
+
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), this._config.requestTimeoutMs)
+        try {
+            const data = await openai.responses.create({
+                model: this._config.model,
+                temperature: this._config.temperature,
+                max_output_tokens: maxTokens,
+                input: [
+                    {
+                        role: "system",
+                        content: systemPrompt
+                    },
+                    {
+                        role: "user",
+                        content: prompt
+                    }
+                ]
+            }, {
+                signal: controller.signal
+            })
+
+            const review = this._parseProfileReview(this._extractResponseText(data))
+            if (review) {
+                void this._saveInteraction({
+                    field,
+                    prompt,
+                    answer: review.raw,
+                    source: "responses",
+                    success: true,
+                    durationMs: Date.now() - responsesStartedAt
+                })
+                return review
+            }
+
+            responsesError = new Error("invalid-json-response")
+        } catch (error) {
+            responsesError = error
+            this._logError("responses", error)
+        } finally {
+            clearTimeout(timeout)
+        }
+
+        const completionStartedAt = Date.now()
+        try {
+            const completion = await openai.chat.completions.create({
+                model: this._config.model,
+                temperature: this._config.temperature,
+                max_tokens: maxTokens,
+                messages: [
+                    {
+                        role: "system",
+                        content: systemPrompt
+                    },
+                    {
+                        role: "user",
+                        content: prompt
+                    }
+                ]
+            })
+
+            const content = completion.choices?.[0]?.message?.content
+            const review = this._parseProfileReview(typeof content === "string" ? content : null)
+            if (!review) {
+                void this._saveInteraction({
+                    field,
+                    prompt,
+                    source: "chat.completions",
+                    success: false,
+                    error: this._mergeErrors(responsesError, "invalid-json-response"),
+                    durationMs: Date.now() - completionStartedAt
+                })
+                return null
+            }
+
+            void this._saveInteraction({
+                field,
+                prompt,
+                answer: review.raw,
+                source: "chat.completions",
+                success: true,
+                durationMs: Date.now() - completionStartedAt
+            })
+
+            return review
+        } catch (error) {
+            this._logError("chat.completions", error)
+            void this._saveInteraction({
+                field,
+                prompt,
+                source: "chat.completions",
+                success: false,
+                error: this._mergeErrors(responsesError, error),
+                durationMs: Date.now() - completionStartedAt
+            })
+            return null
+        }
+    }
+
     private _getClient() {
         if (!this._config.apiKey) {
             if (!this._missingKeyLogged) {
@@ -262,6 +400,45 @@ export class GptClient {
         return null
     }
 
+    private _parseProfileReview(content: string | null): GptProfileReview | null {
+        const trimmed = typeof content === "string" ? content.trim() : ""
+        if (!trimmed) return null
+
+        const parsed = this._extractJsonObject(trimmed)
+        if (!parsed) return null
+
+        return {
+            raw: JSON.stringify(parsed, null, 2),
+            parsed
+        }
+    }
+
+    private _extractJsonObject(content: string) {
+        try {
+            const parsed = JSON.parse(content)
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                return parsed as Record<string, unknown>
+            }
+        } catch {
+            // Ignore direct parse failure and try extracting the first JSON object.
+        }
+
+        const firstBrace = content.indexOf("{")
+        const lastBrace = content.lastIndexOf("}")
+        if (firstBrace === -1 || lastBrace <= firstBrace) return null
+
+        try {
+            const parsed = JSON.parse(content.slice(firstBrace, lastBrace + 1))
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                return parsed as Record<string, unknown>
+            }
+        } catch {
+            return null
+        }
+
+        return null
+    }
+
     private _buildPrompt(
         field: FormPromptField,
         profile: UserProfile,
@@ -270,6 +447,8 @@ export class GptClient {
         const label = field.label || field.key || "field"
         const key = field.key || ""
         const summary = profile.summary ? `Profile summary: ${profile.summary}` : "Profile summary: (none)"
+        const personal = profile.birthDate ? `Saved profile data:\nBirth date: ${profile.birthDate}` : "Saved profile data: (none)"
+        const review = this._formatProfileReviewContext(profile)
         const answers = profile.answers && Object.keys(profile.answers).length > 0
             ? `Known answers:\n${this._formatAnswers(profile.answers)}`
             : "Known answers: (none)"
@@ -279,8 +458,11 @@ export class GptClient {
 
         const lines = [
             summary,
+            personal,
+            review,
             answers,
             history,
+            "Use the saved profile data and profile review JSON as additional context when they help. Prefer their normalized experience, compensation and birth date values over guesses.",
             `Field: ${label}`,
             key ? `Key: ${key}` : "",
             `Type: ${field.type}`
@@ -298,12 +480,132 @@ export class GptClient {
         return lines.join("\n")
     }
 
+    private _formatProfileReviewContext(profile: UserProfile) {
+        const raw =
+            profile.profileReview?.raw ||
+            (profile.profileReview?.parsed ? JSON.stringify(profile.profileReview.parsed, null, 2) : "")
+
+        const trimmed = typeof raw === "string" ? raw.trim() : ""
+        if (!trimmed) return "Profile review JSON: (none)"
+
+        const maxLength = 6_000
+        if (trimmed.length <= maxLength) {
+            return `Profile review JSON:\n${trimmed}`
+        }
+
+        return `Profile review JSON (truncated):\n${trimmed.slice(0, maxLength)}`
+    }
+
+    private _buildProfileReviewPrompt(
+        profile: UserProfileLinkedinSnapshot,
+        compensation?: UserProfileCompensation,
+        stackExperience?: Record<string, UserProfileStackExperience>,
+        birthDate?: string
+    ) {
+        const payload = {
+            basics: {
+                name: profile.name,
+                headline: profile.headline,
+                location: profile.location,
+                website: profile.website,
+                currentCompany: profile.currentCompany,
+                totalExperienceLabel: profile.totalExperienceLabel,
+                connections: profile.connections
+            },
+            about: profile.about,
+            topSkills: profile.topSkills.slice(0, 20),
+            languages: profile.languages,
+            experiences: profile.experiences.slice(0, 10).map((item) => ({
+                title: item.title,
+                company: item.company,
+                employmentType: item.employmentType,
+                dateRangeLabel: item.dateRangeLabel,
+                location: item.location,
+                stacks: item.stacks,
+                description: item.description
+            })),
+            education: profile.education.slice(0, 5),
+            projects: profile.projects.slice(0, 5),
+            stackExperience: Object.entries(stackExperience || {}).map(([stack, item]) => ({
+                stack,
+                firstSeenAt: item.firstSeenAt,
+                months: item.months,
+                years: item.years,
+                durationLabel: item.durationLabel,
+                sourceCompanies: item.sourceCompanies,
+                sourceTitles: item.sourceTitles
+            })),
+            savedPersonal: {
+                birthDate: birthDate || undefined
+            },
+            compensation: compensation || undefined
+        }
+
+        return [
+            "Review this LinkedIn profile for senior software engineering roles and return valid JSON only.",
+            "Required JSON shape:",
+            JSON.stringify({
+                overall_score: 0,
+                positioning: {
+                    seniority: "",
+                    best_fit_roles: [""],
+                    strongest_markets: [""]
+                },
+                strengths: [""],
+                gaps: [""],
+                headline_review: {
+                    verdict: "",
+                    suggested_headline: ""
+                },
+                about_review: {
+                    verdict: "",
+                    suggested_about: ""
+                },
+                keyword_gaps: [""],
+                compensation_feedback: {
+                    verdict: "",
+                    notes: [""]
+                },
+                stack_experience: [
+                    {
+                        stack: "",
+                        first_seen_at: "",
+                        experience_months: 0,
+                        experience_years: "",
+                        experience_label: "",
+                        source_companies: [""],
+                        source_titles: [""]
+                    }
+                ],
+                saved_compensation: {
+                    hourly_usd: "",
+                    hourly_brl: "",
+                    pretensao_clt: "",
+                    pretensao_pj: ""
+                },
+                saved_personal: {
+                    birth_date: ""
+                },
+                calculated_total_experience: {
+                    months: 0,
+                    label: ""
+                },
+                action_plan: [""]
+            }, null, 2),
+            "Profile data:",
+            JSON.stringify(payload, null, 2)
+        ].join("\n\n")
+    }
+
     private _buildInputReplyInstruction(field: FormPromptField) {
+        if (this._isDateField(field)) {
+            return "Reply with a valid date in MM/DD/YYYY format only. Example: 12/14/2002"
+        }
         if (this._isExperienceYearsField(field)) {
-            return "Reply with digits only, no units or words. Example: 3"
+            return "Reply with digits only, rounded to an integer, no units or words. Example: 3"
         }
         if (this._isCompensationField(field)) {
-            return "Reply with numeric amount only, no currency symbol or thousand separators. Use '.' only if decimals are required. Example: 10000 or 80.5"
+            return "Reply with numeric amount only, rounded to an integer, with no currency symbol or thousand separators. Example: 10000"
         }
         return "Reply with a short direct value."
     }
@@ -349,6 +651,17 @@ export class GptClient {
         ]
 
         return compensationKeywords.some((keyword) => text.includes(keyword))
+    }
+
+    private _isDateField(field: FormPromptField) {
+        const text = this._normalizeFieldText(field)
+        return (
+            text.includes("date") ||
+            text.includes("birth") ||
+            text.includes("nascimento") ||
+            /\bdob\b/.test(text) ||
+            text.includes("mm/dd/yyyy")
+        )
     }
 
     private _normalizeFieldText(field: FormPromptField) {

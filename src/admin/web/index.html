@@ -382,6 +382,21 @@
         word-break: break-word;
       }
 
+      .code-block {
+        margin: 0;
+        border: 1px solid #e3d7c1;
+        background: #fffdf9;
+        border-radius: 12px;
+        padding: 10px;
+        min-height: 120px;
+        max-height: 420px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.78rem;
+      }
+
       @media (max-width: 720px) {
         .row {
           grid-template-columns: 1fr;
@@ -485,6 +500,49 @@
             </div>
             <button type="submit">Enviar Convite</button>
             <p class="status" id="connect-status"></p>
+          </form>
+        </article>
+
+        <article class="card">
+          <h2>Meu Perfil</h2>
+          <form id="profile-form" class="stack">
+            <p class="helper">
+              Abre o seu perfil no LinkedIn, varre experiências, calcula tempo por stack e pede um
+              review JSON ao GPT.
+            </p>
+            <div class="row">
+              <div>
+                <label for="profile-birth-date">Data de nascimento</label>
+                <input id="profile-birth-date" name="birthDate" type="date" />
+              </div>
+              <div></div>
+            </div>
+            <div class="row">
+              <div>
+                <label for="profile-hourly-usd">Valor hora dólar</label>
+                <input id="profile-hourly-usd" name="hourlyUsd" placeholder="80" />
+              </div>
+              <div>
+                <label for="profile-hourly-brl">Valor hora reais</label>
+                <input id="profile-hourly-brl" name="hourlyBrl" placeholder="400" />
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label for="profile-clt">Pretensão CLT</label>
+                <input id="profile-clt" name="clt" placeholder="18000" />
+              </div>
+              <div>
+                <label for="profile-pj">Pretensão PJ</label>
+                <input id="profile-pj" name="pj" placeholder="22000" />
+              </div>
+            </div>
+            <div class="row">
+              <button id="profile-save" class="secondary" type="submit">Salvar perfil</button>
+              <button id="profile-review" type="button">Analisar meu perfil</button>
+            </div>
+            <div id="profile-meta" class="meta">Perfil ainda não carregado.</div>
+            <p class="status" id="profile-status"></p>
           </form>
         </article>
 
@@ -605,6 +663,50 @@
         </article>
       </section>
 
+      <section class="panel grid" style="grid-template-columns: 1fr 1.1fr">
+        <article class="card">
+          <div class="toolbar">
+            <div>
+              <h2 style="margin: 0">Experiência por Stack</h2>
+              <div id="profile-stack-meta" class="meta">Nenhuma stack calculada.</div>
+            </div>
+            <button id="refresh-profile" class="secondary" type="button" style="width: auto; padding: 8px 10px">
+              Atualizar
+            </button>
+          </div>
+          <div class="table-wrap" style="margin-top: 10px">
+            <table>
+              <thead>
+                <tr>
+                  <th>Stack</th>
+                  <th>Primeira aparição</th>
+                  <th>Tempo</th>
+                </tr>
+              </thead>
+              <tbody id="profile-stack-table-body">
+                <tr>
+                  <td colspan="3" class="muted">Nenhuma stack calculada.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card">
+          <h2>Profile Review JSON</h2>
+          <div class="stack">
+            <div>
+              <label>Resumo usado pelo GPT</label>
+              <div id="profile-summary" class="modal-answer">Sem resumo salvo.</div>
+            </div>
+            <div>
+              <label>Review</label>
+              <pre id="profile-review-json" class="code-block">Sem review salvo.</pre>
+            </div>
+          </div>
+        </article>
+      </section>
+
       <section class="panel grid" style="grid-template-columns: 1.2fr 1fr">
         <article class="card">
           <h2>Processos</h2>
@@ -703,6 +805,16 @@
       const adminPromptCancel = document.getElementById("admin-prompt-cancel");
       const gptAutoConfirm = document.getElementById("gpt-auto-confirm");
       const gptAutoMeta = document.getElementById("gpt-auto-meta");
+      const profileForm = document.getElementById("profile-form");
+      const profileStatus = document.getElementById("profile-status");
+      const profileMeta = document.getElementById("profile-meta");
+      const profileSaveButton = document.getElementById("profile-save");
+      const profileReviewButton = document.getElementById("profile-review");
+      const profileRefreshButton = document.getElementById("refresh-profile");
+      const profileSummary = document.getElementById("profile-summary");
+      const profileReviewJson = document.getElementById("profile-review-json");
+      const profileStackMeta = document.getElementById("profile-stack-meta");
+      const profileStackTableBody = document.getElementById("profile-stack-table-body");
 
       const searchForm = document.getElementById("search-form");
       const searchSubmit = document.getElementById("search-submit");
@@ -736,6 +848,12 @@
       const adminPromptState = {
         item: null,
         isSubmitting: false,
+      };
+
+      const profileState = {
+        item: null,
+        isSaving: false,
+        isReviewing: false,
       };
 
       const adminPromptSettings = {
@@ -827,6 +945,16 @@
         return date.toLocaleString("pt-BR");
       }
 
+      function formatMonthYear(value) {
+        if (!value) return "-";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "-";
+        return date.toLocaleDateString("pt-BR", {
+          month: "short",
+          year: "numeric",
+        });
+      }
+
       function renderProcessState(state) {
         const running = state.running;
         if (running) {
@@ -889,6 +1017,87 @@
             `;
           })
           .join("");
+      }
+
+      function syncProfileControls() {
+        const disabled = profileState.isSaving || profileState.isReviewing;
+        profileSaveButton.disabled = disabled;
+        profileReviewButton.disabled = disabled;
+        profileRefreshButton.disabled = disabled;
+      }
+
+      function renderProfile(profile) {
+        profileState.item = profile || null;
+        syncProfileControls();
+
+        const compensation = (profile && profile.compensation) || {};
+        if (!profileState.isSaving) {
+          profileForm.birthDate.value = (profile && profile.birthDate) || "";
+          profileForm.hourlyUsd.value = compensation.hourlyUsd || "";
+          profileForm.hourlyBrl.value = compensation.hourlyBrl || "";
+          profileForm.clt.value = compensation.clt || "";
+          profileForm.pj.value = compensation.pj || "";
+        }
+
+        const linkedinProfile = (profile && profile.linkedinProfile) || null;
+        const stackEntries = Object.entries((profile && profile.stackExperience) || {}).sort(
+          (left, right) => (right[1].months || 0) - (left[1].months || 0)
+        );
+
+        if (profile && (profile.updatedAt || (linkedinProfile && linkedinProfile.capturedAt))) {
+          const pieces = [];
+          if (profile.updatedAt) {
+            pieces.push(`perfil salvo: ${formatDate(profile.updatedAt)}`);
+          }
+          if (linkedinProfile && linkedinProfile.capturedAt) {
+            pieces.push(`LinkedIn varrido: ${formatDate(linkedinProfile.capturedAt)}`);
+          }
+          profileMeta.textContent = pieces.join(" | ");
+        } else {
+          profileMeta.textContent = "Perfil ainda não carregado.";
+        }
+
+        const summaryValue = profile && profile.summary ? profile.summary : "Sem resumo salvo.";
+        profileSummary.textContent = summaryValue;
+
+        const reviewValue =
+          profile && profile.profileReview
+            ? profile.profileReview.raw || JSON.stringify(profile.profileReview.parsed || {}, null, 2)
+            : "Sem review salvo.";
+        profileReviewJson.textContent = reviewValue;
+
+        profileStackMeta.textContent = stackEntries.length
+          ? `${stackEntries.length} stack(s) mapeada(s).`
+          : "Nenhuma stack calculada.";
+
+        if (stackEntries.length === 0) {
+          profileStackTableBody.innerHTML = `<tr><td colspan="3" class="muted">Nenhuma stack calculada.</td></tr>`;
+          return;
+        }
+
+        profileStackTableBody.innerHTML = stackEntries
+          .map(([stack, item]) => {
+            const duration = item.durationLabel || `${item.years} ano(s)`;
+            return `
+              <tr>
+                <td>${escapeHtml(stack)}</td>
+                <td>${escapeHtml(formatMonthYear(item.firstSeenAt))}</td>
+                <td>${escapeHtml(duration)}</td>
+              </tr>
+            `;
+          })
+          .join("");
+      }
+
+      async function refreshProfile() {
+        try {
+          const data = await request("GET", "/api/admin/profile");
+          renderProfile(data.profile || null);
+          return data;
+        } catch (error) {
+          setStatus(profileStatus, `Falha ao carregar perfil: ${error.message}`, true);
+          throw error;
+        }
       }
 
       async function refreshProcesses() {
@@ -1479,6 +1688,60 @@
         submitAdminPrompt("cancel");
       });
 
+      profileForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (profileState.isSaving || profileState.isReviewing) return;
+
+        profileState.isSaving = true;
+        syncProfileControls();
+        setStatus(profileStatus, "Salvando perfil...");
+
+        try {
+          const data = await request("POST", "/api/admin/profile", {
+            birthDate: text(profileForm.birthDate.value),
+            hourlyUsd: text(profileForm.hourlyUsd.value),
+            hourlyBrl: text(profileForm.hourlyBrl.value),
+            clt: text(profileForm.clt.value),
+            pj: text(profileForm.pj.value),
+          });
+          renderProfile(data.profile || null);
+          setStatus(profileStatus, "Perfil atualizado.");
+        } catch (error) {
+          setStatus(profileStatus, error.message, true);
+        } finally {
+          profileState.isSaving = false;
+          syncProfileControls();
+        }
+      });
+
+      profileReviewButton.addEventListener("click", async () => {
+        if (profileState.isReviewing || profileState.isSaving) return;
+
+        profileState.isReviewing = true;
+        syncProfileControls();
+        setStatus(profileStatus, "Abrindo o seu perfil e gerando o review...");
+
+        try {
+          const data = await request("POST", "/api/admin/processes/profile-review", {});
+          const process = await waitForProcess(data.id, 8 * 60 * 1000);
+          if (process.status !== "succeeded") {
+            throw new Error(process.error || process.summary || "Falha ao analisar o perfil.");
+          }
+
+          await refreshProfile();
+          setStatus(profileStatus, process.summary || "Perfil analisado.");
+        } catch (error) {
+          setStatus(profileStatus, error.message, true);
+        } finally {
+          profileState.isReviewing = false;
+          syncProfileControls();
+        }
+      });
+
+      profileRefreshButton.addEventListener("click", () => {
+        refreshProfile();
+      });
+
       document.getElementById("connect-form").addEventListener("submit", async (event) => {
         event.preventDefault();
         const form = event.currentTarget;
@@ -1523,6 +1786,7 @@
       refreshProcesses();
       refreshGpt();
       refreshAdminPrompt();
+      refreshProfile();
 
       setInterval(refreshProcesses, 3000);
       setInterval(refreshGpt, 7000);

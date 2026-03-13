@@ -6,7 +6,8 @@ export type AdminProcessType =
   | "search-jobs"
   | "apply-jobs"
   | "connect"
-  | "upvote-posts";
+  | "upvote-posts"
+  | "profile-review";
 export type AdminProcessStatus = "running" | "succeeded" | "failed";
 
 export type AdminProcessRecord = {
@@ -261,6 +262,31 @@ export class AdminProcessManager {
         output: {
           total: links.length,
           links,
+        },
+      };
+    });
+  }
+
+  startProfileReview() {
+    if (!this._actions.reviewOwnProfile) {
+      throw new ProcessValidationError("A análise do perfil não está habilitada.");
+    }
+
+    return this._startProcess("profile-review", {}, async () => {
+      const profile = await this._actions.reviewOwnProfile?.();
+      if (!profile) {
+        throw new Error("Não foi possível analisar o perfil atual.");
+      }
+
+      const stackCount = Object.keys(profile.stackExperience || {}).length;
+      const hasReview = Boolean(profile.profileReview?.raw);
+
+      return {
+        summary: hasReview
+          ? `Perfil analisado com ${stackCount} stack(s) mapeada(s) e review JSON gerado.`
+          : `Perfil analisado com ${stackCount} stack(s) mapeada(s).`,
+        output: {
+          profile,
         },
       };
     });

@@ -98,6 +98,15 @@ export class EasyApplyAnswerResolver {
     }
 
     private _answerFromProfile(field: FormPromptField) {
+        const personalAnswer = this._answerFromProfilePersonal(field)
+        if (personalAnswer) return personalAnswer
+
+        const compensationAnswer = this._answerFromProfileCompensation(field)
+        if (compensationAnswer) return compensationAnswer
+
+        const stackExperienceAnswer = this._answerFromProfileStackExperience(field)
+        if (stackExperienceAnswer) return stackExperienceAnswer
+
         const answers = this._profile.answers || {}
         const candidates = new Set(this._buildAnswerCandidates(field))
 
@@ -111,6 +120,69 @@ export class EasyApplyAnswerResolver {
             const normalizedKey = this._normalizeKey(key)
             if (candidateList.some((candidate) => candidate.includes(normalizedKey) || normalizedKey.includes(candidate))) {
                 return value
+            }
+        }
+
+        return null
+    }
+
+    private _answerFromProfilePersonal(field: FormPromptField) {
+        const birthDate = this._profile.birthDate
+        if (!birthDate) return null
+
+        const text = this._normalizeFieldText(field)
+        const asksBirthDate =
+            text.includes("birth") ||
+            text.includes("nascimento") ||
+            /\bdob\b/.test(text)
+
+        return asksBirthDate ? birthDate : null
+    }
+
+    private _answerFromProfileCompensation(field: FormPromptField) {
+        const compensation = this._profile.compensation
+        if (!compensation) return null
+
+        const text = this._normalizeFieldText(field)
+        const asksHourly = text.includes("hour") || text.includes("hora") || text.includes("rate")
+        const asksUsd =
+            text.includes("usd") ||
+            text.includes("dollar") ||
+            text.includes("dolar")
+        const asksBrl =
+            text.includes("brl") ||
+            text.includes("real") ||
+            text.includes("reais") ||
+            text.includes("r$")
+        const asksClt = text.includes("clt")
+        const asksPj = text.includes("pj") || text.includes("contractor")
+
+        if (asksHourly && asksUsd && compensation.hourlyUsd) {
+            return compensation.hourlyUsd
+        }
+        if (asksHourly && asksBrl && compensation.hourlyBrl) {
+            return compensation.hourlyBrl
+        }
+        if (asksClt && compensation.clt) {
+            return compensation.clt
+        }
+        if (asksPj && compensation.pj) {
+            return compensation.pj
+        }
+
+        return null
+    }
+
+    private _answerFromProfileStackExperience(field: FormPromptField) {
+        if (!this._isExperienceYearsField(field)) return null
+
+        const stackExperience = this._profile.stackExperience || {}
+        const text = this._normalizeFieldText(field)
+
+        for (const [stack, value] of Object.entries(stackExperience)) {
+            const aliases = this._buildStackAliases(stack)
+            if (aliases.some((alias) => text.includes(alias))) {
+                return value.years || null
             }
         }
 
@@ -502,6 +574,9 @@ export class EasyApplyAnswerResolver {
 
         const trimmed = answer.trim().replace(/^['"`]+|['"`]+$/g, '')
         if (!trimmed) return null
+        if (this._isDateField(field)) {
+            return this._extractDateValue(trimmed) || trimmed
+        }
         if (this._isExperienceYearsField(field)) {
             return this._extractSimpleNumericValue(trimmed) || trimmed
         }
@@ -550,6 +625,39 @@ export class EasyApplyAnswerResolver {
         ]
 
         return compensationKeywords.some((keyword) => text.includes(keyword))
+    }
+
+    private _isDateField(field: FormPromptField) {
+        const text = this._normalizeFieldText(field)
+        return (
+            text.includes('date') ||
+            text.includes('birth') ||
+            text.includes('nascimento') ||
+            /\bdob\b/.test(text) ||
+            text.includes('mm/dd/yyyy')
+        )
+    }
+
+    private _extractDateValue(answer: string) {
+        const isoMatch = answer.match(/\b(\d{4})-(\d{2})-(\d{2})\b/)
+        if (isoMatch) {
+            const [, year, month, day] = isoMatch
+            return `${month}/${day}/${year}`
+        }
+
+        const slashIsoMatch = answer.match(/\b(\d{4})\/(\d{2})\/(\d{2})\b/)
+        if (slashIsoMatch) {
+            const [, year, month, day] = slashIsoMatch
+            return `${month}/${day}/${year}`
+        }
+
+        const usMatch = answer.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/)
+        if (usMatch) {
+            const [, month, day, year] = usMatch
+            return `${month.padStart(2, '0')}/${day.padStart(2, '0')}/${year}`
+        }
+
+        return null
     }
 
     private _extractSimpleNumericValue(answer: string) {
@@ -643,8 +751,7 @@ export class EasyApplyAnswerResolver {
 
     private _formatNumericValue(value: number) {
         if (!Number.isFinite(value)) return null
-        if (Number.isInteger(value)) return `${value}`
-        return value.toFixed(6).replace(/\.?0+$/, '')
+        return `${Math.round(value)}`
     }
 
     private _normalizeFieldText(field: FormPromptField) {
@@ -700,6 +807,33 @@ export class EasyApplyAnswerResolver {
         }
 
         return trimmed.slice(0, cutIndex).trim()
+    }
+
+    private _buildStackAliases(stack: string) {
+        const normalized = this._normalizeKey(stack)
+        const compact = normalized.replace(/-/g, '')
+        const aliases = [normalized, compact]
+
+        if (normalized === 'node-js') {
+            aliases.push('node', 'nodejs')
+        }
+        if (normalized === 'next-js') {
+            aliases.push('nextjs')
+        }
+        if (normalized === 'react-native') {
+            aliases.push('reactnative')
+        }
+        if (normalized === 'web3-js') {
+            aliases.push('web3js')
+        }
+        if (normalized === 'socket-io') {
+            aliases.push('socketio')
+        }
+        if (normalized === 'micro-frontends') {
+            aliases.push('microfrontend', 'microfrontends')
+        }
+
+        return aliases
     }
 
     private _normalizeKey(value?: string | null) {

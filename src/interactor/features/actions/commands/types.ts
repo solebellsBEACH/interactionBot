@@ -1,5 +1,6 @@
 import type { EasyApplyStepValues } from "../easy-apply/easy-apply-flow";
 import type { EasyApplyJobResult, SearchJobTagOptions } from "../scrap/scraps";
+import type { UserProfile } from "../../../shared/user-profile";
 
 export type UpvoteOptions = {
     maxLikes?: number
@@ -22,4 +23,5 @@ export type LinkedinCommandActions = {
     searchJobTag: (searchJobTag: string, options?: SearchJobTagOptions) => Promise<EasyApplyJobResult[]>
     sendConnection: (profileUrl: string, inMailOptions?: { message: string }) => Promise<void>
     upvoteOnPosts: (options?: UpvoteOptions) => Promise<string[]>
+    reviewOwnProfile?: () => Promise<UserProfile>
 }

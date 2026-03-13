@@ -10,8 +10,10 @@ import { EasyApplyFlow, EasyApplyStepValues } from "./actions/easy-apply/easy-ap
 import { EasyApplyJobResult, ScrapFeatures, SearchJobTagOptions } from "./actions/scrap/scraps";
 import { LinkedinJobsFlow } from "./actions/scrap/jobs-flow";
 import { LinkedinConnectFlow } from "./actions/connect/connect-flow";
+import { LinkedinProfileReviewFlow } from "./actions/profile/profile-review-flow";
 import { LinkedinUpvotePostsFlow } from "./actions/upvote-posts/upvote-posts-flow";
 import { LinkedinDiscordCommands } from "./actions/commands/discord-commands";
+import { UserProfile } from "../shared/user-profile";
 
 type UpvoteOptions = {
     maxLikes?: number
@@ -31,6 +33,7 @@ export class LinkedinFeatures {
     private _scrapFeatures: ScrapFeatures
     private _jobsFlow: LinkedinJobsFlow
     private _connectFlow: LinkedinConnectFlow
+    private _profileReviewFlow: LinkedinProfileReviewFlow
     private _upvoteFlow: LinkedinUpvotePostsFlow
     private _discord?: DiscordClient
     private _commands: LinkedinDiscordCommands
@@ -49,6 +52,7 @@ export class LinkedinFeatures {
         )
         this._jobsFlow = new LinkedinJobsFlow(this._scrapFeatures, discord)
         this._connectFlow = new LinkedinConnectFlow(this._elementHandle, this._linkedinCoreFeatures)
+        this._profileReviewFlow = new LinkedinProfileReviewFlow(page, this._linkedinCoreFeatures)
         this._upvoteFlow = new LinkedinUpvotePostsFlow(page, this._linkedinCoreFeatures)
         this._discord = discord
         this._commands = new LinkedinDiscordCommands({
@@ -71,6 +75,10 @@ export class LinkedinFeatures {
 
     async sendConnection(profileURL: string, inMailOptions?: { message: string }) {
         return this._connectFlow.sendConnection(profileURL, inMailOptions)
+    }
+
+    async reviewOwnProfile(): Promise<UserProfile> {
+        return this._profileReviewFlow.reviewOwnProfile()
     }
 
     async easyApply(jobURL?: string): Promise<EasyApplyStepValues[]> {

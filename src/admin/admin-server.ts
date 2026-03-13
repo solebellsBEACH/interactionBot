@@ -4,6 +4,11 @@ import path from "path";
 import { URL } from "url";
 
 import { listGptInteractions } from "../api/controllers/gpt-interactions";
+import {
+  readUserProfile,
+  sanitizeCompensationValue,
+  saveUserProfile,
+} from "../interactor/shared/user-profile";
 import { AdminPromptAction, AdminPromptBroker, AdminPromptError } from "./prompt-broker";
 import {
   AdminProcessManager,
@@ -97,6 +102,102 @@ export class AdminServer {
         const limit = this._parseLimit(requestUrl.searchParams.get("limit"));
         const items = await listGptInteractions(limit);
         this._sendJson(res, 200, { items });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/api/admin/profile") {
+        this._sendJson(res, 200, { profile: readUserProfile() });
+        return;
+      }
+
+      if (method === "POST" && pathname === "/api/admin/profile") {
+        const body = await this._readJsonBody(req);
+        const current = readUserProfile();
+        const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(body, key);
+        const birthDate =
+          hasOwn("birthDate") && typeof body.birthDate === "string"
+            ? body.birthDate.trim()
+            : current.birthDate;
+        const compensation = {
+          ...current.compensation,
+          ...(hasOwn("hourlyUsd")
+            ? { hourlyUsd: sanitizeCompensationValue(body.hourlyUsd) }
+            : {}),
+          ...(hasOwn("hourlyBrl")
+            ? { hourlyBrl: sanitizeCompensationValue(body.hourlyBrl) }
+            : {}),
+          ...(hasOwn("clt") ? { clt: sanitizeCompensationValue(body.clt) } : {}),
+          ...(hasOwn("pj") ? { pj: sanitizeCompensationValue(body.pj) } : {}),
+        };
+
+        const answers = { ...current.answers };
+        [
+          "data-de-nascimento",
+          "data-nascimento",
+          "date-of-birth",
+          "birth-date",
+          "birthdate",
+          "dob",
+          "valor-hora-dolar",
+          "valor-hora-usd",
+          "hourly-rate-usd",
+          "hourly-rate-dollar",
+          "valor-hora-reais",
+          "valor-hora-brl",
+          "hourly-rate-reais",
+          "hourly-rate-brl",
+          "pretensao-clt",
+          "pretensao-salarial-clt",
+          "salary-expectation-clt",
+          "pretensao-pj",
+          "pretensao-salarial-pj",
+          "salary-expectation-pj",
+        ].forEach((key) => {
+          delete answers[key];
+        });
+
+        if (birthDate) {
+          answers["data-de-nascimento"] = birthDate;
+          answers["data-nascimento"] = birthDate;
+          answers["date-of-birth"] = birthDate;
+          answers["birth-date"] = birthDate;
+          answers["birthdate"] = birthDate;
+          answers["dob"] = birthDate;
+        }
+
+        if (compensation.hourlyUsd) {
+          answers["valor-hora-dolar"] = compensation.hourlyUsd;
+          answers["valor-hora-usd"] = compensation.hourlyUsd;
+          answers["hourly-rate-usd"] = compensation.hourlyUsd;
+          answers["hourly-rate-dollar"] = compensation.hourlyUsd;
+        }
+
+        if (compensation.hourlyBrl) {
+          answers["valor-hora-reais"] = compensation.hourlyBrl;
+          answers["valor-hora-brl"] = compensation.hourlyBrl;
+          answers["hourly-rate-reais"] = compensation.hourlyBrl;
+          answers["hourly-rate-brl"] = compensation.hourlyBrl;
+        }
+
+        if (compensation.clt) {
+          answers["pretensao-clt"] = compensation.clt;
+          answers["pretensao-salarial-clt"] = compensation.clt;
+          answers["salary-expectation-clt"] = compensation.clt;
+        }
+
+        if (compensation.pj) {
+          answers["pretensao-pj"] = compensation.pj;
+          answers["pretensao-salarial-pj"] = compensation.pj;
+          answers["salary-expectation-pj"] = compensation.pj;
+        }
+
+        const profile = saveUserProfile({
+          birthDate,
+          compensation,
+          answers,
+        });
+
+        this._sendJson(res, 200, { profile });
         return;
       }
 
@@ -210,6 +311,12 @@ export class AdminServer {
           tag: this._readString(body.tag) || "",
           maxLikes: this._readNumber(body.maxLikes),
         });
+        this._sendJson(res, 202, processRecord);
+        return;
+      }
+
+      if (method === "POST" && pathname === "/api/admin/processes/profile-review") {
+        const processRecord = this._processManager.startProfileReview();
         this._sendJson(res, 202, processRecord);
         return;
       }
