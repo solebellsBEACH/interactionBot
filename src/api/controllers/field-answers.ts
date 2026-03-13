@@ -45,3 +45,10 @@ export async function getFieldAnswer(key: string, label?: string | null): Promis
   }
   return collection.findOne({ key });
 }
+
+export async function clearFieldAnswers(): Promise<number> {
+  await connectToDatabase();
+  const collection = await getCollection<FieldAnswer>(COLLECTION);
+  const result = await collection.deleteMany({});
+  return result.deletedCount || 0;
+}

@@ -471,3 +471,16 @@ export const saveUserProfile = (value: Partial<UserProfile>) => {
     Object.assign(userProfile, merged)
     return userProfile
 }
+
+export const resetUserProfile = () => {
+    if (fs.existsSync(profilePath)) {
+        fs.rmSync(profilePath, { force: true })
+    }
+
+    const reset = normalizeUserProfile({
+        ...defaultProfile
+    })
+
+    Object.assign(userProfile, reset)
+    return userProfile
+}

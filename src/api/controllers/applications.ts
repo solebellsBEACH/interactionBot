@@ -49,3 +49,9 @@ export async function deleteApplication(id: string) {
   const _id = new ObjectId(id);
   await collection.deleteOne({ _id });
 }
+
+export async function clearApplications() {
+  const collection = await getCollection<Application>(COLLECTION);
+  const result = await collection.deleteMany({});
+  return result.deletedCount || 0;
+}

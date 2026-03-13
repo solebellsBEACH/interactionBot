@@ -46,3 +46,10 @@ export async function listGptInteractions(limit = 50): Promise<WithId<GptInterac
 
   return collection.find({}).sort({ createdAt: -1 }).limit(safeLimit).toArray();
 }
+
+export async function clearGptInteractions(): Promise<number> {
+  await connectToDatabase();
+  const collection = await getCollection<GptInteraction>(COLLECTION);
+  const result = await collection.deleteMany({});
+  return result.deletedCount || 0;
+}

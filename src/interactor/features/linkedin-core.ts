@@ -32,6 +32,85 @@ export class LinkedinCoreFeatures {
     });
   }
 
+  async logoutAndClearSession() {
+    const context = this._page.context()
+
+    const clearStorageOnPage = async () => {
+      await this._page.evaluate(async () => {
+        try {
+          localStorage.clear()
+        } catch {}
+
+        try {
+          sessionStorage.clear()
+        } catch {}
+
+        try {
+          if ("caches" in globalThis) {
+            const keys = await caches.keys()
+            await Promise.all(keys.map((key) => caches.delete(key)))
+          }
+        } catch {}
+
+        try {
+          if ("indexedDB" in globalThis && typeof indexedDB.databases === "function") {
+            const databases = await indexedDB.databases()
+            await Promise.all(
+              databases
+                .map((item) => item?.name)
+                .filter((name): name is string => Boolean(name))
+                .map(
+                  (name) =>
+                    new Promise<void>((resolve) => {
+                      const request = indexedDB.deleteDatabase(name)
+                      request.onsuccess = () => resolve()
+                      request.onerror = () => resolve()
+                      request.onblocked = () => resolve()
+                    })
+                )
+            )
+          }
+        } catch {}
+      })
+    }
+
+    const logoutUrls = [
+      'https://www.linkedin.com/m/logout/',
+      'https://www.linkedin.com/uas/logout'
+    ]
+
+    for (const logoutUrl of logoutUrls) {
+      try {
+        await this._page.goto(logoutUrl, { waitUntil: 'domcontentloaded', timeout: 15_000 })
+        break
+      } catch {
+        // try next logout route
+      }
+    }
+
+    try {
+      await this._page.goto('https://www.linkedin.com', {
+        waitUntil: 'domcontentloaded',
+        timeout: 15_000
+      })
+    } catch {
+      // ignore
+    }
+
+    await clearStorageOnPage().catch(() => undefined)
+    await context.clearCookies().catch(() => undefined)
+
+    for (const page of context.pages()) {
+      if (page === this._page) continue
+      await page.close().catch(() => undefined)
+    }
+
+    await this._page.goto('https://www.linkedin.com/login', {
+      waitUntil: 'domcontentloaded',
+      timeout: 15_000
+    }).catch(() => undefined)
+  }
+
   private async _isLoggedIn() {
     const selectors = [
       '#global-nav',

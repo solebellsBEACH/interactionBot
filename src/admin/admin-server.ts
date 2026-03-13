@@ -321,6 +321,12 @@ export class AdminServer {
         return;
       }
 
+      if (method === "POST" && pathname === "/api/admin/processes/reset-session") {
+        const processRecord = this._processManager.startResetSession();
+        this._sendJson(res, 202, processRecord);
+        return;
+      }
+
       this._sendJson(res, 404, { error: "Rota não encontrada." });
     } catch (error) {
       this._handleError(res, error);

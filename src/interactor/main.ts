@@ -48,7 +48,8 @@ async function main(): Promise<void> {
       searchJobTag: linkedinFeatures.searchJobTag.bind(linkedinFeatures),
       sendConnection: linkedinFeatures.sendConnection.bind(linkedinFeatures),
       upvoteOnPosts: linkedinFeatures.upvoteOnPosts.bind(linkedinFeatures),
-      reviewOwnProfile: linkedinFeatures.reviewOwnProfile.bind(linkedinFeatures)
+      reviewOwnProfile: linkedinFeatures.reviewOwnProfile.bind(linkedinFeatures),
+      resetSession: linkedinFeatures.resetSession.bind(linkedinFeatures)
     })
 
     adminServer = new AdminServer({

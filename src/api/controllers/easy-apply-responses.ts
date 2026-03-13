@@ -48,6 +48,13 @@ export async function saveEasyApplyResponses(
   return { ...document, _id: insertedId };
 }
 
+export async function clearEasyApplyResponses(): Promise<number> {
+  await connectToDatabase();
+  const collection = await getCollection<EasyApplyResponse>(COLLECTION);
+  const result = await collection.deleteMany({});
+  return result.deletedCount || 0;
+}
+
 function flattenFields(stepsValues: EasyApplyStepSnapshot[]): EasyApplyField[] {
   const fields: EasyApplyField[] = [];
 

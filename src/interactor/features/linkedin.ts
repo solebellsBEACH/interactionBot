@@ -13,7 +13,11 @@ import { LinkedinConnectFlow } from "./actions/connect/connect-flow";
 import { LinkedinProfileReviewFlow } from "./actions/profile/profile-review-flow";
 import { LinkedinUpvotePostsFlow } from "./actions/upvote-posts/upvote-posts-flow";
 import { LinkedinDiscordCommands } from "./actions/commands/discord-commands";
-import { UserProfile } from "../shared/user-profile";
+import { resetUserProfile, UserProfile } from "../shared/user-profile";
+import { clearApplications } from "../../api/controllers/applications";
+import { clearEasyApplyResponses } from "../../api/controllers/easy-apply-responses";
+import { clearFieldAnswers } from "../../api/controllers/field-answers";
+import { clearGptInteractions } from "../../api/controllers/gpt-interactions";
 
 type UpvoteOptions = {
     maxLikes?: number
@@ -79,6 +83,28 @@ export class LinkedinFeatures {
 
     async reviewOwnProfile(): Promise<UserProfile> {
         return this._profileReviewFlow.reviewOwnProfile()
+    }
+
+    async resetSession() {
+        await this._linkedinCoreFeatures.logoutAndClearSession()
+
+        const [applications, easyApplyResponses, fieldAnswers, gptInteractions] = await Promise.all([
+            clearApplications(),
+            clearEasyApplyResponses(),
+            clearFieldAnswers(),
+            clearGptInteractions()
+        ])
+
+        resetUserProfile()
+
+        return {
+            cleared: {
+                applications,
+                easyApplyResponses,
+                fieldAnswers,
+                gptInteractions
+            }
+        }
     }
 
     async easyApply(jobURL?: string): Promise<EasyApplyStepValues[]> {

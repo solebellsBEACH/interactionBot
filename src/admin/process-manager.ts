@@ -7,7 +7,8 @@ export type AdminProcessType =
   | "apply-jobs"
   | "connect"
   | "upvote-posts"
-  | "profile-review";
+  | "profile-review"
+  | "reset-session";
 export type AdminProcessStatus = "running" | "succeeded" | "failed";
 
 export type AdminProcessRecord = {
@@ -287,6 +288,32 @@ export class AdminProcessManager {
           : `Perfil analisado com ${stackCount} stack(s) mapeada(s).`,
         output: {
           profile,
+        },
+      };
+    });
+  }
+
+  startResetSession() {
+    if (!this._actions.resetSession) {
+      throw new ProcessValidationError("O reset de sessão não está habilitado.");
+    }
+
+    this._history = [];
+
+    return this._startProcess("reset-session", {}, async () => {
+      const result = await this._actions.resetSession?.();
+      const cleared = result?.cleared || {
+        applications: 0,
+        easyApplyResponses: 0,
+        fieldAnswers: 0,
+        gptInteractions: 0,
+      };
+
+      return {
+        summary: "Sessão do LinkedIn encerrada e dados locais limpos.",
+        output: {
+          ...result,
+          cleared,
         },
       };
     });

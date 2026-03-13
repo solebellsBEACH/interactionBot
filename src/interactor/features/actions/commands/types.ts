@@ -24,4 +24,12 @@ export type LinkedinCommandActions = {
     sendConnection: (profileUrl: string, inMailOptions?: { message: string }) => Promise<void>
     upvoteOnPosts: (options?: UpvoteOptions) => Promise<string[]>
     reviewOwnProfile?: () => Promise<UserProfile>
+    resetSession?: () => Promise<{
+        cleared: {
+            applications: number
+            easyApplyResponses: number
+            fieldAnswers: number
+            gptInteractions: number
+        }
+    }>
 }

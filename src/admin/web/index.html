@@ -158,6 +158,10 @@
         background: linear-gradient(135deg, var(--brand-2), #dd8a2f);
       }
 
+      button.danger-button {
+        background: linear-gradient(135deg, var(--danger), #d15353);
+      }
+
       button:disabled {
         opacity: 0.6;
         cursor: not-allowed;
@@ -541,6 +545,11 @@
               <button id="profile-save" class="secondary" type="submit">Salvar perfil</button>
               <button id="profile-review" type="button">Analisar meu perfil</button>
             </div>
+            <div class="row single">
+              <button id="profile-reset" class="danger-button" type="button">
+                Deslogar e limpar tudo
+              </button>
+            </div>
             <div id="profile-meta" class="meta">Perfil ainda não carregado.</div>
             <p class="status" id="profile-status"></p>
           </form>
@@ -810,6 +819,7 @@
       const profileMeta = document.getElementById("profile-meta");
       const profileSaveButton = document.getElementById("profile-save");
       const profileReviewButton = document.getElementById("profile-review");
+      const profileResetButton = document.getElementById("profile-reset");
       const profileRefreshButton = document.getElementById("refresh-profile");
       const profileSummary = document.getElementById("profile-summary");
       const profileReviewJson = document.getElementById("profile-review-json");
@@ -854,6 +864,7 @@
         item: null,
         isSaving: false,
         isReviewing: false,
+        isResetting: false,
       };
 
       const adminPromptSettings = {
@@ -1020,9 +1031,10 @@
       }
 
       function syncProfileControls() {
-        const disabled = profileState.isSaving || profileState.isReviewing;
+        const disabled = profileState.isSaving || profileState.isReviewing || profileState.isResetting;
         profileSaveButton.disabled = disabled;
         profileReviewButton.disabled = disabled;
+        profileResetButton.disabled = disabled;
         profileRefreshButton.disabled = disabled;
       }
 
@@ -1734,6 +1746,46 @@
           setStatus(profileStatus, error.message, true);
         } finally {
           profileState.isReviewing = false;
+          syncProfileControls();
+        }
+      });
+
+      profileResetButton.addEventListener("click", async () => {
+        if (profileState.isResetting || profileState.isSaving || profileState.isReviewing) return;
+
+        const confirmed = window.confirm(
+          "Isso vai deslogar do LinkedIn e limpar perfil salvo, respostas, histórico GPT e aplicações. Continuar?"
+        );
+        if (!confirmed) return;
+
+        profileState.isResetting = true;
+        syncProfileControls();
+        setStatus(profileStatus, "Deslogando e limpando os dados...");
+
+        try {
+          const data = await request("POST", "/api/admin/processes/reset-session", {});
+          const process = await waitForProcess(data.id, 2 * 60 * 1000);
+          if (process.status !== "succeeded") {
+            throw new Error(process.error || process.summary || "Falha ao limpar a sessão.");
+          }
+
+          await refreshProfile();
+          await refreshGpt();
+          jobsState.items = [];
+          jobsState.selectedUrls = new Set();
+          jobsState.filterText = "";
+          jobsState.lastSearchTag = "";
+          jobsState.lastSearchTotal = 0;
+          jobsFilter.value = "";
+          setStatus(jobsStatus, "");
+          setStatus(searchStatus, "");
+          renderJobsTable();
+
+          setStatus(profileStatus, process.summary || "Sessão limpa.");
+        } catch (error) {
+          setStatus(profileStatus, error.message, true);
+        } finally {
+          profileState.isResetting = false;
           syncProfileControls();
         }
       });
