@@ -59,7 +59,7 @@ export class ElementHandle {
     }
 
     async handleForm(prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormValues | undefined> {
-        const forms = this._page.locator('.jobs-easy-apply-modal form, .jobs-easy-apply-content form, form')
+        const forms = this._page.locator('.jobs-easy-apply-modal form, .jobs-easy-apply-content form')
         const count = await forms.count()
 
         for (let i = 0; i < count; i++) {
@@ -70,6 +70,18 @@ export class ElementHandle {
             } catch (error) {
                 // try next visible form if exists
                 if (i === count - 1) throw error
+            }
+        }
+
+        const containers = this._page.locator('.jobs-easy-apply-content, .jobs-easy-apply-modal .artdeco-modal__content, .jobs-easy-apply-modal')
+        const containersCount = await containers.count()
+        for (let i = 0; i < containersCount; i++) {
+            const container = containers.nth(i)
+            try {
+                await container.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT })
+                return this._getFormValues(container, prompt)
+            } catch (error) {
+                if (i === containersCount - 1) throw error
             }
         }
     }

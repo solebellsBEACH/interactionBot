@@ -1,5 +1,11 @@
 import readline from "readline";
+import { Page } from "playwright";
 
+import type {
+    AdminPromptBroker,
+    AdminPromptRequest,
+    AdminPromptResponse
+} from "../../../../admin/prompt-broker";
 import { getFieldAnswer } from "../../../../api/controllers/field-answers";
 import { DiscordClient } from "../../../shared/discord/discord-client";
 import { GptClient } from "../../../shared/ai/gpt-client";
@@ -14,6 +20,8 @@ export class EasyApplyAbortError extends Error {
 }
 
 type AnswerResolverOptions = {
+    adminPromptBroker?: AdminPromptBroker
+    page?: Page
     discord?: DiscordClient
     gpt?: GptClient
     profile: UserProfile
@@ -25,14 +33,18 @@ export class EasyApplyAnswerResolver {
     private readonly _answerCache = new Map<string, string>()
     private readonly _historyCache = new Map<string, string>()
     private _historyAvailable = true
+    private readonly _adminPromptBroker?: AdminPromptBroker
     private readonly _profile: UserProfile
+    private readonly _page?: Page
     private readonly _discord?: DiscordClient
     private readonly _gpt?: GptClient
     private readonly _isStandalone: boolean
     private readonly _promptTimeoutMs: number
 
     constructor(options: AnswerResolverOptions) {
+        this._adminPromptBroker = options.adminPromptBroker
         this._profile = options.profile
+        this._page = options.page
         this._discord = options.discord
         this._gpt = options.gpt
         this._isStandalone = options.isStandalone
@@ -43,23 +55,26 @@ export class EasyApplyAnswerResolver {
         const cached = this._getCachedAnswer(field)
         if (cached) return cached
 
-        const profileAnswer = this._coerceSelectAnswer(field, this._answerFromProfile(field))
+        const historyContext = await this._historyContext(field)
+        const gptAnswer = this._coerceAnswer(field, await this._askWithGpt(field, step, historyContext))
+        if (gptAnswer) {
+            const confirmed = this._coerceAnswer(field, await this._confirmGptAnswer(field, step, gptAnswer))
+            if (confirmed) {
+                this._storeCachedAnswer(field, confirmed)
+                return confirmed
+            }
+        }
+
+        const profileAnswer = this._coerceAnswer(field, this._answerFromProfile(field))
         if (profileAnswer) {
             this._storeCachedAnswer(field, profileAnswer)
             return profileAnswer
         }
 
-        const historyAnswer = this._coerceSelectAnswer(field, await this._answerFromHistory(field))
+        const historyAnswer = this._coerceAnswer(field, await this._answerFromHistory(field))
         if (historyAnswer) {
             this._storeCachedAnswer(field, historyAnswer)
             return historyAnswer
-        }
-
-        const historyContext = await this._historyContext(field)
-        const gptAnswer = this._coerceSelectAnswer(field, await this._askWithGpt(field, historyContext))
-        if (gptAnswer) {
-            this._storeCachedAnswer(field, gptAnswer)
-            return gptAnswer
         }
 
         if (this._isStandalone) {
@@ -67,11 +82,19 @@ export class EasyApplyAnswerResolver {
             throw new EasyApplyAbortError(`standalone-missing:${label}`)
         }
 
-        const manualAnswer = this._coerceSelectAnswer(field, await this._askForField(field, step, true))
+        const manualAnswer = this._coerceAnswer(field, await this._askForField(field, step, true))
         if (manualAnswer) {
             this._storeCachedAnswer(field, manualAnswer)
         }
         return manualAnswer
+    }
+
+    private _coerceAnswer(field: FormPromptField, answer: string | null) {
+        if (!answer) return null
+        if (field.type === 'select') {
+            return this._coerceSelectAnswer(field, answer)
+        }
+        return this._coerceInputAnswer(field, answer)
     }
 
     private _answerFromProfile(field: FormPromptField) {
@@ -140,13 +163,232 @@ export class EasyApplyAnswerResolver {
         return context
     }
 
-    private async _askWithGpt(field: FormPromptField, historyAnswers?: Record<string, string>) {
+    private async _askWithGpt(field: FormPromptField, step: number, historyAnswers?: Record<string, string>) {
         if (!this._gpt) return null
-        return this._gpt.answerField(field, this._profile, historyAnswers)
+        return this._gpt.answerField(field, this._profile, historyAnswers, { step })
+    }
+
+    private async _confirmGptAnswer(field: FormPromptField, step: number, gptAnswer: string): Promise<string | null> {
+        const label = field.label || field.key || 'field'
+        const options = field.type === 'select'
+            ? (field.options || []).map((option) => option.trim()).filter(Boolean)
+            : []
+
+        const adminResult = await this._requestAdminPrompt({
+            kind: 'confirm-gpt',
+            step,
+            fieldLabel: label,
+            fieldKey: field.key,
+            fieldType: field.type,
+            prompt: `Confirme ou ajuste a resposta para "${label}".`,
+            suggestedAnswer: gptAnswer,
+            options
+        })
+        if (adminResult) {
+            return this._resolveAdminPromptResult(adminResult, gptAnswer)
+        }
+
+        if (!this._page || this._page.isClosed()) return gptAnswer
+
+        try {
+            const result = await this._page.evaluate(
+                ({ fieldLabel, suggested, stepNumber, fieldType, selectOptions, timeoutMs }) => {
+                    type PopupResult = {
+                        action: 'confirm' | 'manual' | 'timeout'
+                        value?: string | null
+                    }
+
+                    return new Promise<PopupResult>((resolve) => {
+                        const existing = document.getElementById('interactionbot-gpt-confirm-popup')
+                        if (existing) existing.remove()
+
+                        const overlay = document.createElement('div')
+                        overlay.id = 'interactionbot-gpt-confirm-popup'
+                        overlay.setAttribute(
+                            'style',
+                            [
+                                'position:fixed',
+                                'inset:0',
+                                'z-index:2147483647',
+                                'background:rgba(15,15,15,0.55)',
+                                'display:flex',
+                                'align-items:center',
+                                'justify-content:center',
+                                'padding:16px'
+                            ].join(';')
+                        )
+
+                        const card = document.createElement('div')
+                        card.setAttribute(
+                            'style',
+                            [
+                                'width:min(640px,95vw)',
+                                'max-height:90vh',
+                                'overflow:auto',
+                                'background:#ffffff',
+                                'border-radius:12px',
+                                'box-shadow:0 20px 60px rgba(0,0,0,0.35)',
+                                'padding:16px',
+                                'font-family:Arial,sans-serif',
+                                'color:#111827'
+                            ].join(';')
+                        )
+
+                        const title = document.createElement('div')
+                        title.textContent = `Easy Apply step ${stepNumber}`
+                        title.setAttribute('style', 'font-size:16px;font-weight:700;margin-bottom:6px')
+
+                        const subtitle = document.createElement('div')
+                        subtitle.textContent = `Field: ${fieldLabel}`
+                        subtitle.setAttribute('style', 'font-size:13px;color:#374151;margin-bottom:10px')
+
+                        const gptLabel = document.createElement('div')
+                        gptLabel.textContent = 'GPT suggestion'
+                        gptLabel.setAttribute('style', 'font-size:12px;font-weight:700;margin-bottom:4px')
+
+                        const gptValue = document.createElement('div')
+                        gptValue.textContent = suggested
+                        gptValue.setAttribute(
+                            'style',
+                            'border:1px solid #d1d5db;border-radius:8px;padding:8px;background:#f9fafb;font-size:13px;white-space:pre-wrap;word-break:break-word'
+                        )
+
+                        const manualLabel = document.createElement('div')
+                        manualLabel.textContent = 'Manual answer (used when you click "Use manual answer")'
+                        manualLabel.setAttribute('style', 'font-size:12px;font-weight:700;margin:12px 0 4px')
+
+                        let manualControl: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
+                        if (fieldType === 'select' && Array.isArray(selectOptions) && selectOptions.length > 0) {
+                            const select = document.createElement('select')
+                            select.setAttribute(
+                                'style',
+                                'width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px'
+                            )
+                            for (const option of selectOptions) {
+                                const item = document.createElement('option')
+                                item.value = option
+                                item.textContent = option
+                                if (option === suggested) {
+                                    item.selected = true
+                                }
+                                select.appendChild(item)
+                            }
+                            manualControl = select
+                        } else {
+                            const input = document.createElement('textarea')
+                            input.value = suggested
+                            input.setAttribute(
+                                'style',
+                                'width:100%;min-height:82px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;resize:vertical'
+                            )
+                            manualControl = input
+                        }
+
+                        const error = document.createElement('div')
+                        error.setAttribute('style', 'min-height:18px;margin-top:8px;color:#b91c1c;font-size:12px')
+
+                        const actions = document.createElement('div')
+                        actions.setAttribute('style', 'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px')
+
+                        const confirmButton = document.createElement('button')
+                        confirmButton.type = 'button'
+                        confirmButton.textContent = 'Confirm GPT'
+                        confirmButton.setAttribute(
+                            'style',
+                            'background:#0f766e;color:#fff;border:0;border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer'
+                        )
+
+                        const manualButton = document.createElement('button')
+                        manualButton.type = 'button'
+                        manualButton.textContent = 'Use manual answer'
+                        manualButton.setAttribute(
+                            'style',
+                            'background:#b45309;color:#fff;border:0;border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer'
+                        )
+
+                        let timeoutHandle = 0
+                        const finish = (action: PopupResult['action'], value?: string | null) => {
+                            if (timeoutHandle) {
+                                window.clearTimeout(timeoutHandle)
+                            }
+                            overlay.remove()
+                            resolve({ action, value })
+                        }
+
+                        confirmButton.addEventListener('click', () => {
+                            finish('confirm', suggested)
+                        })
+
+                        manualButton.addEventListener('click', () => {
+                            const manualValue = manualControl.value.trim()
+                            if (!manualValue) {
+                                error.textContent = 'Type a manual answer before confirming.'
+                                return
+                            }
+                            finish('manual', manualValue)
+                        })
+
+                        actions.appendChild(confirmButton)
+                        actions.appendChild(manualButton)
+
+                        card.appendChild(title)
+                        card.appendChild(subtitle)
+                        card.appendChild(gptLabel)
+                        card.appendChild(gptValue)
+                        card.appendChild(manualLabel)
+                        card.appendChild(manualControl)
+                        card.appendChild(error)
+                        card.appendChild(actions)
+                        overlay.appendChild(card)
+                        document.body.appendChild(overlay)
+
+                        timeoutHandle = window.setTimeout(() => {
+                            finish('timeout', null)
+                        }, timeoutMs)
+                    })
+                },
+                {
+                    fieldLabel: label,
+                    suggested: gptAnswer,
+                    stepNumber: step,
+                    fieldType: field.type,
+                    selectOptions: options,
+                    timeoutMs: this._promptTimeoutMs
+                }
+            )
+
+            if (!result) return null
+            if (result.action === 'confirm') return gptAnswer
+            if (result.action === 'manual') {
+                const value = typeof result.value === 'string' ? result.value.trim() : ''
+                return value || null
+            }
+            return null
+        } catch (error) {
+            console.warn('Unable to show GPT confirmation popup', error)
+            return gptAnswer
+        }
     }
 
     private async _askForField(field: FormPromptField, step: number, forcePrompt = false) {
         const label = field.label || field.key || 'field'
+        const adminResult = await this._requestAdminPrompt({
+            kind: 'answer-field',
+            step,
+            fieldLabel: label,
+            fieldKey: field.key,
+            fieldType: field.type,
+            prompt:
+                field.type === 'select'
+                    ? `Escolha uma opção para "${label}".`
+                    : `Informe um valor para "${label}".`,
+            suggestedAnswer: field.type === 'input' ? field.value || '' : undefined,
+            options: field.type === 'select' ? (field.options || []) : []
+        })
+        if (adminResult) {
+            return this._resolveAdminPromptResult(adminResult, null)
+        }
+
         if (field.type === 'select') {
             const options = field.options || []
             const optionsText = options.map((option, idx) => `${idx + 1}) ${option}`).join('\n')
@@ -163,6 +405,33 @@ export class EasyApplyAnswerResolver {
             return this._discord.ask(prompt)
         }
         if (forcePrompt) return this._promptCli(prompt)
+        return null
+    }
+
+    private async _requestAdminPrompt(
+        request: Omit<AdminPromptRequest, 'id' | 'createdAt'>
+    ): Promise<AdminPromptResponse | null> {
+        if (!this._adminPromptBroker) return null
+
+        try {
+            return await this._adminPromptBroker.requestPrompt(request, this._promptTimeoutMs)
+        } catch (error) {
+            console.warn('Unable to request admin prompt', error)
+            return null
+        }
+    }
+
+    private _resolveAdminPromptResult(
+        result: AdminPromptResponse,
+        confirmedValue: string | null
+    ) {
+        if (result.action === 'confirm') {
+            return confirmedValue
+        }
+        if (result.action === 'manual') {
+            const value = typeof result.value === 'string' ? result.value.trim() : ''
+            return value || null
+        }
         return null
     }
 
@@ -190,7 +459,7 @@ export class EasyApplyAnswerResolver {
         const options = (field.options || []).map((option) => option.trim()).filter(Boolean)
         if (options.length === 0) return answer
 
-        const trimmed = answer.trim()
+        const trimmed = answer.trim().replace(/^['"`]+|['"`]+$/g, '')
         const numericMatch = trimmed.match(/^(\d+)/)
         if (numericMatch) {
             const asNumber = Number(numericMatch[1])
@@ -203,10 +472,186 @@ export class EasyApplyAnswerResolver {
         const direct = options.find((option) => option.toLowerCase() === lowered)
         if (direct) return direct
 
+        const normalize = (value: string) =>
+            value
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, ' ')
+                .trim()
+
+        const normalizedAnswer = normalize(trimmed)
+        const normalizedDirect = options.find((option) => normalize(option) === normalizedAnswer)
+        if (normalizedDirect) return normalizedDirect
+
         const contained = options.find((option) =>
             lowered.includes(option.toLowerCase()) || option.toLowerCase().includes(lowered)
         )
-        return contained || null
+        if (contained) return contained
+
+        const normalizedContained = options.find((option) => {
+            const normalizedOption = normalize(option)
+            return normalizedAnswer.includes(normalizedOption) || normalizedOption.includes(normalizedAnswer)
+        })
+
+        return normalizedContained || null
+    }
+
+    private _coerceInputAnswer(field: FormPromptField, answer: string | null) {
+        if (!answer || field.type !== 'input') return answer
+
+        const trimmed = answer.trim().replace(/^['"`]+|['"`]+$/g, '')
+        if (!trimmed) return null
+        if (this._isExperienceYearsField(field)) {
+            return this._extractSimpleNumericValue(trimmed) || trimmed
+        }
+        if (this._isCompensationField(field)) {
+            return this._extractCompensationAmount(trimmed) || trimmed
+        }
+        return trimmed
+    }
+
+    private _isExperienceYearsField(field: FormPromptField) {
+        const text = this._normalizeFieldText(field)
+
+        const hasExperience =
+            text.includes('experience') ||
+            text.includes('experiencia')
+
+        const hasYears =
+            text.includes('year') ||
+            text.includes('years') ||
+            text.includes('ano') ||
+            text.includes('anos')
+
+        return hasExperience && hasYears
+    }
+
+    private _isCompensationField(field: FormPromptField) {
+        const text = this._normalizeFieldText(field)
+        const compensationKeywords = [
+            'salary',
+            'salario',
+            'compensation',
+            'compensacao',
+            'remuneration',
+            'remuneracao',
+            'pretensao salarial',
+            'pretensao',
+            'wage',
+            'pay',
+            'rate',
+            'hourly rate',
+            'annual salary',
+            'monthly salary',
+            'income',
+            'earning',
+            'valor'
+        ]
+
+        return compensationKeywords.some((keyword) => text.includes(keyword))
+    }
+
+    private _extractSimpleNumericValue(answer: string) {
+        const numeric = answer.match(/-?\d+(?:[.,]\d+)?/)
+        if (!numeric) return null
+
+        const parsed = Number(numeric[0].replace(',', '.'))
+        if (!Number.isFinite(parsed) || parsed < 0) return null
+        return this._formatNumericValue(parsed)
+    }
+
+    private _extractCompensationAmount(answer: string) {
+        const normalizedAnswer = answer
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+
+        let multiplier = 1
+        if (/\b\d+(?:[.,]\d+)?\s*k\b/i.test(answer) || /\b\d+(?:[.,]\d+)?\s*mil\b/i.test(normalizedAnswer)) {
+            multiplier = 1_000
+        } else if (
+            /\b\d+(?:[.,]\d+)?\s*m\b/i.test(answer) ||
+            /\b\d+(?:[.,]\d+)?\s*(mi|milhao|milhoes|million|millions)\b/i.test(normalizedAnswer)
+        ) {
+            multiplier = 1_000_000
+        }
+
+        const token = answer.match(/-?\d[\d.,]*/)
+        if (!token) return null
+
+        const parsed = this._parseNumericToken(token[0])
+        if (parsed === null || !Number.isFinite(parsed) || parsed < 0) return null
+        return this._formatNumericValue(parsed * multiplier)
+    }
+
+    private _parseNumericToken(token: string) {
+        const cleaned = token.replace(/[^\d.,-]/g, '')
+        if (!cleaned || !/\d/.test(cleaned)) return null
+
+        const lastComma = cleaned.lastIndexOf(',')
+        const lastDot = cleaned.lastIndexOf('.')
+
+        if (lastComma !== -1 && lastDot !== -1) {
+            const decimalIndex = Math.max(lastComma, lastDot)
+            const integerPart = cleaned.slice(0, decimalIndex).replace(/[^\d-]/g, '')
+            const fractionalPart = cleaned.slice(decimalIndex + 1).replace(/[^\d]/g, '')
+            const normalized = fractionalPart ? `${integerPart}.${fractionalPart}` : integerPart
+            const parsed = Number(normalized)
+            return Number.isFinite(parsed) ? parsed : null
+        }
+
+        const separator = lastComma !== -1 ? ',' : lastDot !== -1 ? '.' : ''
+        if (!separator) {
+            const parsed = Number(cleaned.replace(/[^\d-]/g, ''))
+            return Number.isFinite(parsed) ? parsed : null
+        }
+
+        const parts = cleaned.split(separator)
+        if (parts.length === 2) {
+            const integerPart = parts[0].replace(/[^\d-]/g, '')
+            const fractionalPart = parts[1].replace(/[^\d]/g, '')
+            if (!fractionalPart) {
+                const parsed = Number(integerPart)
+                return Number.isFinite(parsed) ? parsed : null
+            }
+
+            if (fractionalPart.length === 3 && integerPart) {
+                const parsed = Number(`${integerPart}${fractionalPart}`)
+                return Number.isFinite(parsed) ? parsed : null
+            }
+
+            const parsed = Number(`${integerPart}.${fractionalPart}`)
+            return Number.isFinite(parsed) ? parsed : null
+        }
+
+        const lastPart = parts[parts.length - 1].replace(/[^\d]/g, '')
+        const initialPart = parts.slice(0, -1).join('').replace(/[^\d-]/g, '')
+        if (!lastPart) {
+            const parsed = Number(initialPart)
+            return Number.isFinite(parsed) ? parsed : null
+        }
+
+        if (lastPart.length <= 2) {
+            const parsed = Number(`${initialPart}.${lastPart}`)
+            return Number.isFinite(parsed) ? parsed : null
+        }
+
+        const parsed = Number(`${initialPart}${lastPart}`)
+        return Number.isFinite(parsed) ? parsed : null
+    }
+
+    private _formatNumericValue(value: number) {
+        if (!Number.isFinite(value)) return null
+        if (Number.isInteger(value)) return `${value}`
+        return value.toFixed(6).replace(/\.?0+$/, '')
+    }
+
+    private _normalizeFieldText(field: FormPromptField) {
+        return `${field.label || ''} ${field.key || ''}`
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
     }
 
     private _getCachedAnswer(field: FormPromptField) {

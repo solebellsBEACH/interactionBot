@@ -1,5 +1,6 @@
 import { Page } from "playwright";
 
+import type { AdminPromptBroker } from "../../admin/prompt-broker";
 import { LinkedinCoreFeatures } from "./linkedin-core";
 import { ElementHandle } from "../shared/utils/element-handle";
 import { DiscordClient } from "../shared/discord/discord-client";
@@ -17,6 +18,11 @@ type UpvoteOptions = {
     tag?: string
 }
 
+type LinkedinFeaturesOptions = {
+    discord?: DiscordClient
+    adminPromptBroker?: AdminPromptBroker
+}
+
 export class LinkedinFeatures {
 
     private _elementHandle: ElementHandle
@@ -29,7 +35,8 @@ export class LinkedinFeatures {
     private _discord?: DiscordClient
     private _commands: LinkedinDiscordCommands
 
-    constructor(page: Page, discord?: DiscordClient) {
+    constructor(page: Page, options?: LinkedinFeaturesOptions) {
+        const discord = options?.discord
         this._elementHandle = new ElementHandle(page)
         this._linkedinCoreFeatures = new LinkedinCoreFeatures(page)
         this._scrapFeatures = new ScrapFeatures(page, this._linkedinCoreFeatures)
@@ -37,7 +44,8 @@ export class LinkedinFeatures {
             page,
             this._elementHandle,
             this._linkedinCoreFeatures,
-            discord
+            discord,
+            options?.adminPromptBroker
         )
         this._jobsFlow = new LinkedinJobsFlow(this._scrapFeatures, discord)
         this._connectFlow = new LinkedinConnectFlow(this._elementHandle, this._linkedinCoreFeatures)

@@ -1,6 +1,7 @@
 import { Locator, Page } from "playwright";
 import { LinkedinCoreFeatures } from "../../linkedin-core";
 
+import type { AdminPromptBroker } from "../../../../admin/prompt-broker";
 import { saveEasyApplyResponses } from "../../../../api/controllers/easy-apply-responses";
 import { ElementHandle, FormFieldValue } from "../../../shared/utils/element-handle";
 import { DiscordClient } from "../../../shared/discord/discord-client";
@@ -41,14 +42,23 @@ export class EasyApplyFlow {
     private readonly _answerResolver: EasyApplyAnswerResolver
     private readonly _maxSteps = 15
     private readonly _maxStagnantSteps = 2
+    private _lastOpenButtonInfo = ''
 
-    constructor(page: Page, elementHandle: ElementHandle, navigator: LinkedinCoreFeatures, discord?: DiscordClient) {
+    constructor(
+        page: Page,
+        elementHandle: ElementHandle,
+        navigator: LinkedinCoreFeatures,
+        discord?: DiscordClient,
+        adminPromptBroker?: AdminPromptBroker
+    ) {
         this._page = page
         this._elementHandle = elementHandle
         this._navigator = navigator
         this._discord = discord
         const gpt = env.gpt.enabled ? new GptClient(env.gpt) : undefined
         this._answerResolver = new EasyApplyAnswerResolver({
+            adminPromptBroker,
+            page,
             discord,
             gpt,
             profile: userProfile,
@@ -74,11 +84,18 @@ export class EasyApplyFlow {
             pushTrace('modal-opened')
             let lastFingerprint = await this._waitForFormAndFingerprint()
             if (!lastFingerprint) {
-                console.warn('Easy Apply: form not found after opening modal')
-                outcome.status = 'no-form'
-                outcome.reason = 'form-not-found'
-                pushTrace('no-form')
-                return stepsValues
+                pushTrace('form-missing-retry')
+                await this._closeModalIfOpen()
+                await this._openEasyApplyModal()
+                lastFingerprint = await this._waitForFormAndFingerprint()
+                if (!lastFingerprint) {
+                    console.warn('Easy Apply: form not found after opening modal')
+                    await this._logModalDiagnostics()
+                    outcome.status = 'no-form'
+                    outcome.reason = 'form-not-found'
+                    pushTrace('no-form')
+                    throw new Error('easy-apply-form-not-found')
+                }
             }
             pushTrace('form-visible')
 
@@ -184,8 +201,10 @@ export class EasyApplyFlow {
                 pushTrace('max-steps')
             }
         } catch (error) {
-            outcome.status = 'stopped'
-            outcome.reason = this._formatErrorReason(error)
+            if (outcome.status !== 'no-form') {
+                outcome.status = 'stopped'
+                outcome.reason = this._formatErrorReason(error)
+            }
             pushTrace('error')
             throw error
         } finally {
@@ -209,14 +228,64 @@ export class EasyApplyFlow {
             await this._logOpenButtonDiagnostics()
             throw new Error('easy-apply-button-not-found')
         }
+
+        const buttonMeta = await this._describeOpenButton(easyApplyButton)
+        this._lastOpenButtonInfo = this._formatOpenButtonInfo(buttonMeta)
+        if (!this._looksLikeEasyApplyButton(buttonMeta)) {
+            const message = `Easy Apply debug: selected button does not look like Easy Apply -> ${this._lastOpenButtonInfo}`
+            console.warn(message)
+            if (this._discord) {
+                await this._discord.log(message)
+            }
+            throw new Error('easy-apply-not-available')
+        }
+
+        const applyLink = this._resolveApplyLink(buttonMeta.href)
+        if (applyLink) {
+            await this._navigator.goToLinkedinURL(applyLink)
+            await this._page.waitForTimeout(700)
+            return
+        }
+
         await this._clickAndWait(easyApplyButton)
     }
 
     private async _waitForForm() {
-        await this._page.waitForSelector(EASY_APPLY_SELECTORS.form, {
-            state: 'visible',
-            timeout: EASY_APPLY_TIMEOUTS.formVisible
-        })
+        const startedAt = Date.now()
+        while (Date.now() - startedAt < EASY_APPLY_TIMEOUTS.formVisible) {
+            const ready = await this._page.evaluate((selectors) => {
+                const isVisible = (element: Element | null) => {
+                    if (!element) return false
+                    const html = element as HTMLElement
+                    const style = window.getComputedStyle(html)
+                    if (style.visibility === 'hidden' || style.display === 'none') return false
+                    return html.offsetWidth > 0 || html.offsetHeight > 0 || html.getClientRects().length > 0
+                }
+
+                const visibleForm = Array.from(document.querySelectorAll(selectors.form))
+                    .find((element) => isVisible(element))
+                if (visibleForm) return true
+
+                const visibleContent = Array.from(document.querySelectorAll(selectors.content))
+                    .find((element) => isVisible(element))
+                if (!visibleContent) return false
+
+                const controls = visibleContent.querySelectorAll('input, textarea, select, button')
+                if (controls.length > 0) return true
+
+                const text = (visibleContent.textContent || '').trim().toLowerCase()
+                if (!text) return false
+                return /(easy apply|candidatura|application|review|submit|continuar|next|próximo|proximo)/i.test(text)
+            }, {
+                form: EASY_APPLY_SELECTORS.form,
+                content: EASY_APPLY_SELECTORS.content
+            })
+
+            if (ready) return
+            await this._page.waitForTimeout(EASY_APPLY_TIMEOUTS.formPoll)
+        }
+
+        throw new Error('easy-apply-form-timeout')
     }
 
     private async _waitForFormAndFingerprint() {
@@ -244,11 +313,12 @@ export class EasyApplyFlow {
     }
 
     private async _getFormFingerprint(): Promise<string | null> {
-        const form = this._page.locator(EASY_APPLY_SELECTORS.form).first()
-        if ((await form.count()) === 0) return null
+        const visibleForm = await this._firstVisible(this._page.locator(EASY_APPLY_SELECTORS.form))
+        const target = visibleForm || await this._firstVisible(this._page.locator(EASY_APPLY_SELECTORS.content))
+        if (!target) return null
 
         try {
-            const text = await form.innerText()
+            const text = await target.innerText()
             return text.replace(/\s+/g, ' ').trim()
         } catch {
             return null
@@ -299,7 +369,6 @@ export class EasyApplyFlow {
     private _getOpenButtonLocators() {
         return [
             this._page.getByRole('button', { name: EASY_APPLY_LABELS.easyApplyButton }),
-            this._page.getByRole('link', { name: EASY_APPLY_LABELS.easyApplyButton }),
             ...EASY_APPLY_BUTTON_SELECTORS.open.map((selector) => this._page.locator(selector))
         ]
     }
@@ -366,6 +435,108 @@ export class EasyApplyFlow {
         }
     }
 
+    private async _logModalDiagnostics() {
+        const info = await this._page.evaluate((selectors) => {
+            const isVisible = (element: Element | null) => {
+                if (!element) return false
+                const html = element as HTMLElement
+                const style = window.getComputedStyle(html)
+                if (style.visibility === 'hidden' || style.display === 'none') return false
+                return html.offsetWidth > 0 || html.offsetHeight > 0 || html.getClientRects().length > 0
+            }
+
+            const visibleModal = Array.from(document.querySelectorAll(selectors.modal)).find((element) => isVisible(element))
+            const visibleContent = Array.from(document.querySelectorAll(selectors.content)).find((element) => isVisible(element))
+            const visibleForm = Array.from(document.querySelectorAll(selectors.form)).find((element) => isVisible(element))
+            const source = visibleForm || visibleContent || visibleModal
+            const snippet = source?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 280) || ''
+            return {
+                hasModal: Boolean(visibleModal),
+                hasContent: Boolean(visibleContent),
+                hasForm: Boolean(visibleForm),
+                snippet
+            }
+        }, {
+            modal: EASY_APPLY_SELECTORS.modal,
+            content: EASY_APPLY_SELECTORS.content,
+            form: EASY_APPLY_SELECTORS.form
+        }).catch(() => null)
+
+        if (!info) return
+        const buttonInfo = this._lastOpenButtonInfo ? ` | button=${this._lastOpenButtonInfo}` : ''
+        const message = `Easy Apply debug: modal=${info.hasModal} content=${info.hasContent} form=${info.hasForm} snippet="${info.snippet}"${buttonInfo}`
+        console.warn(message)
+        if (this._discord) {
+            await this._discord.log(message)
+        }
+    }
+
+    private async _describeOpenButton(button: Locator) {
+        return button.evaluate((element) => {
+            const text = (element.textContent || '').replace(/\s+/g, ' ').trim()
+            const ariaLabel = element.getAttribute('aria-label') || ''
+            const dataControlName = element.getAttribute('data-control-name') || ''
+            const testId = element.getAttribute('data-test-id') || ''
+            const className = element.getAttribute('class') || ''
+            const href = element.getAttribute('href') || ''
+            const tagName = element.tagName || ''
+            return {
+                text,
+                ariaLabel,
+                dataControlName,
+                testId,
+                className,
+                href,
+                tagName
+            }
+        }).catch(() => ({
+            text: '',
+            ariaLabel: '',
+            dataControlName: '',
+            testId: '',
+            className: '',
+            href: '',
+            tagName: ''
+        }))
+    }
+
+    private _looksLikeEasyApplyButton(meta: { text: string; ariaLabel: string; dataControlName: string; testId: string; className: string; href: string; tagName: string }) {
+        const combined = `${meta.text} ${meta.ariaLabel} ${meta.dataControlName} ${meta.testId} ${meta.className} ${meta.href} ${meta.tagName}`
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim()
+
+        if (!combined) return false
+
+        const easySignals = /(inapply|easy apply|candidatura simplificada|candidatar-se facilmente|candidatura facil|apply easily)/i
+        const externalSignals = /(jobdetails_topcard_apply|company website|site da empresa|website da empresa|externa|externo)/i
+
+        if (meta.tagName.toLowerCase() === 'a' && meta.href) {
+            return Boolean(this._resolveApplyLink(meta.href))
+        }
+
+        if (externalSignals.test(combined) && !easySignals.test(combined)) return false
+        return easySignals.test(combined)
+    }
+
+    private _formatOpenButtonInfo(meta: { text: string; ariaLabel: string; dataControlName: string; testId: string; className: string; href: string; tagName: string }) {
+        const normalize = (value: string) => value.replace(/\s+/g, ' ').trim().slice(0, 120)
+        return `tag="${normalize(meta.tagName)}" text="${normalize(meta.text)}" aria="${normalize(meta.ariaLabel)}" data="${normalize(meta.dataControlName)}" testId="${normalize(meta.testId)}" href="${normalize(meta.href)}"`
+    }
+
+    private _resolveApplyLink(href?: string) {
+        if (!href) return null
+
+        try {
+            const url = new URL(href, this._page.url()).toString()
+            if (/linkedin\.com\/jobs\/view\/.+\/apply\//i.test(url)) return url
+            if (/openSDUIApplyFlow=true/i.test(url)) return url
+            return null
+        } catch {
+            return null
+        }
+    }
+
     private async _logResult(
         jobURL: string,
         stepsValues: EasyApplyStepValues[],
@@ -390,6 +561,17 @@ export class EasyApplyFlow {
                 if (!(await candidate.isVisible())) continue
                 if (await candidate.isDisabled()) continue
                 if (await this._isForbiddenAction(candidate)) continue
+                return candidate
+            }
+        }
+        return null
+    }
+
+    private async _firstVisible(locator: Locator) {
+        const count = await locator.count()
+        for (let i = 0; i < count; i++) {
+            const candidate = locator.nth(i)
+            if (await candidate.isVisible().catch(() => false)) {
                 return candidate
             }
         }

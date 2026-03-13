@@ -275,6 +275,7 @@ export class DiscordClient {
             'Comandos disponiveis:',
             `${prefix}help - mostra esta mensagem`,
             `${prefix}easy-apply [tag] [max] --loc <local> --pages <n> - busca vagas e aplica`,
+            `${prefix}easy-apply react --max 10 --no-location --no-pages --promoted --no-applicants-limit --easy-apply-only --auto`,
             `${prefix}search-jobs [tag] [max] --loc <local> --pages <n> - busca vagas com filtros`,
             `${prefix}connect <profileUrl> [mensagem] - envia convite`,
             `${prefix}upvote-posts - curte posts (pede quantidade e tag)`,

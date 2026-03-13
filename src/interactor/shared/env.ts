@@ -43,12 +43,21 @@ const readBool = (key: string, fallback = false) => {
 }
 
 const readNumber = (key: string, fallback = 0) => {
-  const value = Number(readString(key))
+  const raw = process.env[key]
+  if (raw === undefined || raw === null) return fallback
+  const trimmed = raw.trim()
+  if (!trimmed) return fallback
+  const value = Number(trimmed)
   return Number.isNaN(value) ? fallback : value
 }
 
 export const env = {
   userDataDir: readString('USER_DATA_DIR', DEFAULTS.userDataDir),
+  admin: {
+    enabled: readBool('ADMIN_ENABLED', true),
+    host: readString('ADMIN_HOST', '127.0.0.1'),
+    port: readNumber('ADMIN_PORT', 5050),
+  },
   linkedinAuth: {
     email: readString('LINKEDIN_EMAIL'),
     password: readString('LINKEDIN_PASSWORD'),

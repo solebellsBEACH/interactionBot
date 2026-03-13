@@ -1,0 +1,1455 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>InteractionBot Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f5f2ea;
+        --ink: #1e1b16;
+        --card: rgba(255, 251, 244, 0.9);
+        --card-2: rgba(255, 244, 228, 0.85);
+        --line: #d8ccb7;
+        --brand: #0e7a6d;
+        --brand-2: #b45f04;
+        --danger: #a52323;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", "Trebuchet MS", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 20% 10%, #ffdca8 0, transparent 40%),
+          radial-gradient(circle at 80% 0%, #b1ffd9 0, transparent 35%),
+          linear-gradient(145deg, #f7f1e4 0%, #efe6d4 60%, #e9deca 100%);
+        min-height: 100vh;
+      }
+
+      .page {
+        width: min(1200px, 96vw);
+        margin: 28px auto 40px;
+      }
+
+      .hero {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.4rem, 4vw, 2rem);
+        letter-spacing: 0.01em;
+      }
+
+      .lead {
+        margin: 6px 0 0;
+        font-size: 0.95rem;
+      }
+
+      .pill {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.8rem;
+        background: #fef6e6;
+        border: 1px solid #ebdbbc;
+        border-radius: 999px;
+        padding: 6px 10px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      }
+
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: 0 8px 26px rgba(70, 44, 8, 0.08);
+        padding: 16px;
+      }
+
+      .card h2 {
+        margin: 0 0 12px;
+        font-size: 1rem;
+      }
+
+      .stack {
+        display: grid;
+        gap: 8px;
+      }
+
+      label {
+        display: block;
+        font-size: 0.86rem;
+        margin-bottom: 4px;
+      }
+
+      input,
+      textarea,
+      select,
+      button {
+        width: 100%;
+        font: inherit;
+        border-radius: 10px;
+      }
+
+      input,
+      textarea,
+      select {
+        padding: 9px 10px;
+        border: 1px solid #d2c7b0;
+        background: #fffdf9;
+      }
+
+      textarea {
+        resize: vertical;
+        min-height: 82px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .row.single {
+        grid-template-columns: 1fr;
+      }
+
+      .check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.84rem;
+      }
+
+      .check input {
+        width: auto;
+        margin: 0;
+      }
+
+      button {
+        border: 0;
+        padding: 10px 12px;
+        font-weight: 600;
+        cursor: pointer;
+        background: linear-gradient(135deg, var(--brand), #26a28f);
+        color: #fff;
+      }
+
+      button.secondary {
+        background: linear-gradient(135deg, var(--brand-2), #dd8a2f);
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .status {
+        font-size: 0.87rem;
+        margin-top: 8px;
+        min-height: 18px;
+      }
+
+      .danger {
+        color: var(--danger);
+      }
+
+      .ok {
+        color: var(--brand);
+      }
+
+      .panel {
+        margin-top: 14px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .history-item {
+        border: 1px solid #e1d6c2;
+        border-radius: 12px;
+        padding: 10px;
+        background: var(--card-2);
+        margin-top: 8px;
+      }
+
+      .meta {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.78rem;
+        color: #5e4f36;
+      }
+
+      .helper {
+        margin: 0;
+        font-size: 0.8rem;
+        color: #6d5d45;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.86rem;
+      }
+
+      th,
+      td {
+        padding: 7px 6px;
+        border-bottom: 1px solid #e3d7c1;
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .muted {
+        color: #6d5d45;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .toolbar input[type="search"] {
+        flex: 1 1 280px;
+        min-width: 220px;
+      }
+
+      .toolbar-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .toolbar-actions button {
+        width: auto;
+      }
+
+      .table-wrap {
+        margin-top: 10px;
+        overflow: auto;
+        max-height: 520px;
+        border: 1px solid #e3d7c1;
+        border-radius: 14px;
+        background: #fffdf9;
+      }
+
+      .table-wrap thead th {
+        position: sticky;
+        top: 0;
+        background: #fff7eb;
+        z-index: 1;
+      }
+
+      #jobs-table {
+        min-width: 940px;
+      }
+
+      .sort-button {
+        width: auto;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+        text-transform: inherit;
+        letter-spacing: inherit;
+      }
+
+      .sort-button.active {
+        color: var(--brand);
+      }
+
+      .table-check {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 0.74rem;
+        font-family: "IBM Plex Mono", monospace;
+      }
+
+      .badge-ok {
+        background: rgba(14, 122, 109, 0.12);
+        color: var(--brand);
+      }
+
+      .badge-muted {
+        background: rgba(109, 93, 69, 0.12);
+        color: #6d5d45;
+      }
+
+      .badge-warn {
+        background: rgba(180, 95, 4, 0.14);
+        color: var(--brand-2);
+      }
+
+      .job-row-unavailable {
+        opacity: 0.75;
+      }
+
+      .job-link {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.75rem;
+        color: var(--brand);
+        text-decoration: none;
+      }
+
+      .job-link:hover {
+        text-decoration: underline;
+      }
+
+      body.modal-open {
+        overflow: hidden;
+      }
+
+      .modal-overlay[hidden] {
+        display: none;
+      }
+
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        background: rgba(30, 27, 22, 0.42);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+      }
+
+      .modal-card {
+        width: min(720px, 96vw);
+        max-height: 92vh;
+        overflow: auto;
+        background: #fffaf1;
+        border: 1px solid #d8ccb7;
+        border-radius: 18px;
+        box-shadow: 0 22px 60px rgba(30, 27, 22, 0.22);
+        padding: 18px;
+      }
+
+      .modal-card h2 {
+        margin: 0;
+      }
+
+      .modal-text {
+        margin: 8px 0 0;
+        white-space: pre-wrap;
+      }
+
+      .modal-answer {
+        border: 1px solid #e3d7c1;
+        background: #fffdf9;
+        border-radius: 12px;
+        padding: 10px;
+        min-height: 46px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      @media (max-width: 720px) {
+        .row {
+          grid-template-columns: 1fr;
+        }
+
+        .toolbar {
+          align-items: stretch;
+        }
+
+        .toolbar-actions {
+          width: 100%;
+        }
+
+        .toolbar-actions button {
+          flex: 1 1 150px;
+        }
+
+        #gpt-table th:nth-child(5),
+        #gpt-table td:nth-child(5) {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div>
+          <h1>Painel Admin do InteractionBot</h1>
+          <p class="lead">Controle de processos + monitor de respostas GPT</p>
+        </div>
+        <div class="pill" id="running-pill">Sem processo em execução</div>
+      </section>
+
+      <section class="grid">
+        <article class="card">
+          <h2>Buscar Vagas</h2>
+          <form id="search-form" class="stack">
+            <div>
+              <label for="search-tag">Tag</label>
+              <input id="search-tag" name="tag" placeholder="react next" required />
+            </div>
+            <div class="row">
+              <div>
+                <label for="search-max-results">Máx. vagas</label>
+                <input id="search-max-results" name="maxResults" type="number" min="1" />
+              </div>
+              <div>
+                <label for="search-max-pages">Máx. páginas</label>
+                <input id="search-max-pages" name="maxPages" type="number" min="1" />
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label for="search-location">Localização</label>
+                <input id="search-location" name="location" placeholder="Remote" />
+              </div>
+              <div>
+                <label for="search-max-applicants">Máx. candidaturas</label>
+                <input id="search-max-applicants" name="maxApplicants" type="number" min="1" />
+              </div>
+            </div>
+            <div class="row single">
+              <div>
+                <label for="search-wait-ms">Pausa entre aplicações (ms)</label>
+                <input id="search-wait-ms" name="waitBetweenMs" type="number" min="0" value="1500" />
+              </div>
+            </div>
+            <label class="check"
+              ><input type="checkbox" id="search-easy-only" name="easyApplyOnly" checked /> Somente
+              Easy Apply</label
+            >
+            <label class="check"
+              ><input type="checkbox" id="search-non-promoted" name="onlyNonPromoted" /> Somente
+              não promovidas</label
+            >
+            <p class="helper">
+              A busca só carrega as vagas na tabela abaixo. A aplicação acontece depois, nas vagas
+              selecionadas.
+            </p>
+            <button class="secondary" id="search-submit" type="submit">Buscar vagas</button>
+            <p class="status" id="search-status"></p>
+          </form>
+        </article>
+
+        <article class="card">
+          <h2>Conectar Perfil</h2>
+          <form id="connect-form" class="stack">
+            <div>
+              <label for="connect-url">URL do perfil</label>
+              <input
+                id="connect-url"
+                name="profileUrl"
+                placeholder="https://www.linkedin.com/in/..."
+                required
+              />
+            </div>
+            <div>
+              <label for="connect-message">Mensagem (opcional)</label>
+              <textarea id="connect-message" name="message"></textarea>
+            </div>
+            <button type="submit">Enviar Convite</button>
+            <p class="status" id="connect-status"></p>
+          </form>
+        </article>
+
+        <article class="card">
+          <h2>Upvote Posts</h2>
+          <form id="upvote-form" class="stack">
+            <div>
+              <label for="upvote-tag">Tag/Tema</label>
+              <input id="upvote-tag" name="tag" placeholder="react" required />
+            </div>
+            <div>
+              <label for="upvote-max">Quantidade</label>
+              <input id="upvote-max" name="maxLikes" type="number" min="1" value="5" />
+            </div>
+            <button class="secondary" type="submit">Iniciar Upvote</button>
+            <p class="status" id="upvote-status"></p>
+          </form>
+        </article>
+      </section>
+
+      <section class="panel">
+        <article class="card">
+          <div class="toolbar">
+            <div>
+              <h2 style="margin: 0">Vagas Encontradas</h2>
+              <p class="muted" id="jobs-summary">Faça uma busca para carregar as vagas.</p>
+            </div>
+            <input
+              id="jobs-filter"
+              type="search"
+              placeholder="Filtrar por título, empresa, localização ou URL"
+              disabled
+            />
+          </div>
+          <div class="toolbar" style="margin-top: 10px">
+            <div class="meta" id="jobs-meta">0 vagas carregadas.</div>
+            <div class="toolbar-actions">
+              <button id="select-visible-jobs" class="secondary" type="button" disabled>
+                Selecionar visíveis
+              </button>
+              <button id="clear-selected-jobs" class="secondary" type="button" disabled>
+                Limpar seleção
+              </button>
+              <button id="apply-selected-jobs" type="button" disabled>
+                Aplicar selecionadas
+              </button>
+            </div>
+          </div>
+          <p class="status" id="jobs-status"></p>
+          <div class="table-wrap">
+            <table id="jobs-table">
+              <thead>
+                <tr>
+                  <th>
+                    <input
+                      id="jobs-select-all"
+                      class="table-check"
+                      type="checkbox"
+                      aria-label="Selecionar vagas visíveis"
+                      disabled
+                    />
+                  </th>
+                  <th>
+                    <button class="sort-button active" data-label="Título" data-sort-key="title" type="button">
+                      Título
+                    </button>
+                  </th>
+                  <th>
+                    <button class="sort-button" data-label="Empresa" data-sort-key="company" type="button">
+                      Empresa
+                    </button>
+                  </th>
+                  <th>
+                    <button class="sort-button" data-label="Local" data-sort-key="location" type="button">
+                      Local
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      class="sort-button"
+                      data-label="Candidaturas"
+                      data-sort-key="applicants"
+                      type="button"
+                    >
+                      Candidaturas
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      class="sort-button"
+                      data-label="Easy Apply"
+                      data-sort-key="easyApply"
+                      type="button"
+                    >
+                      Easy Apply
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      class="sort-button"
+                      data-label="Promovida"
+                      data-sort-key="promoted"
+                      type="button"
+                    >
+                      Promovida
+                    </button>
+                  </th>
+                  <th>Link</th>
+                </tr>
+              </thead>
+              <tbody id="jobs-table-body">
+                <tr>
+                  <td colspan="8" class="muted">Nenhuma busca executada.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel grid" style="grid-template-columns: 1.2fr 1fr">
+        <article class="card">
+          <h2>Processos</h2>
+          <div id="process-running" class="muted">Carregando status...</div>
+          <div id="process-history"></div>
+        </article>
+
+        <article class="card">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px">
+            <h2 style="margin: 0">Respostas GPT</h2>
+            <button id="refresh-gpt" type="button" style="width: auto; padding: 8px 10px">
+              Atualizar
+            </button>
+          </div>
+          <div style="max-height: 420px; overflow: auto; margin-top: 8px">
+            <table id="gpt-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Campo</th>
+                  <th>Fonte</th>
+                  <th>Modelo</th>
+                  <th>Resposta</th>
+                </tr>
+              </thead>
+              <tbody id="gpt-table-body">
+                <tr>
+                  <td colspan="5" class="muted">Carregando...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <div id="admin-prompt-overlay" class="modal-overlay" hidden>
+      <div class="modal-card">
+        <div class="toolbar">
+          <div>
+            <h2 id="admin-prompt-title">Resposta pendente</h2>
+            <div id="admin-prompt-meta" class="meta"></div>
+          </div>
+          <div class="pill">Aguardando resposta</div>
+        </div>
+        <p id="admin-prompt-message" class="modal-text"></p>
+        <div id="admin-prompt-suggested-wrap" class="stack" hidden>
+          <label>Resposta sugerida</label>
+          <div id="admin-prompt-suggested" class="modal-answer"></div>
+        </div>
+        <div id="admin-prompt-select-wrap" class="stack" hidden>
+          <label for="admin-prompt-select">Resposta manual</label>
+          <select id="admin-prompt-select"></select>
+        </div>
+        <div id="admin-prompt-text-wrap" class="stack" hidden>
+          <label for="admin-prompt-text">Resposta manual</label>
+          <textarea id="admin-prompt-text"></textarea>
+        </div>
+        <p id="admin-prompt-status" class="status"></p>
+        <div class="toolbar-actions" style="margin-top: 12px">
+          <button id="admin-prompt-confirm" type="button">Confirmar GPT</button>
+          <button id="admin-prompt-submit" class="secondary" type="button">Enviar resposta</button>
+          <button id="admin-prompt-cancel" class="secondary" type="button">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const runningPill = document.getElementById("running-pill");
+      const processRunning = document.getElementById("process-running");
+      const processHistory = document.getElementById("process-history");
+      const gptTableBody = document.getElementById("gpt-table-body");
+      const adminPromptOverlay = document.getElementById("admin-prompt-overlay");
+      const adminPromptTitle = document.getElementById("admin-prompt-title");
+      const adminPromptMeta = document.getElementById("admin-prompt-meta");
+      const adminPromptMessage = document.getElementById("admin-prompt-message");
+      const adminPromptSuggestedWrap = document.getElementById("admin-prompt-suggested-wrap");
+      const adminPromptSuggested = document.getElementById("admin-prompt-suggested");
+      const adminPromptSelectWrap = document.getElementById("admin-prompt-select-wrap");
+      const adminPromptSelect = document.getElementById("admin-prompt-select");
+      const adminPromptTextWrap = document.getElementById("admin-prompt-text-wrap");
+      const adminPromptText = document.getElementById("admin-prompt-text");
+      const adminPromptStatus = document.getElementById("admin-prompt-status");
+      const adminPromptConfirm = document.getElementById("admin-prompt-confirm");
+      const adminPromptSubmit = document.getElementById("admin-prompt-submit");
+      const adminPromptCancel = document.getElementById("admin-prompt-cancel");
+
+      const searchForm = document.getElementById("search-form");
+      const searchSubmit = document.getElementById("search-submit");
+      const searchStatus = document.getElementById("search-status");
+      const connectStatus = document.getElementById("connect-status");
+      const upvoteStatus = document.getElementById("upvote-status");
+
+      const jobsStatus = document.getElementById("jobs-status");
+      const jobsSummary = document.getElementById("jobs-summary");
+      const jobsMeta = document.getElementById("jobs-meta");
+      const jobsFilter = document.getElementById("jobs-filter");
+      const jobsTableBody = document.getElementById("jobs-table-body");
+      const jobsSelectAll = document.getElementById("jobs-select-all");
+      const selectVisibleJobsButton = document.getElementById("select-visible-jobs");
+      const clearSelectedJobsButton = document.getElementById("clear-selected-jobs");
+      const applySelectedJobsButton = document.getElementById("apply-selected-jobs");
+      const sortButtons = Array.from(document.querySelectorAll(".sort-button"));
+
+      const jobsState = {
+        items: [],
+        selectedUrls: new Set(),
+        filterText: "",
+        sortKey: "title",
+        sortDirection: "asc",
+        lastSearchTag: "",
+        lastSearchTotal: 0,
+        isSearching: false,
+        isApplying: false,
+      };
+
+      const adminPromptState = {
+        item: null,
+        isSubmitting: false,
+      };
+
+      function toNumber(value) {
+        if (value === undefined || value === null || value === "") return undefined;
+        const parsed = Number(value);
+        return Number.isNaN(parsed) ? undefined : parsed;
+      }
+
+      function text(value) {
+        return typeof value === "string" ? value.trim() : "";
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => {
+          window.setTimeout(resolve, ms);
+        });
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function normalizeSearchText(value) {
+        return String(value ?? "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .trim();
+      }
+
+      function formatApplicants(value) {
+        if (typeof value !== "number" || Number.isNaN(value)) return "-";
+        return value.toLocaleString("pt-BR");
+      }
+
+      function setStatus(target, message, isError = false) {
+        target.textContent = message || "";
+        target.className = message ? `status ${isError ? "danger" : "ok"}` : "status";
+      }
+
+      function setHidden(target, hidden) {
+        if (!target) return;
+        if (hidden) {
+          target.setAttribute("hidden", "");
+          return;
+        }
+        target.removeAttribute("hidden");
+      }
+
+      async function request(method, url, payload) {
+        const response = await fetch(url, {
+          method,
+          headers: {
+            "content-type": "application/json",
+          },
+          body: payload ? JSON.stringify(payload) : undefined,
+        });
+
+        let data = {};
+        try {
+          data = await response.json();
+        } catch {
+          data = {};
+        }
+
+        if (!response.ok) {
+          const error = data && data.error ? data.error : `Erro HTTP ${response.status}`;
+          throw new Error(error);
+        }
+
+        return data;
+      }
+
+      function formatDate(value) {
+        if (!value) return "-";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "-";
+        return date.toLocaleString("pt-BR");
+      }
+
+      function renderProcessState(state) {
+        const running = state.running;
+        if (running) {
+          runningPill.textContent = `Executando: ${running.type} (${running.id})`;
+          processRunning.innerHTML = `
+            <div class="history-item">
+              <strong>Em execução:</strong> ${running.type}<br>
+              <span class="meta">iniciado: ${formatDate(running.startedAt)} | id: ${running.id}</span><br>
+              <span>${running.summary || "Processo iniciado."}</span>
+            </div>
+          `;
+        } else {
+          runningPill.textContent = "Sem processo em execução";
+          processRunning.textContent = "Nenhum processo ativo.";
+        }
+
+        const history = Array.isArray(state.history) ? state.history : [];
+        if (history.length === 0) {
+          processHistory.innerHTML = "<p class='muted'>Sem histórico ainda.</p>";
+          return;
+        }
+
+        processHistory.innerHTML = history
+          .slice(0, 8)
+          .map((item) => {
+            const statusClass = item.status === "failed" ? "danger" : "ok";
+            const error = item.error ? `<div class="danger">${item.error}</div>` : "";
+            return `
+              <div class="history-item">
+                <strong>${item.type}</strong> <span class="${statusClass}">(${item.status})</span>
+                <div class="meta">${formatDate(item.startedAt)} -> ${formatDate(item.endedAt)}</div>
+                <div>${item.summary || "-"}</div>
+                ${error}
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      function renderGptRows(items) {
+        if (!Array.isArray(items) || items.length === 0) {
+          gptTableBody.innerHTML = `<tr><td colspan="5" class="muted">Sem respostas registradas.</td></tr>`;
+          return;
+        }
+
+        gptTableBody.innerHTML = items
+          .map((item) => {
+            const field = item.fieldLabel || item.fieldKey || "-";
+            const answer = item.success ? item.answer || "(vazio)" : `ERRO: ${item.error || "sem detalhe"}`;
+            const safeAnswer = escapeHtml(answer);
+
+            return `
+              <tr>
+                <td>${formatDate(item.createdAt)}</td>
+                <td>${escapeHtml(field)}</td>
+                <td>${escapeHtml(item.source || "-")}</td>
+                <td>${escapeHtml(item.model || "-")}</td>
+                <td>${safeAnswer}</td>
+              </tr>
+            `;
+          })
+          .join("");
+      }
+
+      async function refreshProcesses() {
+        try {
+          const data = await request("GET", "/api/admin/processes");
+          renderProcessState(data);
+          return data;
+        } catch (error) {
+          processRunning.innerHTML = `<span class='danger'>${escapeHtml(error.message)}</span>`;
+          throw error;
+        }
+      }
+
+      async function refreshGpt() {
+        try {
+          const data = await request("GET", "/api/admin/gpt-responses?limit=80");
+          renderGptRows(data.items || []);
+        } catch (error) {
+          gptTableBody.innerHTML = `<tr><td colspan="5" class="danger">${escapeHtml(error.message)}</td></tr>`;
+        }
+      }
+
+      function syncAdminPromptButtons() {
+        const disabled = adminPromptState.isSubmitting || !adminPromptState.item;
+        adminPromptConfirm.disabled = disabled;
+        adminPromptSubmit.disabled = disabled;
+        adminPromptCancel.disabled = disabled;
+      }
+
+      function renderAdminPrompt(item) {
+        adminPromptState.item = item || null;
+        syncAdminPromptButtons();
+
+        if (!item) {
+          document.body.classList.remove("modal-open");
+          setHidden(adminPromptOverlay, true);
+          setStatus(adminPromptStatus, "");
+          adminPromptText.value = "";
+          adminPromptSelect.innerHTML = "";
+          return;
+        }
+
+        document.body.classList.add("modal-open");
+        setHidden(adminPromptOverlay, false);
+
+        const isSelect = item.fieldType === "select";
+        const isConfirm = item.kind === "confirm-gpt";
+        const options = Array.isArray(item.options) ? item.options.filter(Boolean) : [];
+        const suggestedAnswer = item.suggestedAnswer || "";
+        const meta = [`etapa ${item.step}`, item.fieldLabel || item.fieldKey || "campo"];
+
+        adminPromptTitle.textContent = isConfirm ? "Confirmar resposta GPT" : "Responder campo";
+        adminPromptMeta.textContent = meta.join(" | ");
+        adminPromptMessage.textContent = item.prompt || "";
+        setStatus(adminPromptStatus, "");
+
+        setHidden(adminPromptSuggestedWrap, !suggestedAnswer);
+        adminPromptSuggested.textContent = suggestedAnswer || "";
+
+        adminPromptConfirm.textContent = "Confirmar GPT";
+        adminPromptSubmit.textContent = isConfirm ? "Usar resposta manual" : "Enviar resposta";
+        setHidden(adminPromptConfirm, !isConfirm);
+
+        if (isSelect) {
+          adminPromptSelect.innerHTML = "";
+          if (!suggestedAnswer && !isConfirm) {
+            const placeholder = document.createElement("option");
+            placeholder.value = "";
+            placeholder.textContent = "Selecione uma opção";
+            adminPromptSelect.appendChild(placeholder);
+          }
+
+          options.forEach((option) => {
+            const optionElement = document.createElement("option");
+            optionElement.value = option;
+            optionElement.textContent = option;
+            if (option === suggestedAnswer) {
+              optionElement.selected = true;
+            }
+            adminPromptSelect.appendChild(optionElement);
+          });
+
+          if (suggestedAnswer && !options.includes(suggestedAnswer)) {
+            const extraOption = document.createElement("option");
+            extraOption.value = suggestedAnswer;
+            extraOption.textContent = suggestedAnswer;
+            extraOption.selected = true;
+            adminPromptSelect.appendChild(extraOption);
+          }
+        } else {
+          adminPromptText.value = suggestedAnswer;
+        }
+
+        setHidden(adminPromptSelectWrap, !isSelect);
+        setHidden(adminPromptTextWrap, isSelect);
+      }
+
+      function getAdminPromptManualValue() {
+        const item = adminPromptState.item;
+        if (!item) return "";
+        if (item.fieldType === "select") {
+          return text(adminPromptSelect.value);
+        }
+        return text(adminPromptText.value);
+      }
+
+      async function submitAdminPrompt(action) {
+        const item = adminPromptState.item;
+        if (!item || adminPromptState.isSubmitting) return;
+
+        let value;
+        if (action === "manual") {
+          value = getAdminPromptManualValue();
+          if (!value) {
+            setStatus(adminPromptStatus, "Informe uma resposta antes de enviar.", true);
+            return;
+          }
+        }
+
+        adminPromptState.isSubmitting = true;
+        syncAdminPromptButtons();
+        setStatus(adminPromptStatus, "Enviando resposta...");
+
+        try {
+          await request("POST", "/api/admin/prompts/respond", {
+            id: item.id,
+            action,
+            value,
+          });
+          renderAdminPrompt(null);
+        } catch (error) {
+          setStatus(adminPromptStatus, error.message, true);
+        } finally {
+          adminPromptState.isSubmitting = false;
+          syncAdminPromptButtons();
+        }
+      }
+
+      async function refreshAdminPrompt() {
+        try {
+          const data = await request("GET", "/api/admin/prompts/current");
+          const item = data.item || null;
+          const currentId = adminPromptState.item ? adminPromptState.item.id : "";
+          const nextId = item ? item.id : "";
+          if (currentId !== nextId) {
+            renderAdminPrompt(item);
+          }
+        } catch (error) {
+          if (adminPromptState.item) {
+            setStatus(adminPromptStatus, error.message, true);
+          }
+        }
+      }
+
+      function getProcessById(state, id) {
+        if (state.running && state.running.id === id) return state.running;
+        const history = Array.isArray(state.history) ? state.history : [];
+        return history.find((item) => item.id === id) || null;
+      }
+
+      async function waitForProcess(id, timeoutMs = 10 * 60 * 1000) {
+        const startedAt = Date.now();
+        let lastError = null;
+
+        while (Date.now() - startedAt < timeoutMs) {
+          try {
+            const state = await refreshProcesses();
+            const process = getProcessById(state, id);
+            if (process && process.status !== "running") {
+              return process;
+            }
+            lastError = null;
+          } catch (error) {
+            lastError = error;
+          }
+
+          await sleep(1500);
+        }
+
+        if (lastError instanceof Error) {
+          throw lastError;
+        }
+
+        throw new Error("Tempo limite aguardando o processo terminar.");
+      }
+
+      function getSortValue(job, sortKey) {
+        if (sortKey === "easyApply" || sortKey === "promoted") {
+          return job[sortKey] ? 1 : 0;
+        }
+
+        return normalizeSearchText(job[sortKey] || "");
+      }
+
+      function compareJobs(a, b) {
+        const direction = jobsState.sortDirection === "asc" ? 1 : -1;
+        if (jobsState.sortKey === "applicants") {
+          const leftMissing = a.applicants === null || a.applicants === undefined;
+          const rightMissing = b.applicants === null || b.applicants === undefined;
+          if (leftMissing && rightMissing) return 0;
+          if (leftMissing) return 1;
+          if (rightMissing) return -1;
+          return (a.applicants - b.applicants) * direction;
+        }
+
+        const left = getSortValue(a, jobsState.sortKey);
+        const right = getSortValue(b, jobsState.sortKey);
+
+        if (typeof left === "number" && typeof right === "number") {
+          return (left - right) * direction;
+        }
+
+        return String(left).localeCompare(String(right), "pt-BR") * direction;
+      }
+
+      function getFilteredJobs() {
+        const query = normalizeSearchText(jobsState.filterText);
+        const filtered = query
+          ? jobsState.items.filter((job) => {
+              const haystack = normalizeSearchText(
+                [job.title, job.company, job.location, job.url].filter(Boolean).join(" ")
+              );
+              return haystack.includes(query);
+            })
+          : [...jobsState.items];
+
+        return filtered.sort(compareJobs);
+      }
+
+      function syncSortButtons() {
+        sortButtons.forEach((button) => {
+          const isActive = button.dataset.sortKey === jobsState.sortKey;
+          const arrow = isActive ? (jobsState.sortDirection === "asc" ? " ↑" : " ↓") : "";
+          button.classList.toggle("active", isActive);
+          button.textContent = `${button.dataset.label}${arrow}`;
+        });
+      }
+
+      function renderBadge(
+        value,
+        trueLabel,
+        falseLabel,
+        trueClass = "badge-ok",
+        falseClass = "badge-muted"
+      ) {
+        if (value) {
+          return `<span class="badge ${trueClass}">${trueLabel}</span>`;
+        }
+        return `<span class="badge ${falseClass}">${falseLabel}</span>`;
+      }
+
+      function syncJobsControls(visibleJobs) {
+        const selectableVisibleJobs = visibleJobs.filter((job) => job.easyApply);
+        const selectedCount = jobsState.selectedUrls.size;
+        const selectedVisibleCount = selectableVisibleJobs.filter((job) =>
+          jobsState.selectedUrls.has(job.url)
+        ).length;
+
+        jobsFilter.disabled = jobsState.items.length === 0 && !jobsState.isSearching;
+        searchSubmit.disabled = jobsState.isSearching || jobsState.isApplying;
+        selectVisibleJobsButton.disabled =
+          jobsState.isSearching || jobsState.isApplying || selectableVisibleJobs.length === 0;
+        clearSelectedJobsButton.disabled =
+          jobsState.isSearching || jobsState.isApplying || selectedCount === 0;
+        applySelectedJobsButton.disabled =
+          jobsState.isSearching || jobsState.isApplying || selectedCount === 0;
+        jobsSelectAll.disabled =
+          jobsState.isSearching || jobsState.isApplying || selectableVisibleJobs.length === 0;
+        jobsSelectAll.checked =
+          selectableVisibleJobs.length > 0 && selectedVisibleCount === selectableVisibleJobs.length;
+        jobsSelectAll.indeterminate =
+          selectedVisibleCount > 0 && selectedVisibleCount < selectableVisibleJobs.length;
+      }
+
+      function renderJobsTable() {
+        const visibleJobs = getFilteredJobs();
+        const selectedCount = jobsState.selectedUrls.size;
+
+        syncSortButtons();
+        syncJobsControls(visibleJobs);
+
+        if (jobsState.isSearching) {
+          jobsSummary.textContent = jobsState.lastSearchTag
+            ? `Buscando vagas para "${jobsState.lastSearchTag}"...`
+            : "Buscando vagas...";
+          jobsMeta.textContent = "Aguardando resultado da busca...";
+          jobsTableBody.innerHTML = `<tr><td colspan="8" class="muted">Buscando vagas...</td></tr>`;
+          return;
+        }
+
+        if (jobsState.items.length === 0) {
+          jobsSummary.textContent = jobsState.lastSearchTag
+            ? `Nenhuma vaga encontrada para "${jobsState.lastSearchTag}".`
+            : "Faça uma busca para carregar as vagas.";
+          jobsMeta.textContent = "0 vagas carregadas.";
+          jobsTableBody.innerHTML = `<tr><td colspan="8" class="muted">Nenhuma busca executada.</td></tr>`;
+          return;
+        }
+
+        jobsSummary.textContent = `${jobsState.lastSearchTotal || jobsState.items.length} vaga(s) encontradas para "${jobsState.lastSearchTag}".`;
+        jobsMeta.textContent = `${jobsState.items.length} carregadas | ${visibleJobs.length} visíveis | ${selectedCount} selecionadas`;
+
+        if (visibleJobs.length === 0) {
+          jobsTableBody.innerHTML = `<tr><td colspan="8" class="muted">Nenhuma vaga corresponde ao filtro atual.</td></tr>`;
+          return;
+        }
+
+        jobsTableBody.innerHTML = visibleJobs
+          .map((job) => {
+            const checked = jobsState.selectedUrls.has(job.url);
+            const disabled = !job.easyApply;
+            const rowClass = disabled ? "job-row-unavailable" : "";
+            const checkboxTitle = disabled
+              ? "Somente vagas com Easy Apply podem ser selecionadas para aplicação."
+              : "Selecionar vaga";
+
+            return `
+              <tr class="${rowClass}">
+                <td>
+                  <input
+                    class="table-check"
+                    type="checkbox"
+                    data-job-select="true"
+                    data-url="${escapeHtml(job.url)}"
+                    ${checked ? "checked" : ""}
+                    ${disabled ? "disabled" : ""}
+                    title="${escapeHtml(checkboxTitle)}"
+                  />
+                </td>
+                <td>${escapeHtml(job.title || "-")}</td>
+                <td>${escapeHtml(job.company || "-")}</td>
+                <td>${escapeHtml(job.location || "-")}</td>
+                <td>${formatApplicants(job.applicants)}</td>
+                <td>${renderBadge(job.easyApply, "Sim", "Não")}</td>
+                <td>${renderBadge(job.promoted, "Sim", "Não", "badge-warn", "badge-muted")}</td>
+                <td><a class="job-link" href="${escapeHtml(job.url)}" target="_blank" rel="noreferrer">abrir</a></td>
+              </tr>
+            `;
+          })
+          .join("");
+      }
+
+      function setVisibleSelection(checked) {
+        const visibleJobs = getFilteredJobs().filter((job) => job.easyApply);
+        visibleJobs.forEach((job) => {
+          if (checked) {
+            jobsState.selectedUrls.add(job.url);
+          } else {
+            jobsState.selectedUrls.delete(job.url);
+          }
+        });
+        renderJobsTable();
+      }
+
+      searchForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const previousState = {
+          items: [...jobsState.items],
+          selectedUrls: new Set(jobsState.selectedUrls),
+          filterText: jobsState.filterText,
+          lastSearchTag: jobsState.lastSearchTag,
+          lastSearchTotal: jobsState.lastSearchTotal,
+        };
+
+        jobsState.isSearching = true;
+        jobsState.items = [];
+        jobsState.selectedUrls = new Set();
+        jobsState.filterText = "";
+        jobsState.lastSearchTag = text(form.tag.value);
+        jobsState.lastSearchTotal = 0;
+        jobsFilter.value = "";
+
+        setStatus(searchStatus, "Busca iniciada...");
+        setStatus(jobsStatus, "");
+        renderJobsTable();
+
+        try {
+          const payload = {
+            tag: jobsState.lastSearchTag,
+            apply: false,
+            maxResults: toNumber(form.maxResults.value),
+            maxPages: toNumber(form.maxPages.value),
+            location: text(form.location.value) || undefined,
+            maxApplicants: toNumber(form.maxApplicants.value),
+            waitBetweenMs: toNumber(form.waitBetweenMs.value),
+            easyApplyOnly: Boolean(form.easyApplyOnly.checked),
+            onlyNonPromoted: Boolean(form.onlyNonPromoted.checked),
+            includeDetails: true,
+          };
+          const data = await request("POST", "/api/admin/processes/search-jobs", payload);
+          const process = await waitForProcess(data.id);
+          if (process.status !== "succeeded") {
+            throw new Error(process.error || process.summary || "Falha ao buscar vagas.");
+          }
+
+          const output = process.output || {};
+          jobsState.items = Array.isArray(output.jobs) ? output.jobs : [];
+          jobsState.lastSearchTotal =
+            typeof output.total === "number" ? output.total : jobsState.items.length;
+
+          setStatus(searchStatus, process.summary || `${jobsState.items.length} vaga(s) carregadas.`);
+          setStatus(
+            jobsStatus,
+            jobsState.items.length
+              ? "Selecione as vagas desejadas na tabela e clique em aplicar selecionadas."
+              : "Nenhuma vaga encontrada com os filtros informados."
+          );
+        } catch (error) {
+          jobsState.items = previousState.items;
+          jobsState.selectedUrls = previousState.selectedUrls;
+          jobsState.filterText = previousState.filterText;
+          jobsState.lastSearchTag = previousState.lastSearchTag;
+          jobsState.lastSearchTotal = previousState.lastSearchTotal;
+          jobsFilter.value = previousState.filterText;
+          setStatus(searchStatus, error.message, true);
+          setStatus(jobsStatus, "");
+        } finally {
+          jobsState.isSearching = false;
+          renderJobsTable();
+        }
+      });
+
+      jobsFilter.addEventListener("input", (event) => {
+        jobsState.filterText = event.currentTarget.value || "";
+        renderJobsTable();
+      });
+
+      sortButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          const nextKey = button.dataset.sortKey;
+          if (!nextKey) return;
+
+          if (jobsState.sortKey === nextKey) {
+            jobsState.sortDirection = jobsState.sortDirection === "asc" ? "desc" : "asc";
+          } else {
+            jobsState.sortKey = nextKey;
+            jobsState.sortDirection = nextKey === "applicants" ? "asc" : "asc";
+          }
+
+          renderJobsTable();
+        });
+      });
+
+      jobsTableBody.addEventListener("change", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement) || target.dataset.jobSelect !== "true") {
+          return;
+        }
+
+        const url = target.dataset.url || "";
+        if (!url) return;
+
+        if (target.checked) {
+          jobsState.selectedUrls.add(url);
+        } else {
+          jobsState.selectedUrls.delete(url);
+        }
+
+        renderJobsTable();
+      });
+
+      jobsSelectAll.addEventListener("change", (event) => {
+        setVisibleSelection(Boolean(event.currentTarget.checked));
+      });
+
+      selectVisibleJobsButton.addEventListener("click", () => {
+        setVisibleSelection(true);
+      });
+
+      clearSelectedJobsButton.addEventListener("click", () => {
+        jobsState.selectedUrls = new Set();
+        renderJobsTable();
+        setStatus(jobsStatus, "");
+      });
+
+      applySelectedJobsButton.addEventListener("click", async () => {
+        const selectedJobs = jobsState.items.filter((job) => jobsState.selectedUrls.has(job.url));
+        if (selectedJobs.length === 0) {
+          setStatus(jobsStatus, "Selecione ao menos uma vaga com Easy Apply.", true);
+          return;
+        }
+
+        jobsState.isApplying = true;
+        renderJobsTable();
+        setStatus(jobsStatus, `Aplicando em ${selectedJobs.length} vaga(s) selecionada(s)...`);
+
+        try {
+          const waitBetweenMs = toNumber(searchForm.waitBetweenMs.value);
+          const data = await request("POST", "/api/admin/processes/apply-jobs", {
+            jobUrls: selectedJobs.map((job) => job.url),
+            waitBetweenMs,
+          });
+
+          const estimatedTimeout = Math.max(
+            10 * 60 * 1000,
+            selectedJobs.length * ((waitBetweenMs ?? 1500) + 20_000)
+          );
+          const process = await waitForProcess(data.id, estimatedTimeout);
+          if (process.status !== "succeeded") {
+            throw new Error(process.error || process.summary || "Falha ao aplicar nas vagas selecionadas.");
+          }
+
+          const output = process.output || {};
+          const failed = Array.isArray(output.failed) ? output.failed : [];
+          const attempted = typeof output.attempted === "number" ? output.attempted : selectedJobs.length;
+          const applied = typeof output.applied === "number" ? output.applied : 0;
+
+          jobsState.selectedUrls = new Set(failed);
+          setStatus(
+            jobsStatus,
+            failed.length
+              ? `${applied}/${attempted} aplicação(ões) concluída(s). ${failed.length} falharam e continuam selecionadas.`
+              : `${applied}/${attempted} aplicação(ões) concluída(s).`
+          );
+        } catch (error) {
+          setStatus(jobsStatus, error.message, true);
+        } finally {
+          jobsState.isApplying = false;
+          renderJobsTable();
+        }
+      });
+
+      adminPromptConfirm.addEventListener("click", () => {
+        submitAdminPrompt("confirm");
+      });
+
+      adminPromptSubmit.addEventListener("click", () => {
+        submitAdminPrompt("manual");
+      });
+
+      adminPromptCancel.addEventListener("click", () => {
+        submitAdminPrompt("cancel");
+      });
+
+      document.getElementById("connect-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        try {
+          const payload = {
+            profileUrl: text(form.profileUrl.value),
+            message: text(form.message.value) || undefined,
+          };
+          const data = await request("POST", "/api/admin/processes/connect", payload);
+          setStatus(connectStatus, `Processo iniciado: ${data.id}`);
+          refreshProcesses();
+        } catch (error) {
+          setStatus(connectStatus, error.message, true);
+        }
+      });
+
+      document.getElementById("upvote-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        try {
+          const payload = {
+            tag: text(form.tag.value),
+            maxLikes: toNumber(form.maxLikes.value),
+          };
+          const data = await request("POST", "/api/admin/processes/upvote-posts", payload);
+          setStatus(upvoteStatus, `Processo iniciado: ${data.id}`);
+          refreshProcesses();
+        } catch (error) {
+          setStatus(upvoteStatus, error.message, true);
+        }
+      });
+
+      document.getElementById("refresh-gpt").addEventListener("click", () => {
+        refreshGpt();
+      });
+
+      renderJobsTable();
+      refreshProcesses();
+      refreshGpt();
+      refreshAdminPrompt();
+
+      setInterval(refreshProcesses, 3000);
+      setInterval(refreshGpt, 7000);
+      setInterval(refreshAdminPrompt, 1000);
+    </script>
+  </body>
+</html>

@@ -1,6 +1,7 @@
 export const EASY_APPLY_SELECTORS = {
     modal: '.jobs-easy-apply-modal, .artdeco-modal',
-    form: '.jobs-easy-apply-content form, .jobs-easy-apply-modal form, form'
+    content: '.jobs-easy-apply-content, .jobs-easy-apply-modal .artdeco-modal__content, .jobs-easy-apply-modal',
+    form: '.jobs-easy-apply-content form, .jobs-easy-apply-modal form'
 }
 
 export const EASY_APPLY_TIMEOUTS = {
@@ -22,6 +23,7 @@ export const EASY_APPLY_BUTTON_SELECTORS = {
     open: [
         'button[data-control-name*="inapply" i], [role="button"][data-control-name*="inapply" i], button[data-control-name*="easy-apply" i], [role="button"][data-control-name*="easy-apply" i]',
         'button.jobs-apply-button, [role="button"].jobs-apply-button',
+        'a[href*="/apply/" i], a[href*="openSDUIApplyFlow=true" i], a[aria-label*="Easy Apply" i], a[aria-label*="Candidatura simplificada" i], a[aria-label*="Candidatar-se facilmente" i]',
         'button[aria-label*="Easy Apply" i], [role="button"][aria-label*="Easy Apply" i], button[aria-label*="Candidatura simplificada" i], [role="button"][aria-label*="Candidatura simplificada" i], button[aria-label*="Candidatar-se facilmente" i], [role="button"][aria-label*="Candidatar-se facilmente" i]',
         'button:has-text("Candidatura simplificada"), [role="button"]:has-text("Candidatura simplificada"), button:has-text("Candidatar-se facilmente"), [role="button"]:has-text("Candidatar-se facilmente"), button:has-text("Easy Apply"), [role="button"]:has-text("Easy Apply")',
         'button[data-test-id*="jobs-apply" i], [role="button"][data-test-id*="jobs-apply" i], button[data-test-id*="easy-apply" i], [role="button"][data-test-id*="easy-apply" i]'

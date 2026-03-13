@@ -22,6 +22,11 @@ type ParsedSearchArgs = {
     onlyNonPromoted?: boolean
     maxApplicants?: number
     easyApplyOnly?: boolean
+    useGlobalGeo?: boolean
+    skipLocationPrompt?: boolean
+    skipMaxPagesPrompt?: boolean
+    skipApplicantsPrompt?: boolean
+    autoApply?: boolean
 }
 
 export class SearchJobsCommand {
@@ -34,7 +39,8 @@ export class SearchJobsCommand {
     }
 
     async run(discord: DiscordClient, args: string[], applyMode: boolean) {
-        const filters = await this._resolveSearchFilters(discord, args)
+        const parsed = this._parseSearchArgs(args)
+        const filters = await this._resolveSearchFilters(discord, parsed)
         if (!filters) return
 
         const searchOptions = this._buildSearchOptions(filters)
@@ -62,13 +68,15 @@ export class SearchJobsCommand {
             return
         }
 
-        const autoAnswer = await discord.ask('Quer candidatar automaticamente? (sim/nao)')
-        if (!autoAnswer) {
-            await discord.sendMessage('Sem resposta. Aplicacao cancelada.')
-            return
+        let autoApply = parsed.autoApply
+        if (autoApply === undefined) {
+            const autoAnswer = await discord.ask('Quer candidatar automaticamente? (sim/nao)')
+            if (!autoAnswer) {
+                await discord.sendMessage('Sem resposta. Aplicacao cancelada.')
+                return
+            }
+            autoApply = isAffirmative(autoAnswer)
         }
-
-        const autoApply = isAffirmative(autoAnswer)
         if (!autoApply) {
             await discord.sendMessage('Modo manual: voce pode pular vagas.')
         }
@@ -112,13 +120,12 @@ export class SearchJobsCommand {
         await discord.sendMessage('Easy Apply finalizado.')
     }
 
-    private async _resolveSearchFilters(discord: DiscordClient, args: string[]): Promise<SearchFilters | null> {
-        const parsed = this._parseSearchArgs(args)
+    private async _resolveSearchFilters(discord: DiscordClient, parsed: ParsedSearchArgs): Promise<SearchFilters | null> {
         let tag = parsed.tag
         let maxResults = parsed.maxResults
         let location = parsed.location
         let maxPages = parsed.maxPages
-        let geoId: string | undefined
+        let geoId: string | undefined = parsed.useGlobalGeo ? this._globalGeoId : undefined
         let onlyNonPromoted = parsed.onlyNonPromoted
         let maxApplicants = parsed.maxApplicants
         let easyApplyOnly = parsed.easyApplyOnly
@@ -142,7 +149,7 @@ export class SearchJobsCommand {
             maxResults = parseMaxResultsAnswer(quantityAnswer)
         }
 
-        if (!location) {
+        if (!location && geoId === undefined && !parsed.skipLocationPrompt) {
             const wantsLocation = await discord.ask('Deseja filtrar por localizacao? (sim/nao ou informe a localizacao)')
             if (wantsLocation) {
                 if (isAffirmative(wantsLocation)) {
@@ -162,7 +169,7 @@ export class SearchJobsCommand {
             }
         }
 
-        if (!maxPages) {
+        if (maxPages === undefined && !parsed.skipMaxPagesPrompt) {
             const wantsPages = await discord.ask('Deseja limitar paginas? (sim/nao ou informe o numero)')
             if (wantsPages) {
                 const directPages = parseMaxPagesAnswer(wantsPages)
@@ -186,7 +193,7 @@ export class SearchJobsCommand {
             }
         }
 
-        if (maxApplicants === undefined) {
+        if (maxApplicants === undefined && !parsed.skipApplicantsPrompt) {
             const applicantsAnswer = await discord.ask('Limitar numero de candidaturas? (sim/nao ou informe o max)')
             const parsedApplicants = parseApplicantsAnswer(applicantsAnswer)
             if (parsedApplicants !== undefined) {
@@ -260,6 +267,11 @@ export class SearchJobsCommand {
         let onlyNonPromoted: boolean | undefined
         let maxApplicants: number | undefined
         let easyApplyOnly: boolean | undefined
+        let useGlobalGeo = false
+        let skipLocationPrompt = false
+        let skipMaxPagesPrompt = false
+        let skipApplicantsPrompt = false
+        let autoApply: boolean | undefined
 
         const parseInline = (rawValue: string, normalizedValue: string, keys: string[]) => {
             for (const key of keys) {
@@ -297,7 +309,13 @@ export class SearchJobsCommand {
                 'vagas',
                 'applicants',
                 'candidaturas',
-                'candidatos'
+                'candidatos',
+                'promoted',
+                'promovidas',
+                'easy',
+                'easyapply',
+                'auto',
+                'automatico'
             ].includes(key)
         }
 
@@ -327,6 +345,14 @@ export class SearchJobsCommand {
                 onlyNonPromoted = true
                 continue
             }
+            if (
+                normalized === '--include-promoted' ||
+                normalized === '--promoted' ||
+                normalized === '--com-promovidas'
+            ) {
+                onlyNonPromoted = false
+                continue
+            }
             if (normalized === '--all-jobs' || normalized === '--all' || normalized === '--tudo') {
                 easyApplyOnly = false
                 continue
@@ -335,14 +361,64 @@ export class SearchJobsCommand {
                 easyApplyOnly = true
                 continue
             }
+            if (
+                normalized === '--no-location' ||
+                normalized === '--without-location' ||
+                normalized === '--sem-localizacao'
+            ) {
+                location = undefined
+                useGlobalGeo = true
+                skipLocationPrompt = true
+                continue
+            }
+            if (
+                normalized === '--skip-location' ||
+                normalized === '--pular-localizacao'
+            ) {
+                location = undefined
+                useGlobalGeo = false
+                skipLocationPrompt = true
+                continue
+            }
+            if (normalized === '--no-pages' || normalized === '--sem-paginas' || normalized === '--unlimited-pages') {
+                maxPages = undefined
+                skipMaxPagesPrompt = true
+                continue
+            }
+            if (
+                normalized === '--no-applicants-limit' ||
+                normalized === '--sem-limite-candidaturas' ||
+                normalized === '--no-max-applicants'
+            ) {
+                maxApplicants = undefined
+                skipApplicantsPrompt = true
+                continue
+            }
+            if (normalized === '--auto' || normalized === '--auto-apply' || normalized === '--automatico') {
+                autoApply = true
+                continue
+            }
+            if (normalized === '--manual' || normalized === '--manual-apply') {
+                autoApply = false
+                continue
+            }
             if (normalized === '--loc' || normalized === '--location' || normalized === '--local' || normalized === '--localizacao') {
                 const collected = collectValue(i + 1)
-                location = collected.value
+                const parsedLocation = parseLocationAnswer(collected.value || null)
+                if (parsedLocation) {
+                    location = parsedLocation
+                    useGlobalGeo = false
+                } else if (collected.value && isNegative(collected.value)) {
+                    location = undefined
+                    useGlobalGeo = true
+                    skipLocationPrompt = true
+                }
                 i = collected.endIndex
                 continue
             }
             if (normalized === '--pages' || normalized === '--page' || normalized === '--paginas' || normalized === '--pagina' || normalized === '--max-pages') {
                 maxPages = parseArgNumber(parts[i + 1])
+                skipMaxPagesPrompt = true
                 i++
                 continue
             }
@@ -353,18 +429,28 @@ export class SearchJobsCommand {
             }
             if (normalized === '--max-applicants' || normalized === '--applicants' || normalized === '--max-candidaturas' || normalized === '--candidaturas') {
                 maxApplicants = parseArgNumber(parts[i + 1])
+                skipApplicantsPrompt = true
                 i++
                 continue
             }
 
             const inlineLocation = parseInline(raw, normalized, ['loc', 'location', 'local', 'localizacao'])
-            if (inlineLocation) {
-                location = inlineLocation
+            if (inlineLocation !== undefined) {
+                const parsedLocation = parseLocationAnswer(inlineLocation)
+                if (parsedLocation) {
+                    location = parsedLocation
+                    useGlobalGeo = false
+                } else if (isNegative(inlineLocation)) {
+                    location = undefined
+                    useGlobalGeo = true
+                    skipLocationPrompt = true
+                }
                 continue
             }
             const inlinePages = parseInline(raw, normalized, ['pages', 'page', 'paginas', 'pagina'])
             if (inlinePages) {
                 maxPages = parseArgNumber(inlinePages)
+                skipMaxPagesPrompt = true
                 continue
             }
             const inlineMax = parseInline(raw, normalized, ['max', 'limit', 'results', 'vagas'])
@@ -375,6 +461,34 @@ export class SearchJobsCommand {
             const inlineApplicants = parseInline(raw, normalized, ['applicants', 'candidaturas', 'candidatos'])
             if (inlineApplicants) {
                 maxApplicants = parseArgNumber(inlineApplicants)
+                skipApplicantsPrompt = true
+                continue
+            }
+            const inlinePromoted = parseInline(raw, normalized, ['promoted', 'promovidas'])
+            if (inlinePromoted) {
+                if (isNegative(inlinePromoted)) {
+                    onlyNonPromoted = true
+                } else if (isAffirmative(inlinePromoted)) {
+                    onlyNonPromoted = false
+                }
+                continue
+            }
+            const inlineEasyApply = parseInline(raw, normalized, ['easy', 'easyapply', 'easy-apply'])
+            if (inlineEasyApply) {
+                if (isNegative(inlineEasyApply)) {
+                    easyApplyOnly = false
+                } else if (isAffirmative(inlineEasyApply)) {
+                    easyApplyOnly = true
+                }
+                continue
+            }
+            const inlineAuto = parseInline(raw, normalized, ['auto', 'automatico'])
+            if (inlineAuto) {
+                if (isNegative(inlineAuto)) {
+                    autoApply = false
+                } else if (isAffirmative(inlineAuto)) {
+                    autoApply = true
+                }
                 continue
             }
 
@@ -394,7 +508,12 @@ export class SearchJobsCommand {
             maxResults,
             onlyNonPromoted,
             maxApplicants,
-            easyApplyOnly
+            easyApplyOnly,
+            useGlobalGeo,
+            skipLocationPrompt,
+            skipMaxPagesPrompt,
+            skipApplicantsPrompt,
+            autoApply
         }
     }
 
