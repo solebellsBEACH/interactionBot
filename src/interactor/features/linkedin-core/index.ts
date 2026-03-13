@@ -152,6 +152,71 @@ export class LinkedinCoreFeatures {
     }
   }
 
+  async logoutAndClearSession() {
+    await this.logout().catch(() => undefined)
+
+    try {
+      await this._page.context().clearCookies()
+    } catch {
+      // ignore
+    }
+
+    try {
+      await this._page.evaluate(async () => {
+        try {
+          localStorage.clear()
+        } catch {
+          // ignore
+        }
+
+        try {
+          sessionStorage.clear()
+        } catch {
+          // ignore
+        }
+
+        try {
+          if ('caches' in window) {
+            const keys = await caches.keys()
+            await Promise.all(keys.map((key) => caches.delete(key)))
+          }
+        } catch {
+          // ignore
+        }
+
+        try {
+          if ('indexedDB' in window && typeof indexedDB.databases === 'function') {
+            const databases = await indexedDB.databases()
+            await Promise.all(
+              databases
+                .map((item) => item.name)
+                .filter((name): name is string => Boolean(name))
+                .map((name) => new Promise<void>((resolve) => {
+                  const request = indexedDB.deleteDatabase(name)
+                  request.onsuccess = () => resolve()
+                  request.onerror = () => resolve()
+                  request.onblocked = () => resolve()
+                }))
+            )
+          }
+        } catch {
+          // ignore
+        }
+      })
+    } catch {
+      // ignore
+    }
+
+    for (const page of this._page.context().pages()) {
+      if (page === this._page) continue
+      await page.close().catch(() => undefined)
+    }
+
+    await this._page.goto(LINKEDIN_URLS.login, {
+      waitUntil: 'domcontentloaded'
+    }).catch(() => undefined)
+  }
+
   async goToLinkedinURL(linkedinUrl: string) {
     await this.auth()
     await this._page.goto(linkedinUrl, {

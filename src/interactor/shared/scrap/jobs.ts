@@ -16,7 +16,7 @@ export class LinkedinJobsScrap {
             this._page = page
     }
 
-    
+
         buildSearchJobUrl(
             tag: string,
             location?: string,
@@ -36,11 +36,11 @@ export class LinkedinJobsScrap {
                 workplaceTypes
             })
         }
-    
+
          async waitForJobResults(): Promise<boolean> {
             const resultsSelector = SCRAP_SELECTORS.jobResults.join(', ')
             const emptySelector = SCRAP_SELECTORS.jobResultsEmpty.join(', ')
-    
+
             try {
                 await this._page.waitForSelector(resultsSelector, { state: 'attached', timeout: 6_000 })
                 return true
@@ -50,7 +50,7 @@ export class LinkedinJobsScrap {
                 return false
             }
         }
-    
+
         async scrollResultsList() {
             const list = this._page.locator(SCRAP_SELECTORS.jobResultsList)
             if ((await list.count()) === 0) {
@@ -58,7 +58,7 @@ export class LinkedinJobsScrap {
                 await this._page.waitForTimeout(200)
                 return
             }
-    
+
             const container = list.first()
             let previousHeight = 0
             for (let i = 0; i < 5; i++) {
@@ -71,7 +71,7 @@ export class LinkedinJobsScrap {
                 await this._page.waitForTimeout(200)
             }
         }
-    
+
         async collectEasyApplyFromPage(includeDetails: boolean, easyApplyOnly: boolean): Promise<EasyApplyJobResult[]> {
             if (this._page.isClosed()) return []
             const cards = this._page.locator(SCRAP_SELECTORS.jobCard)
@@ -79,7 +79,7 @@ export class LinkedinJobsScrap {
             const results: EasyApplyJobResult[] = []
             const batchStart = Date.now()
             this._logTiming('cards:start', { total: count })
-    
+
             for (let i = 0; i < count; i++) {
                 const cardStart = Date.now()
                 this._logTiming('card:start', { index: i + 1, total: count })
@@ -218,10 +218,10 @@ export class LinkedinJobsScrap {
                 this._logTiming('card:done', { index: i + 1, ms: Date.now() - cardStart })
             }
             this._logTiming('cards:done', { total: results.length, ms: Date.now() - batchStart })
-    
+
             return results
         }
-    
+
         private _logTiming(action: string, data?: Record<string, unknown>) {
             if (!this._enableTimingLogs) return
             const now = new Date()
@@ -232,7 +232,7 @@ export class LinkedinJobsScrap {
             const payload = data ? ` | ${JSON.stringify(data)}` : ''
             logger.info(`[jobs ${timestamp}] ${action}${payload}`)
         }
-    
+
         private async _safeInnerText(locator: Locator) {
             try {
                 const target = locator.first()
@@ -481,7 +481,7 @@ export class LinkedinJobsScrap {
 
             return null
         }
-    
+
         filterResults(
             jobs: EasyApplyJobResult[],
             options: {
@@ -534,13 +534,13 @@ export class LinkedinJobsScrap {
             }
             return null
         }
-    
+
         private _hasPromotedLabel(text: string) {
             const normalized = normalizeTextAlphaNum(text)
             if (!normalized) return false
             return /(promoted|promovida|promovido|patrocinada|patrocinado|sponsored)/.test(normalized)
         }
-    
+
         private _hasEasyApplyLabel(text: string) {
             const normalized = normalizeTextAlphaNum(text)
             if (!normalized) return false
@@ -624,5 +624,5 @@ export class LinkedinJobsScrap {
             }
             return value
         }
-    
+
 }

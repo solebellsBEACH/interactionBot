@@ -60,7 +60,7 @@ export class LinkedinConnectFlow {
         }
         return results
     }
-    
+
     private async  _handleConnection(profileURL:string, inMailOptions?: { message: string }){
         await this._navigator.goToLinkedinURL(profileURL)
         await this._page.waitForTimeout(800)

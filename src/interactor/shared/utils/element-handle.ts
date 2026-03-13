@@ -25,7 +25,7 @@ export class ElementHandle {
             const element = this._page.getByRole(role, options);
             await element.allInnerTexts().then((texts) => logger.debug('element-handle texts', texts))
             await element.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT });
-            
+
             return this._runHandleActions(handle, element, contentText) || element
         } catch (error) {
             logger.error('element-handle error', {
@@ -44,7 +44,7 @@ export class ElementHandle {
         try {
             const element = this._page.locator(selector,  options);
             await element.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT });
-            
+
             return this._runHandleActions(handle, element, contentText) || element
         } catch (error) {
             logger.error('element-handle error', {
@@ -79,6 +79,18 @@ export class ElementHandle {
             } catch (error) {
                 // try next visible form if exists
                 if (i === count - 1) throw error
+            }
+        }
+
+        const containers = this._page.locator(EASY_APPLY_SELECTORS.content)
+        const containersCount = await containers.count()
+        for (let i = 0; i < containersCount; i++) {
+            const container = containers.nth(i)
+            try {
+                await container.waitFor({ state: 'visible', timeout: this.DEFAULT_TIMEOUT })
+                return this._getFormValues(container, prompt)
+            } catch (error) {
+                if (i === containersCount - 1) throw error
             }
         }
     }

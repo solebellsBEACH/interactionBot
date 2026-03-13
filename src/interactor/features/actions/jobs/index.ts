@@ -40,11 +40,11 @@ export class LinkedinJobsFlow {
     }
 
 
-    
+
     async searchJobTag(searchJobTag: string, options?: SearchJobTagOptions): Promise<EasyApplyJobResult[]> {
             const tag = searchJobTag.trim()
             if (!tag) return []
-    
+
             const maxPages = options?.maxPages ?? (options?.maxApplicants !== undefined ? 30 : 10)
             const maxResults = options?.maxResults ?? Number.POSITIVE_INFINITY
             const easyApplyOnly = options?.easyApplyOnly !== false
@@ -71,7 +71,7 @@ export class LinkedinJobsFlow {
                     workplaceTypes
                 )
                 await this._navigator.goToLinkedinURL(searchUrl)
-    
+
                 const ready = await this._linkedinJobsScrap.waitForJobResults()
                 let pageResults: EasyApplyJobResult[] = []
                 if (!ready) {
@@ -137,5 +137,5 @@ export class LinkedinJobsFlow {
 
             return Array.from(results.values())
         }
-    
+
 }

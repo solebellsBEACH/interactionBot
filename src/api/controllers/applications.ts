@@ -27,3 +27,12 @@ export async function updateApplication(id: string, updates: Partial<Application
 export async function deleteApplication(id: string) {
   await apiDelete(`/applications/${id}`);
 }
+
+export async function clearApplications() {
+  try {
+    const response = await apiDelete<{ deletedCount?: number }>("/applications?all=true");
+    return response?.deletedCount || 0;
+  } catch {
+    return 0;
+  }
+}

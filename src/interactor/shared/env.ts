@@ -43,12 +43,32 @@ const readBool = (key: string, fallback = false) => {
 }
 
 const readNumber = (key: string, fallback = 0) => {
-  const value = Number(readString(key))
+  const raw = process.env[key]
+  if (raw === undefined || raw === null) return fallback
+  const trimmed = raw.trim()
+  if (!trimmed) return fallback
+  const value = Number(trimmed)
   return Number.isNaN(value) ? fallback : value
 }
 
 export const env = {
   userDataDir: readString('USER_DATA_DIR', DEFAULTS.userDataDir),
+  admin: {
+    enabled: readBool('ADMIN_ENABLED', true),
+    host: readString('ADMIN_HOST', '127.0.0.1'),
+    port: readNumber('ADMIN_PORT', 5050),
+  },
+  discord: {
+    enabled: readBool('DISCORD_ENABLED'),
+    webhookUrl: readString('DISCORD_WEBHOOK_URL'),
+    botToken: readString('DISCORD_BOT_TOKEN'),
+    channelId: readString('DISCORD_CHANNEL_ID'),
+    requestTimeoutMs: readNumber('DISCORD_TIMEOUT_MS', 120_000),
+    interactive: readBool('DISCORD_INTERACTIVE'),
+    consoleOnly: readBool('DISCORD_CONSOLE_ONLY'),
+    commandPrefix: readString('DISCORD_COMMAND_PREFIX', '!'),
+    commandsEnabled: readBool('DISCORD_COMMANDS_ENABLED', true),
+  },
   linkedinAuth: {
     email: readString('LINKEDIN_EMAIL'),
     password: readString('LINKEDIN_PASSWORD'),
