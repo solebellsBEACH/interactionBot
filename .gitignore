@@ -25,3 +25,4 @@ blob-report/
 .whatsapp-auth/
 data/user-profile.json
 .yarn/
+test-logs/

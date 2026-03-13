@@ -4,13 +4,13 @@ import {
     GptInteractionSource,
     saveGptInteraction,
 } from "../../../api/controllers/gpt-interactions";
-import {
+import type { FormPromptField } from "../interface/forms/form.types";
+import type {
     UserProfile,
     UserProfileCompensation,
     UserProfileLinkedinSnapshot,
     UserProfileStackExperience
-} from "../user-profile";
-import { FormPromptField } from "../utils/element-handle";
+} from "../interface/user/user-profile.types";
 
 export type GptConfig = {
     enabled?: boolean
@@ -195,7 +195,6 @@ export class GptClient {
             return null
         }
     }
-
     async reviewLinkedinProfile(
         profile: UserProfileLinkedinSnapshot,
         compensation?: UserProfileCompensation,

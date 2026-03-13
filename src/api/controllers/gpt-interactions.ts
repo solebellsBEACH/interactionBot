@@ -1,10 +1,9 @@
-import { WithId } from "mongodb";
-
-import { connectToDatabase, getCollection } from "../database";
+import { apiDelete, apiGet, apiPost } from "../api-client";
 
 export type GptInteractionSource = "responses" | "chat.completions";
 
 export type GptInteraction = {
+  _id?: string;
   fieldType: "input" | "select";
   fieldKey?: string;
   fieldLabel?: string | null;
@@ -19,37 +18,26 @@ export type GptInteraction = {
   createdAt: Date;
 };
 
-const COLLECTION = "gpt-interactions";
-
 export async function saveGptInteraction(
-  payload: Omit<GptInteraction, "createdAt">
-): Promise<WithId<GptInteraction>> {
-  await connectToDatabase();
-  const collection = await getCollection<GptInteraction>(COLLECTION);
-
-  const doc: GptInteraction = {
-    ...payload,
-    createdAt: new Date(),
-  };
-
-  const { insertedId } = await collection.insertOne(doc);
-  return {
-    ...doc,
-    _id: insertedId,
-  };
+  payload: Omit<GptInteraction, "_id" | "createdAt">
+): Promise<GptInteraction> {
+  return apiPost<GptInteraction>("/gpt-interactions", payload);
 }
 
-export async function listGptInteractions(limit = 50): Promise<WithId<GptInteraction>[]> {
-  await connectToDatabase();
-  const collection = await getCollection<GptInteraction>(COLLECTION);
+export async function listGptInteractions(limit = 50): Promise<GptInteraction[]> {
   const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 200);
-
-  return collection.find({}).sort({ createdAt: -1 }).limit(safeLimit).toArray();
+  try {
+    return await apiGet<GptInteraction[]>(`/gpt-interactions?limit=${safeLimit}`);
+  } catch {
+    return [];
+  }
 }
 
 export async function clearGptInteractions(): Promise<number> {
-  await connectToDatabase();
-  const collection = await getCollection<GptInteraction>(COLLECTION);
-  const result = await collection.deleteMany({});
-  return result.deletedCount || 0;
+  try {
+    const response = await apiDelete<{ deletedCount?: number }>("/gpt-interactions?all=true");
+    return response?.deletedCount || 0;
+  } catch {
+    return 0;
+  }
 }

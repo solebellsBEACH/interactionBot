@@ -1,5 +1,27 @@
-import type { LinkedinCommandActions, UpvoteOptions } from "../interactor/features/actions/commands/types";
-import type { SearchJobTagOptions } from "../interactor/features/actions/scrap/scraps";
+import type { EasyApplyStepValues } from "../interactor/shared/interface/easy-apply/step-values.types";
+import type { EasyApplyJobResult, SearchJobTagOptions } from "../interactor/shared/interface/scrap/jobs.types";
+import type { UserProfile } from "../interactor/shared/interface/user/user-profile.types";
+
+type UpvoteOptions = {
+  maxLikes?: number
+  tag?: string
+}
+
+type LinkedinCommandActions = {
+  easyApply: (jobUrl?: string) => Promise<EasyApplyStepValues[]>
+  searchJobTag: (searchJobTag: string, options?: SearchJobTagOptions) => Promise<EasyApplyJobResult[]>
+  sendConnection: (profileUrl: string, inMailOptions?: { message: string }) => Promise<void>
+  upvoteOnPosts: (options?: UpvoteOptions) => Promise<string[]>
+  reviewOwnProfile?: () => Promise<UserProfile>
+  resetSession?: () => Promise<{
+    cleared: {
+      applications: number
+      easyApplyResponses: number
+      fieldAnswers: number
+      gptInteractions: number
+    }
+  }>
+}
 
 export type AdminProcessType =
   | "easy-apply"

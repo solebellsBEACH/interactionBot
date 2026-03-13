@@ -58,12 +58,8 @@ export const env = {
     host: readString('ADMIN_HOST', '127.0.0.1'),
     port: readNumber('ADMIN_PORT', 5050),
   },
-  linkedinAuth: {
-    email: readString('LINKEDIN_EMAIL'),
-    password: readString('LINKEDIN_PASSWORD'),
-  },
   discord: {
-    enabled: readBool('DISCORD_ENABLED') || Boolean(readString('DISCORD_WEBHOOK_URL')),
+    enabled: readBool('DISCORD_ENABLED'),
     webhookUrl: readString('DISCORD_WEBHOOK_URL'),
     botToken: readString('DISCORD_BOT_TOKEN'),
     channelId: readString('DISCORD_CHANNEL_ID'),
@@ -72,6 +68,10 @@ export const env = {
     consoleOnly: readBool('DISCORD_CONSOLE_ONLY'),
     commandPrefix: readString('DISCORD_COMMAND_PREFIX', '!'),
     commandsEnabled: readBool('DISCORD_COMMANDS_ENABLED', true),
+  },
+  linkedinAuth: {
+    email: readString('LINKEDIN_EMAIL'),
+    password: readString('LINKEDIN_PASSWORD'),
   },
   gpt: {
     enabled: readBool('GPT_ENABLED') || Boolean(readString('OPENAI_API_KEY')),
@@ -84,6 +84,10 @@ export const env = {
   },
   easyApply: {
     isStandalone: readBool('EASY_APPLY_STANDALONE'),
+    promptTimeoutMs: readNumber('EASY_APPLY_PROMPT_TIMEOUT_MS', 120_000),
+  },
+  api: {
+    baseUrl: readString('API_BASE_URL', 'http://localhost:3001'),
   },
   linkedinURLs: {
     postUrl: readString('LINKEDIN_POST_URL', DEFAULTS.linkedin.postUrl),

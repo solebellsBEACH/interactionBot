@@ -1,10 +1,9 @@
-import { ObjectId } from "mongodb";
-import { getCollection } from "../database";
+import { apiDelete, apiGet, apiPatch, apiPost } from "../api-client";
 
 export type ApplicationStatus = "applied" | "interview" | "offer" | "rejected";
 
 export type Application = {
-  _id?: ObjectId;
+  _id?: string;
   title: string;
   company: string;
   status: ApplicationStatus;
@@ -13,45 +12,27 @@ export type Application = {
   notes?: string;
 };
 
-const COLLECTION = "applications";
-
 export async function createApplication(payload: Omit<Application, "_id">) {
-  const collection = await getCollection<Application>(COLLECTION);
-  const item = {
-    ...payload,
-    appliedAt: payload.appliedAt ?? new Date(),
-  };
-
-  const { insertedId } = await collection.insertOne(item);
-  return { ...item, _id: insertedId };
+  return apiPost<Application>('/applications', payload);
 }
 
 export async function listApplications() {
-  const collection = await getCollection<Application>(COLLECTION);
-  return collection.find({}).sort({ appliedAt: -1 }).toArray();
+  return apiGet<Application[]>('/applications');
 }
 
 export async function updateApplication(id: string, updates: Partial<Application>) {
-  const collection = await getCollection<Application>(COLLECTION);
-  const _id = new ObjectId(id);
-
-  const result = await collection.findOneAndUpdate(
-    { _id },
-    { $set: { ...updates, updatedAt: new Date() } },
-    { returnDocument: "after" }
-  );
-
-  return result ?? null;
+  return apiPatch<Application | null>(`/applications/${id}`, updates);
 }
 
 export async function deleteApplication(id: string) {
-  const collection = await getCollection<Application>(COLLECTION);
-  const _id = new ObjectId(id);
-  await collection.deleteOne({ _id });
+  await apiDelete(`/applications/${id}`);
 }
 
 export async function clearApplications() {
-  const collection = await getCollection<Application>(COLLECTION);
-  const result = await collection.deleteMany({});
-  return result.deletedCount || 0;
+  try {
+    const response = await apiDelete<{ deletedCount?: number }>("/applications?all=true");
+    return response?.deletedCount || 0;
+  } catch {
+    return 0;
+  }
 }

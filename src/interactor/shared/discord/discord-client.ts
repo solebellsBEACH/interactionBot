@@ -1,5 +1,4 @@
 import { ChannelType, Client, GatewayIntentBits, Message, PartialGroupDMChannel, TextBasedChannel } from "discord.js";
-import readline from "readline";
 
 export type DiscordConfig = {
     enabled: boolean
@@ -14,22 +13,28 @@ export type DiscordConfig = {
 }
 
 type PromptChannel = Exclude<TextBasedChannel, PartialGroupDMChannel>;
+
 export enum CommandName {
-    Help = 'help',
-    EasyApply = 'easy-apply',
-    CatchJobs = 'catch-jobs',
-    SearchJobs = 'search-jobs',
-    Connect = 'connect',
-    UpvotePosts = 'upvote-posts',
-    Unknown = 'unknown'
+    Help = "help",
+    EasyApply = "easy-apply",
+    CatchJobs = "catch-jobs",
+    SearchJobs = "search-jobs",
+    Connect = "connect",
+    UpvotePosts = "upvote-posts",
+    ReviewProfile = "review-profile",
+    ResetSession = "reset-session",
+    Unknown = "unknown"
 }
 
 export type Command = {
     name: CommandName
     args: string[]
 }
+
 export type CommandHandler = (command: Command) => Promise<void>
+
 type CommandHandlers = Partial<Record<CommandName, CommandHandler>>
+
 type PendingPrompt = {
     resolve: (value: string | null) => void
     timeoutId: NodeJS.Timeout
@@ -46,14 +51,16 @@ export class DiscordClient {
     private _commandHandlers: CommandHandlers = {}
     private _commandQueue = Promise.resolve()
 
-    constructor(private readonly _config: DiscordConfig) { }
+    constructor(private readonly _config: DiscordConfig) {}
 
     async init(): Promise<void> {
         if (!this._config.enabled && !this._config.interactive) return
         if (this._config.consoleOnly) return
+
         if (this._config.enabled && !this._config.webhookUrl) {
             console.warn("Discord enabled but DISCORD_WEBHOOK_URL is missing.")
         }
+
         if (!this._config.interactive) return
         if (!this._config.botToken) {
             console.warn("Discord interactive enabled but DISCORD_BOT_TOKEN is missing.")
@@ -63,6 +70,7 @@ export class DiscordClient {
             console.warn("Discord interactive enabled but DISCORD_CHANNEL_ID is missing.")
             return
         }
+
         try {
             await this._initBot()
             this._bindMessageListener()
@@ -83,6 +91,7 @@ export class DiscordClient {
             }
             return
         }
+
         await this.log(message)
     }
 
@@ -104,6 +113,7 @@ export class DiscordClient {
 
     async ask(prompt: string, timeoutMs?: number): Promise<string | null> {
         if (!this._config.interactive) return null
+
         const effectiveTimeout = timeoutMs ?? this._config.requestTimeoutMs
         if (!this._canUseDiscordPrompt()) return null
         return this._promptDiscord(prompt, effectiveTimeout)
@@ -124,8 +134,8 @@ export class DiscordClient {
             if (next.length > this._maxContentLength) {
                 if (current) chunks.push(current)
                 if (line.length > this._maxContentLength) {
-                    for (let i = 0; i < line.length; i += this._maxContentLength) {
-                        chunks.push(line.slice(i, i + this._maxContentLength))
+                    for (let index = 0; index < line.length; index += this._maxContentLength) {
+                        chunks.push(line.slice(index, index + this._maxContentLength))
                     }
                     current = ""
                 } else {
@@ -145,6 +155,7 @@ export class DiscordClient {
 
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), this._config.requestTimeoutMs)
+
         try {
             const response = await fetch(this._config.webhookUrl, {
                 method: "POST",
@@ -154,6 +165,7 @@ export class DiscordClient {
                 body: JSON.stringify({ content }),
                 signal: controller.signal
             })
+
             if (!response.ok) {
                 console.warn("Discord webhook failed.", response.status, response.statusText)
             }
@@ -166,6 +178,7 @@ export class DiscordClient {
 
     private async _promptDiscord(prompt: string, timeoutMs: number): Promise<string | null> {
         if (!this._config.botToken || !this._config.channelId) return null
+
         try {
             await this._initBot()
             this._bindMessageListener()
@@ -179,14 +192,17 @@ export class DiscordClient {
         if (!sent) {
             this._resolvePending(pending, null)
         }
+
         return promise
     }
 
     private _bindMessageListener() {
         if (!this._botClient || this._listenerAttached) return
-        this._botClient.on('messageCreate', (message) => {
+
+        this._botClient.on("messageCreate", (message) => {
             void this._handleMessage(message)
         })
+
         this._listenerAttached = true
     }
 
@@ -196,10 +212,9 @@ export class DiscordClient {
 
         const content = message.content.trim()
         if (!content) return
-        console.log(content)
+
         if (this._commandsEnabled()) {
             const command = this._parseCommand(content)
-            console.log(command)
             if (command) {
                 await this._handleCommand(command)
                 return
@@ -225,12 +240,13 @@ export class DiscordClient {
 
     private _commandPrefix() {
         const prefix = this._config.commandPrefix?.trim()
-        return prefix ? prefix : '!'
+        return prefix ? prefix : "!"
     }
 
     private _parseCommand(content: string): Command | null {
         const prefix = this._commandPrefix()
         if (!content.startsWith(prefix)) return null
+
         const parts = content.slice(prefix.length).trim().split(/\s+/).filter(Boolean)
         if (parts.length === 0) {
             return { name: CommandName.Help, args: [] }
@@ -256,6 +272,7 @@ export class DiscordClient {
             await this._sendHelpMessage()
             return
         }
+
         if (command.name === CommandName.Unknown) {
             await this._sendUnknownCommand()
             return
@@ -272,19 +289,21 @@ export class DiscordClient {
 
     private _buildHelpMessage(prefix: string) {
         return [
-            'Comandos disponiveis:',
+            "Comandos disponiveis:",
             `${prefix}help - mostra esta mensagem`,
             `${prefix}easy-apply [tag] [max] --loc <local> --pages <n> - busca vagas e aplica`,
-            `${prefix}easy-apply react --max 10 --no-location --no-pages --promoted --no-applicants-limit --easy-apply-only --auto`,
             `${prefix}search-jobs [tag] [max] --loc <local> --pages <n> - busca vagas com filtros`,
             `${prefix}connect <profileUrl> [mensagem] - envia convite`,
-            `${prefix}upvote-posts - curte posts (pede quantidade e tag)`,
-            'Se houver pergunta pendente, responda sem prefixo.'
-        ].join('\n')
+            `${prefix}upvote-posts - curte posts por tema`,
+            `${prefix}review-profile - analisa e salva o seu perfil`,
+            `${prefix}reset-session - desloga e limpa os dados locais`,
+            "Se houver pergunta pendente, responda sem prefixo."
+        ].join("\n")
     }
 
     private async _sendHelpMessage() {
         if (!this._commandsEnabled()) return
+
         const prefix = this._commandPrefix()
         await this.sendMessage(this._buildHelpMessage(prefix))
     }
@@ -299,9 +318,10 @@ export class DiscordClient {
         this._commandQueue = this._commandQueue
             .then(() => handler(command))
             .catch((error) => {
-                console.error('Discord command failed', error)
-                return this.sendMessage('Falha ao executar o comando.')
+                console.error("Discord command failed", error)
+                return this.sendMessage("Falha ao executar o comando.")
             })
+
         return this._commandQueue
     }
 
@@ -311,7 +331,8 @@ export class DiscordClient {
 
     private async _sendStartupMessage() {
         if (this._startupNotified) return
-        await this.sendMessage('Bot iniciado')
+
+        await this.sendMessage("Bot iniciado")
         this._startupNotified = true
     }
 
@@ -321,6 +342,7 @@ export class DiscordClient {
             console.warn("Discord channel not found or not text-based.")
             return false
         }
+
         try {
             await channel.send(content)
             return true
@@ -337,9 +359,11 @@ export class DiscordClient {
             resolved: false,
             timeoutId: setTimeout(() => this._resolvePending(pending, null), timeoutMs)
         }
+
         const promise = new Promise<string | null>((resolve) => {
             resolveFn = resolve
         })
+
         this._pendingPrompts.push(pending)
         return { pending, promise }
     }
@@ -352,12 +376,15 @@ export class DiscordClient {
 
     private _resolvePending(pending: PendingPrompt, value: string | null) {
         if (pending.resolved) return
+
         pending.resolved = true
         clearTimeout(pending.timeoutId)
+
         const index = this._pendingPrompts.indexOf(pending)
         if (index >= 0) {
             this._pendingPrompts.splice(index, 1)
         }
+
         pending.resolve(value)
     }
 
@@ -386,32 +413,11 @@ export class DiscordClient {
 
     private async _getPromptChannel(): Promise<PromptChannel | null> {
         if (!this._botClient || !this._config.channelId) return null
+
         const channel = await this._botClient.channels.fetch(this._config.channelId).catch(() => null)
         if (!channel || !channel.isTextBased()) return null
         if (channel.type === ChannelType.GroupDM) return null
+
         return channel as PromptChannel
-    }
-
-    private async _promptCli(prompt: string, timeoutMs: number): Promise<string | null> {
-        if (!process.stdin.isTTY) return null
-        const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-        })
-
-        const question = () =>
-            new Promise<string>((resolve) => {
-                rl.question(`${prompt}\n> `, (answer) => resolve(answer))
-            })
-
-        const timeout = new Promise<null>((resolve) => {
-            setTimeout(() => resolve(null), timeoutMs)
-        })
-
-        const result = await Promise.race([question(), timeout])
-        rl.close()
-        if (!result) return null
-        const trimmed = result.trim()
-        return trimmed ? trimmed : null
     }
 }

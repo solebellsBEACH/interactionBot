@@ -1,6 +1,6 @@
-import type { EasyApplyStepValues } from "../easy-apply/easy-apply-flow";
-import type { EasyApplyJobResult, SearchJobTagOptions } from "../scrap/scraps";
-import type { UserProfile } from "../../../shared/user-profile";
+import type { EasyApplyStepValues } from "../../../shared/interface/easy-apply/step-values.types";
+import type { EasyApplyJobResult, SearchJobTagOptions } from "../../../shared/interface/scrap/jobs.types";
+import type { UserProfile } from "../../../shared/interface/user/user-profile.types";
 
 export type UpvoteOptions = {
     maxLikes?: number

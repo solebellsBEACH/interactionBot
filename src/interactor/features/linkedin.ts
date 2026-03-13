@@ -1,84 +1,72 @@
 import { Page } from "playwright";
 
 import type { AdminPromptBroker } from "../../admin/prompt-broker";
-import { LinkedinCoreFeatures } from "./linkedin-core";
-import { ElementHandle } from "../shared/utils/element-handle";
-import { DiscordClient } from "../shared/discord/discord-client";
-import { env } from "../shared/env";
-
-import { EasyApplyFlow, EasyApplyStepValues } from "./actions/easy-apply/easy-apply-flow";
-import { EasyApplyJobResult, ScrapFeatures, SearchJobTagOptions } from "./actions/scrap/scraps";
-import { LinkedinJobsFlow } from "./actions/scrap/jobs-flow";
-import { LinkedinConnectFlow } from "./actions/connect/connect-flow";
-import { LinkedinProfileReviewFlow } from "./actions/profile/profile-review-flow";
-import { LinkedinUpvotePostsFlow } from "./actions/upvote-posts/upvote-posts-flow";
-import { LinkedinDiscordCommands } from "./actions/commands/discord-commands";
-import { resetUserProfile, UserProfile } from "../shared/user-profile";
 import { clearApplications } from "../../api/controllers/applications";
 import { clearEasyApplyResponses } from "../../api/controllers/easy-apply-responses";
 import { clearFieldAnswers } from "../../api/controllers/field-answers";
 import { clearGptInteractions } from "../../api/controllers/gpt-interactions";
+import type { DiscordClient } from "../shared/discord/discord-client";
+import type { EasyApplyStepValues } from "../shared/interface/easy-apply/step-values.types";
+import type { EasyApplyJobResult, SearchJobTagOptions } from "../shared/interface/scrap/jobs.types";
+import type { VisitConnectionsOptions } from "../shared/interface/scrap/network.types";
+import type { UserProfile } from "../shared/interface/user/user-profile.types";
+import { ElementHandle } from "../shared/utils/element-handle";
+import { env } from "../shared/env";
+import { resetUserProfile } from "../shared/user-profile";
+import { LinkedinDiscordCommands } from "./actions/commands/discord-commands";
+import { LinkedinConnectFlow } from "./actions/connect/connect-flow";
+import { DashboardFlow } from "./actions/dashboard/dashboard-flow";
+import { EasyApplyFlow } from "./actions/easy-apply/easy-apply-flow";
+import { LinkedinJobsFlow } from "./actions/jobs";
+import { LinkedinProfileReviewFlow } from "./actions/profile/profile-review-flow";
+import { LinkedinUpvotePostsFlow } from "./actions/upvote-posts/upvote-posts-flow";
+import { LinkedinCoreFeatures } from "./linkedin-core";
+import { MyNetworkScrap } from "../shared/scrap/my-network";
 
 type UpvoteOptions = {
     maxLikes?: number
     tag?: string
 }
 
-type LinkedinFeaturesOptions = {
-    discord?: DiscordClient
-    adminPromptBroker?: AdminPromptBroker
-}
-
 export class LinkedinFeatures {
+    private readonly _linkedinCoreFeatures: LinkedinCoreFeatures
+    private readonly _easyApplyFlow: EasyApplyFlow
+    private readonly _jobFlow: LinkedinJobsFlow
+    private readonly _connectFlow: LinkedinConnectFlow
+    private readonly _profileReviewFlow: LinkedinProfileReviewFlow
+    private readonly _upvoteFlow: LinkedinUpvotePostsFlow
+    private readonly _dashboardFlow: DashboardFlow
+    private readonly _networkScrap: MyNetworkScrap
 
-    private _elementHandle: ElementHandle
-    private _linkedinCoreFeatures: LinkedinCoreFeatures
-    private _easyApplyFlow: EasyApplyFlow
-    private _scrapFeatures: ScrapFeatures
-    private _jobsFlow: LinkedinJobsFlow
-    private _connectFlow: LinkedinConnectFlow
-    private _profileReviewFlow: LinkedinProfileReviewFlow
-    private _upvoteFlow: LinkedinUpvotePostsFlow
-    private _discord?: DiscordClient
-    private _commands: LinkedinDiscordCommands
+    constructor(page: Page, options?: { adminPromptBroker?: AdminPromptBroker; discord?: DiscordClient }) {
+        const elementHandle = new ElementHandle(page)
 
-    constructor(page: Page, options?: LinkedinFeaturesOptions) {
-        const discord = options?.discord
-        this._elementHandle = new ElementHandle(page)
         this._linkedinCoreFeatures = new LinkedinCoreFeatures(page)
-        this._scrapFeatures = new ScrapFeatures(page, this._linkedinCoreFeatures)
+        this._jobFlow = new LinkedinJobsFlow(page, this._linkedinCoreFeatures)
         this._easyApplyFlow = new EasyApplyFlow(
             page,
-            this._elementHandle,
+            elementHandle,
             this._linkedinCoreFeatures,
-            discord,
+            options?.discord,
             options?.adminPromptBroker
         )
-        this._jobsFlow = new LinkedinJobsFlow(this._scrapFeatures, discord)
-        this._connectFlow = new LinkedinConnectFlow(this._elementHandle, this._linkedinCoreFeatures)
+        this._connectFlow = new LinkedinConnectFlow(page, elementHandle, this._linkedinCoreFeatures)
         this._profileReviewFlow = new LinkedinProfileReviewFlow(page, this._linkedinCoreFeatures)
         this._upvoteFlow = new LinkedinUpvotePostsFlow(page, this._linkedinCoreFeatures)
-        this._discord = discord
-        this._commands = new LinkedinDiscordCommands({
-            easyApply: this.easyApply.bind(this),
-            searchJobTag: this.searchJobTag.bind(this),
-            sendConnection: this.sendConnection.bind(this),
-            upvoteOnPosts: this.upvoteOnPosts.bind(this)
-        })
-    }
-
-    registerDiscordCommands(discord?: DiscordClient) {
-        const client = discord || this._discord
-        if (!client) return
-        this._commands.register(client)
+        this._dashboardFlow = new DashboardFlow(page, this._linkedinCoreFeatures)
+        this._networkScrap = new MyNetworkScrap(page, this._linkedinCoreFeatures)
     }
 
     async catchJobs(searchJobTag?: string, options?: SearchJobTagOptions): Promise<EasyApplyJobResult[]> {
-        return this._jobsFlow.catchJobs(searchJobTag, options)
+        return this._jobFlow.catchJobs(searchJobTag, options)
     }
 
     async sendConnection(profileURL: string, inMailOptions?: { message: string }) {
         return this._connectFlow.sendConnection(profileURL, inMailOptions)
+    }
+
+    async connectByKeyword(keyword: string, options?: { maxResults?: number; maxPages?: number }) {
+        return this._connectFlow.searchConnectionsByKeyword(keyword, options)
     }
 
     async reviewOwnProfile(): Promise<UserProfile> {
@@ -107,16 +95,64 @@ export class LinkedinFeatures {
         }
     }
 
+    registerDiscordCommands(discord: DiscordClient) {
+        const commands = new LinkedinDiscordCommands({
+            easyApply: this.easyApply.bind(this),
+            searchJobTag: this.searchJobTag.bind(this),
+            sendConnection: this.sendConnection.bind(this),
+            upvoteOnPosts: this.upvoteOnPosts.bind(this),
+            reviewOwnProfile: this.reviewOwnProfile.bind(this),
+            resetSession: this.resetSession.bind(this)
+        })
+
+        commands.register(discord)
+    }
+
     async easyApply(jobURL?: string): Promise<EasyApplyStepValues[]> {
         return this._easyApplyFlow.execute(jobURL || env.linkedinURLs.jobURL)
     }
 
     async searchJobTag(searchJobTag: string, options?: SearchJobTagOptions): Promise<EasyApplyJobResult[]> {
-        return this._scrapFeatures.searchJobTag(searchJobTag, options)
+        return this._jobFlow.searchJobTag(searchJobTag, options)
     }
 
     async upvoteOnPosts(options?: UpvoteOptions): Promise<string[]> {
         return this._upvoteFlow.upvoteOnPosts(options)
     }
 
+    async dashboard(profileUrl?: string) {
+        return this._dashboardFlow.main(profileUrl)
+    }
+
+    async dashboardProfile(profileUrl?: string) {
+        return this._dashboardFlow.profileOnly(profileUrl)
+    }
+
+    async dashboardNetwork() {
+        return this._dashboardFlow.networkOnly()
+    }
+
+    async visitConnections(options?: VisitConnectionsOptions) {
+        return this._networkScrap.visitConnectionProfiles(options)
+    }
+
+    async accountSummary() {
+        return this._linkedinCoreFeatures.getOwnProfileSummary()
+    }
+
+    async ensureSession() {
+        return this._linkedinCoreFeatures.auth()
+    }
+
+    async login() {
+        return this._linkedinCoreFeatures.login()
+    }
+
+    async relogin() {
+        return this._linkedinCoreFeatures.relogin()
+    }
+
+    async logout() {
+        return this._linkedinCoreFeatures.logout()
+    }
 }
