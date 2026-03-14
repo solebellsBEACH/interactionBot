@@ -401,6 +401,94 @@
         font-size: 0.78rem;
       }
 
+      .code-block--compact {
+        min-height: 120px;
+        max-height: 180px;
+      }
+
+      .compact-answer {
+        max-height: 120px;
+        overflow: auto;
+      }
+
+      .preview-launcher {
+        display: grid;
+        gap: 10px;
+        width: 100%;
+        border: 1px solid #dccfb8;
+        background:
+          linear-gradient(180deg, rgba(255, 249, 238, 0.98), rgba(255, 244, 228, 0.94)),
+          #fffaf1;
+        color: var(--ink);
+        padding: 12px;
+        text-align: left;
+      }
+
+      .preview-launcher:hover {
+        border-color: #c7b188;
+        box-shadow: 0 10px 24px rgba(70, 44, 8, 0.08);
+      }
+
+      .preview-note {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.72rem;
+        color: #6d5d45;
+      }
+
+      .preview-stack-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .preview-stack-item {
+        display: grid;
+        gap: 3px;
+        border: 1px solid #e7dac4;
+        border-radius: 12px;
+        background: rgba(255, 253, 249, 0.96);
+        padding: 10px;
+      }
+
+      .preview-stack-item strong {
+        font-size: 0.92rem;
+      }
+
+      .preview-stack-meta {
+        font-size: 0.8rem;
+        color: #6d5d45;
+      }
+
+      .preview-empty {
+        color: #6d5d45;
+        font-size: 0.86rem;
+      }
+
+      .overlay-content {
+        display: grid;
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .overlay-pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.8rem;
+      }
+
+      .overlay-table-wrap {
+        overflow: auto;
+        border: 1px solid #e3d7c1;
+        border-radius: 14px;
+        background: #fffdf9;
+      }
+
+      .overlay-table {
+        width: 100%;
+        min-width: 620px;
+      }
+
       @media (max-width: 720px) {
         .row {
           grid-template-columns: 1fr;
@@ -487,27 +575,6 @@
         </article>
 
         <article class="card">
-          <h2>Conectar Perfil</h2>
-          <form id="connect-form" class="stack">
-            <div>
-              <label for="connect-url">URL do perfil</label>
-              <input
-                id="connect-url"
-                name="profileUrl"
-                placeholder="https://www.linkedin.com/in/..."
-                required
-              />
-            </div>
-            <div>
-              <label for="connect-message">Mensagem (opcional)</label>
-              <textarea id="connect-message" name="message"></textarea>
-            </div>
-            <button type="submit">Enviar Convite</button>
-            <p class="status" id="connect-status"></p>
-          </form>
-        </article>
-
-        <article class="card">
           <h2>Meu Perfil</h2>
           <form id="profile-form" class="stack">
             <p class="helper">
@@ -556,18 +623,37 @@
         </article>
 
         <article class="card">
-          <h2>Upvote Posts</h2>
-          <form id="upvote-form" class="stack">
+          <h2>Vagas Aplicadas</h2>
+          <form id="applied-jobs-form" class="stack">
+            <p class="helper">
+              Varre <code>/my-items/saved-jobs?cardType=APPLIED</code>, percorre a paginação até
+              sair da janela escolhida e conta as vagas aplicadas no período.
+            </p>
             <div>
-              <label for="upvote-tag">Tag/Tema</label>
-              <input id="upvote-tag" name="tag" placeholder="react" required />
+              <label for="applied-jobs-period-preset">Período</label>
+              <select id="applied-jobs-period-preset" name="periodPreset">
+                <option value="week">1 semana</option>
+                <option value="month" selected>1 mês</option>
+                <option value="quarter">3 meses</option>
+                <option value="custom">Custom</option>
+              </select>
             </div>
-            <div>
-              <label for="upvote-max">Quantidade</label>
-              <input id="upvote-max" name="maxLikes" type="number" min="1" value="5" />
+            <div id="applied-jobs-custom-wrap" hidden>
+              <label for="applied-jobs-custom-days">Custom (dias)</label>
+              <input
+                id="applied-jobs-custom-days"
+                name="customDays"
+                type="number"
+                min="1"
+                placeholder="45"
+              />
             </div>
-            <button class="secondary" type="submit">Iniciar Upvote</button>
-            <p class="status" id="upvote-status"></p>
+            <button id="applied-jobs-submit" class="secondary" type="submit">
+              Varrer vagas aplicadas
+            </button>
+            <div id="applied-jobs-meta" class="meta">Nenhuma varredura executada.</div>
+            <pre id="applied-jobs-output" class="code-block code-block--compact">Sem dados.</pre>
+            <p class="status" id="applied-jobs-status"></p>
           </form>
         </article>
       </section>
@@ -683,22 +769,12 @@
               Atualizar
             </button>
           </div>
-          <div class="table-wrap" style="margin-top: 10px">
-            <table>
-              <thead>
-                <tr>
-                  <th>Stack</th>
-                  <th>Primeira aparição</th>
-                  <th>Tempo</th>
-                </tr>
-              </thead>
-              <tbody id="profile-stack-table-body">
-                <tr>
-                  <td colspan="3" class="muted">Nenhuma stack calculada.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          <button id="profile-stack-preview-card" class="preview-launcher" type="button">
+            <div class="preview-note">Preview compacto. Clique para expandir.</div>
+            <div id="profile-stack-preview" class="preview-stack-list">
+              <div class="preview-empty">Nenhuma stack calculada.</div>
+            </div>
+          </button>
         </article>
 
         <article class="card">
@@ -706,12 +782,12 @@
           <div class="stack">
             <div>
               <label>Resumo usado pelo GPT</label>
-              <div id="profile-summary" class="modal-answer">Sem resumo salvo.</div>
+              <div id="profile-summary" class="modal-answer compact-answer">Sem resumo salvo.</div>
             </div>
-            <div>
-              <label>Review</label>
-              <pre id="profile-review-json" class="code-block">Sem review salvo.</pre>
-            </div>
+            <button id="profile-review-preview-card" class="preview-launcher" type="button">
+              <div class="preview-note">Preview compacto. Clique para expandir.</div>
+              <pre id="profile-review-json" class="code-block code-block--compact">Sem review salvo.</pre>
+            </button>
           </div>
         </article>
       </section>
@@ -793,6 +869,21 @@
       </div>
     </div>
 
+    <div id="content-preview-overlay" class="modal-overlay" hidden>
+      <div class="modal-card">
+        <div class="toolbar">
+          <div>
+            <h2 id="content-preview-title">Detalhes</h2>
+            <div id="content-preview-meta" class="meta"></div>
+          </div>
+          <button id="content-preview-close" class="secondary" type="button" style="width: auto; padding: 8px 10px">
+            Fechar
+          </button>
+        </div>
+        <div id="content-preview-body" class="overlay-content"></div>
+      </div>
+    </div>
+
     <script>
       const runningPill = document.getElementById("running-pill");
       const processRunning = document.getElementById("process-running");
@@ -824,13 +915,26 @@
       const profileSummary = document.getElementById("profile-summary");
       const profileReviewJson = document.getElementById("profile-review-json");
       const profileStackMeta = document.getElementById("profile-stack-meta");
-      const profileStackTableBody = document.getElementById("profile-stack-table-body");
+      const profileStackPreview = document.getElementById("profile-stack-preview");
+      const profileStackPreviewCard = document.getElementById("profile-stack-preview-card");
+      const profileReviewPreviewCard = document.getElementById("profile-review-preview-card");
+      const contentPreviewOverlay = document.getElementById("content-preview-overlay");
+      const contentPreviewTitle = document.getElementById("content-preview-title");
+      const contentPreviewMeta = document.getElementById("content-preview-meta");
+      const contentPreviewBody = document.getElementById("content-preview-body");
+      const contentPreviewClose = document.getElementById("content-preview-close");
+      const appliedJobsForm = document.getElementById("applied-jobs-form");
+      const appliedJobsPeriodPreset = document.getElementById("applied-jobs-period-preset");
+      const appliedJobsCustomWrap = document.getElementById("applied-jobs-custom-wrap");
+      const appliedJobsCustomDays = document.getElementById("applied-jobs-custom-days");
+      const appliedJobsSubmit = document.getElementById("applied-jobs-submit");
+      const appliedJobsMeta = document.getElementById("applied-jobs-meta");
+      const appliedJobsOutput = document.getElementById("applied-jobs-output");
+      const appliedJobsStatus = document.getElementById("applied-jobs-status");
 
       const searchForm = document.getElementById("search-form");
       const searchSubmit = document.getElementById("search-submit");
       const searchStatus = document.getElementById("search-status");
-      const connectStatus = document.getElementById("connect-status");
-      const upvoteStatus = document.getElementById("upvote-status");
 
       const jobsStatus = document.getElementById("jobs-status");
       const jobsSummary = document.getElementById("jobs-summary");
@@ -865,6 +969,11 @@
         isSaving: false,
         isReviewing: false,
         isResetting: false,
+      };
+
+      const appliedJobsState = {
+        isScanning: false,
+        lastResult: null,
       };
 
       const adminPromptSettings = {
@@ -925,6 +1034,12 @@
         target.removeAttribute("hidden");
       }
 
+      function syncBodyModalState() {
+        const promptVisible = !adminPromptOverlay.hasAttribute("hidden");
+        const previewVisible = !contentPreviewOverlay.hasAttribute("hidden");
+        document.body.classList.toggle("modal-open", promptVisible || previewVisible);
+      }
+
       async function request(method, url, payload) {
         const response = await fetch(url, {
           method,
@@ -966,6 +1081,156 @@
         });
       }
 
+      function truncateText(value, maxLength = 900) {
+        const content = String(value || "");
+        if (content.length <= maxLength) return content;
+        return `${content.slice(0, maxLength).trimEnd()}…`;
+      }
+
+      function renderStackPreviewHtml(entries) {
+        if (!entries.length) {
+          return `<div class="preview-empty">Nenhuma stack calculada.</div>`;
+        }
+
+        const visibleItems = entries.slice(0, 5);
+        const itemsHtml = visibleItems
+          .map(([stack, item]) => {
+            const duration = item.durationLabel || `${item.years} ano(s)`;
+            return `
+              <div class="preview-stack-item">
+                <strong>${escapeHtml(stack)}</strong>
+                <div class="preview-stack-meta">Primeira aparição: ${escapeHtml(formatMonthYear(item.firstSeenAt))}</div>
+                <div class="preview-stack-meta">Tempo: ${escapeHtml(duration)}</div>
+              </div>
+            `;
+          })
+          .join("");
+
+        const remaining = entries.length - visibleItems.length;
+        const footer = remaining > 0 ? `<div class="preview-note">+ ${remaining} stack(s) no overlay</div>` : "";
+        return `${itemsHtml}${footer}`;
+      }
+
+      function buildStackOverlayHtml(entries) {
+        if (!entries.length) {
+          return `<div class="preview-empty">Nenhuma stack calculada.</div>`;
+        }
+
+        const rows = entries
+          .map(([stack, item]) => {
+            const companies = Array.isArray(item.sourceCompanies) ? item.sourceCompanies.join(", ") : "";
+            const titles = Array.isArray(item.sourceTitles) ? item.sourceTitles.join(", ") : "";
+            return `
+              <tr>
+                <td>${escapeHtml(stack)}</td>
+                <td>${escapeHtml(formatMonthYear(item.firstSeenAt))}</td>
+                <td>${escapeHtml(item.durationLabel || `${item.years} ano(s)`)}</td>
+                <td>${escapeHtml(companies || "-")}</td>
+                <td>${escapeHtml(titles || "-")}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        return `
+          <div class="overlay-table-wrap">
+            <table class="overlay-table">
+              <thead>
+                <tr>
+                  <th>Stack</th>
+                  <th>Primeira aparição</th>
+                  <th>Tempo</th>
+                  <th>Empresas</th>
+                  <th>Cargos</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      function openContentPreview({ title, meta, html }) {
+        contentPreviewTitle.textContent = title || "Detalhes";
+        contentPreviewMeta.textContent = meta || "";
+        contentPreviewBody.innerHTML = html || `<div class="preview-empty">Sem conteúdo.</div>`;
+        setHidden(contentPreviewOverlay, false);
+        syncBodyModalState();
+      }
+
+      function closeContentPreview() {
+        setHidden(contentPreviewOverlay, true);
+        contentPreviewBody.innerHTML = "";
+        syncBodyModalState();
+      }
+
+      function resetSearchProcessFields() {
+        searchForm.reset();
+        searchForm.easyApplyOnly.checked = true;
+        searchForm.onlyNonPromoted.checked = false;
+        searchForm.waitBetweenMs.value = "1500";
+      }
+
+      function syncAppliedJobsControls() {
+        appliedJobsSubmit.disabled = appliedJobsState.isScanning;
+        appliedJobsPeriodPreset.disabled = appliedJobsState.isScanning;
+        appliedJobsCustomDays.disabled = appliedJobsState.isScanning;
+      }
+
+      function syncAppliedJobsFilterFields() {
+        const isCustom = appliedJobsPeriodPreset.value === "custom";
+        setHidden(appliedJobsCustomWrap, !isCustom);
+      }
+
+      function resetAppliedJobsView() {
+        appliedJobsState.lastResult = null;
+        appliedJobsMeta.textContent = "Nenhuma varredura executada.";
+        appliedJobsOutput.textContent = "Sem dados.";
+      }
+
+      function renderAppliedJobsScan(result) {
+        const total = typeof result?.total === "number" ? result.total : 0;
+        const scannedPages = typeof result?.scannedPages === "number" ? result.scannedPages : 0;
+        const totalPages =
+          typeof result?.totalPages === "number" && Number.isFinite(result.totalPages)
+            ? result.totalPages
+            : null;
+        const jobs = Array.isArray(result?.jobsPreview) ? result.jobsPreview : [];
+        const filterLabel = result?.filterLabel || "período atual";
+        const stoppedEarly = Boolean(result?.stoppedEarly);
+        const pagesLabel = totalPages
+          ? `${scannedPages} de ${totalPages} página(s) varrida(s)`
+          : `${scannedPages} página(s) varrida(s)`;
+        const previewLabel = total > jobs.length ? ` | mostrando ${jobs.length} preview(s)` : "";
+        const stopLabel = stoppedEarly ? " | parada automática ativa" : "";
+
+        appliedJobsMeta.textContent = `${total} vaga(s) aplicada(s) encontrada(s) | filtro: ${filterLabel} | ${pagesLabel}${previewLabel}${stopLabel}`;
+
+        if (!jobs.length) {
+          appliedJobsOutput.textContent = total
+            ? "Sem preview disponível para exibição."
+            : "Nenhuma vaga aplicada encontrada.";
+          return;
+        }
+
+        appliedJobsOutput.textContent = jobs
+          .map((job, index) => {
+            const lines = [
+              `${index + 1}. ${job.title || "-"}`,
+              `Empresa: ${job.company || "-"}`,
+              `Local: ${job.location || "-"}`,
+              `Aplicada: ${job.appliedAt || "-"}`,
+              `Idade estimada: ${
+                typeof job.appliedAgeDays === "number" ? `${Math.round(job.appliedAgeDays)} dia(s)` : "desconhecida"
+              }`,
+              `Página: ${job.page || "-"}`,
+              `URL: ${job.url || "-"}`,
+            ];
+            return lines.join("\n");
+          })
+          .join("\n\n");
+      }
+
       function renderProcessState(state) {
         const running = state.running;
         if (running) {
@@ -979,7 +1244,12 @@
           `;
         } else {
           runningPill.textContent = "Sem processo em execução";
-          processRunning.textContent = "Nenhum processo ativo.";
+          processRunning.innerHTML = `
+            <div class="history-item">
+              <strong>Sem processo em execução</strong><br>
+              <span class="meta">O painel está livre para iniciar um novo processo.</span>
+            </div>
+          `;
         }
 
         const history = Array.isArray(state.history) ? state.history : [];
@@ -1076,29 +1346,13 @@
           profile && profile.profileReview
             ? profile.profileReview.raw || JSON.stringify(profile.profileReview.parsed || {}, null, 2)
             : "Sem review salvo.";
-        profileReviewJson.textContent = reviewValue;
+        profileReviewJson.textContent = truncateText(reviewValue, 1200);
 
         profileStackMeta.textContent = stackEntries.length
           ? `${stackEntries.length} stack(s) mapeada(s).`
           : "Nenhuma stack calculada.";
 
-        if (stackEntries.length === 0) {
-          profileStackTableBody.innerHTML = `<tr><td colspan="3" class="muted">Nenhuma stack calculada.</td></tr>`;
-          return;
-        }
-
-        profileStackTableBody.innerHTML = stackEntries
-          .map(([stack, item]) => {
-            const duration = item.durationLabel || `${item.years} ano(s)`;
-            return `
-              <tr>
-                <td>${escapeHtml(stack)}</td>
-                <td>${escapeHtml(formatMonthYear(item.firstSeenAt))}</td>
-                <td>${escapeHtml(duration)}</td>
-              </tr>
-            `;
-          })
-          .join("");
+        profileStackPreview.innerHTML = renderStackPreviewHtml(stackEntries);
       }
 
       async function refreshProfile() {
@@ -1189,16 +1443,16 @@
         syncAdminPromptButtons();
 
         if (!item) {
-          document.body.classList.remove("modal-open");
           setHidden(adminPromptOverlay, true);
+          syncBodyModalState();
           setStatus(adminPromptStatus, "");
           adminPromptText.value = "";
           adminPromptSelect.innerHTML = "";
           return;
         }
 
-        document.body.classList.add("modal-open");
         setHidden(adminPromptOverlay, false);
+        syncBodyModalState();
 
         const isSelect = item.fieldType === "select";
         const isConfirm = item.kind === "confirm-gpt";
@@ -1584,6 +1838,7 @@
           setStatus(jobsStatus, "");
         } finally {
           jobsState.isSearching = false;
+          resetSearchProcessFields();
           renderJobsTable();
         }
       });
@@ -1684,6 +1939,7 @@
           setStatus(jobsStatus, error.message, true);
         } finally {
           jobsState.isApplying = false;
+          resetSearchProcessFields();
           renderJobsTable();
         }
       });
@@ -1776,9 +2032,16 @@
           jobsState.filterText = "";
           jobsState.lastSearchTag = "";
           jobsState.lastSearchTotal = 0;
+          resetSearchProcessFields();
+          resetAppliedJobsView();
+          appliedJobsForm.reset();
+          appliedJobsPeriodPreset.value = "month";
+          appliedJobsCustomDays.value = "";
+          syncAppliedJobsFilterFields();
           jobsFilter.value = "";
           setStatus(jobsStatus, "");
           setStatus(searchStatus, "");
+          setStatus(appliedJobsStatus, "");
           renderJobsTable();
 
           setStatus(profileStatus, process.summary || "Sessão limpa.");
@@ -1794,35 +2057,60 @@
         refreshProfile();
       });
 
-      document.getElementById("connect-form").addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const form = event.currentTarget;
-        try {
-          const payload = {
-            profileUrl: text(form.profileUrl.value),
-            message: text(form.message.value) || undefined,
-          };
-          const data = await request("POST", "/api/admin/processes/connect", payload);
-          setStatus(connectStatus, `Processo iniciado: ${data.id}`);
-          refreshProcesses();
-        } catch (error) {
-          setStatus(connectStatus, error.message, true);
+      appliedJobsPeriodPreset.addEventListener("change", () => {
+        if (appliedJobsPeriodPreset.value !== "custom") {
+          appliedJobsCustomDays.value = "";
         }
+        syncAppliedJobsFilterFields();
       });
 
-      document.getElementById("upvote-form").addEventListener("submit", async (event) => {
+      appliedJobsForm.addEventListener("submit", async (event) => {
         event.preventDefault();
-        const form = event.currentTarget;
+        if (appliedJobsState.isScanning) return;
+
+        const previousResult = appliedJobsState.lastResult;
+        const periodPreset = appliedJobsPeriodPreset.value || "month";
+        const customDays = toNumber(appliedJobsCustomDays.value);
+
+        if (periodPreset === "custom" && !customDays) {
+          setStatus(appliedJobsStatus, "Informe a quantidade de dias para o filtro custom.", true);
+          return;
+        }
+
+        appliedJobsState.isScanning = true;
+        syncAppliedJobsControls();
+        appliedJobsMeta.textContent = "Varredura em andamento...";
+        appliedJobsOutput.textContent = "Aguardando resultado...";
+        setStatus(appliedJobsStatus, "Varrendo vagas aplicadas...");
+
         try {
-          const payload = {
-            tag: text(form.tag.value),
-            maxLikes: toNumber(form.maxLikes.value),
-          };
-          const data = await request("POST", "/api/admin/processes/upvote-posts", payload);
-          setStatus(upvoteStatus, `Processo iniciado: ${data.id}`);
-          refreshProcesses();
+          const data = await request("POST", "/api/admin/processes/scan-applied-jobs", {
+            periodPreset,
+            customDays,
+          });
+          const timeoutMs = 25 * 60 * 1000;
+          const process = await waitForProcess(data.id, timeoutMs);
+          if (process.status !== "succeeded") {
+            throw new Error(process.error || process.summary || "Falha ao varrer vagas aplicadas.");
+          }
+
+          const output = process.output || {};
+          appliedJobsState.lastResult = output;
+          renderAppliedJobsScan(output);
+          setStatus(
+            appliedJobsStatus,
+            process.summary || `${output.total || 0} vaga(s) aplicada(s) encontrada(s).`
+          );
         } catch (error) {
-          setStatus(upvoteStatus, error.message, true);
+          if (previousResult) {
+            renderAppliedJobsScan(previousResult);
+          } else {
+            resetAppliedJobsView();
+          }
+          setStatus(appliedJobsStatus, error.message, true);
+        } finally {
+          appliedJobsState.isScanning = false;
+          syncAppliedJobsControls();
         }
       });
 
@@ -1834,7 +2122,48 @@
         savePromptSettings();
       });
 
+      profileReviewPreviewCard.addEventListener("click", () => {
+        const profile = profileState.item;
+        const reviewValue =
+          profile && profile.profileReview
+            ? profile.profileReview.raw || JSON.stringify(profile.profileReview.parsed || {}, null, 2)
+            : "Sem review salvo.";
+        const createdAt = profile && profile.profileReview ? profile.profileReview.createdAt : "";
+        openContentPreview({
+          title: "Profile Review JSON",
+          meta: createdAt ? `Gerado em ${formatDate(createdAt)}` : "Nenhum review salvo.",
+          html: `<pre class="overlay-pre">${escapeHtml(reviewValue)}</pre>`,
+        });
+      });
+
+      profileStackPreviewCard.addEventListener("click", () => {
+        const profile = profileState.item;
+        const stackEntries = Object.entries((profile && profile.stackExperience) || {}).sort(
+          (left, right) => (right[1].months || 0) - (left[1].months || 0)
+        );
+        openContentPreview({
+          title: "Experiência por Stack",
+          meta: stackEntries.length
+            ? `${stackEntries.length} stack(s) mapeada(s).`
+            : "Nenhuma stack calculada.",
+          html: buildStackOverlayHtml(stackEntries),
+        });
+      });
+
+      contentPreviewClose.addEventListener("click", () => {
+        closeContentPreview();
+      });
+
+      contentPreviewOverlay.addEventListener("click", (event) => {
+        if (event.target === contentPreviewOverlay) {
+          closeContentPreview();
+        }
+      });
+
       renderJobsTable();
+      resetAppliedJobsView();
+      syncAppliedJobsFilterFields();
+      syncAppliedJobsControls();
       refreshProcesses();
       refreshGpt();
       refreshAdminPrompt();

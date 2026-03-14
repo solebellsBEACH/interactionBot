@@ -315,6 +315,21 @@ export class AdminServer {
         return;
       }
 
+      if (method === "POST" && pathname === "/api/admin/processes/scan-applied-jobs") {
+        const body = await this._readJsonBody(req);
+        const processRecord = this._processManager.startScanAppliedJobs({
+          periodPreset: this._readString(body.periodPreset) as
+            | "week"
+            | "month"
+            | "quarter"
+            | "custom"
+            | undefined,
+          customDays: this._readNumber(body.customDays),
+        });
+        this._sendJson(res, 202, processRecord);
+        return;
+      }
+
       if (method === "POST" && pathname === "/api/admin/processes/profile-review") {
         const processRecord = this._processManager.startProfileReview();
         this._sendJson(res, 202, processRecord);

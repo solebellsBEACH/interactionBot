@@ -22,3 +22,32 @@ export type SearchJobTagOptions = {
   postedWithinDays?: number
   workplaceTypes?: string[]
 }
+
+export type AppliedJobResult = {
+  urn: string
+  title: string
+  company: string
+  location: string
+  url: string
+  appliedAt: string
+  appliedAgeDays: number | null
+  page: number
+}
+
+export type AppliedJobsRangePreset = 'week' | 'month' | 'quarter' | 'custom'
+
+export type ScanAppliedJobsOptions = {
+  periodPreset?: AppliedJobsRangePreset
+  customDays?: number
+}
+
+export type AppliedJobsScanResult = {
+  total: number
+  scannedPages: number
+  totalPages: number | null
+  filterPreset: AppliedJobsRangePreset
+  filterDays: number
+  filterLabel: string
+  stoppedEarly: boolean
+  jobs: AppliedJobResult[]
+}

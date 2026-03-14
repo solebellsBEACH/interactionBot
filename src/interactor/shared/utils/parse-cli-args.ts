@@ -11,6 +11,7 @@ export type Action =
   | 'easy-apply'
   | 'search-jobs'
   | 'catch-jobs'
+  | 'applied-jobs'
   | 'connect'
   | 'upvote'
 

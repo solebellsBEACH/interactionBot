@@ -81,6 +81,15 @@ const runAction = async (features: LinkedinFeatures, args: ParsedArgs) => {
         logJobs('Buscar jobs', results)
         return results
       }
+    case 'applied-jobs':
+      {
+        const result = await features.scanAppliedJobs()
+        logger.info(
+          `[bot] Applied jobs: total=${result.total} | filter=${result.filterLabel} | scannedPages=${result.scannedPages} | totalPages=${result.totalPages ?? '-'}`
+        )
+        logAppliedJobs(result.jobs.slice(0, 50))
+        return result
+      }
     case 'catch-jobs':
       {
         const tag = (args.tag || defaultTag).trim() || undefined
@@ -265,6 +274,29 @@ function printJobsTable(
       job.url
     ].map((value) => clean(String(value ?? '')))
     console.log(row.join('\t'))
+  }
+}
+
+function logAppliedJobs(
+  jobs: {
+    title: string
+    company: string
+    location: string
+    url: string
+    appliedAt: string
+    page: number
+  }[]
+) {
+  if (!jobs.length) {
+    logger.info('[bot] Applied jobs preview: 0')
+    return
+  }
+
+  logger.info(`[bot] Applied jobs preview: ${jobs.length}`)
+  for (const [index, job] of jobs.entries()) {
+    logger.info(
+      `${index + 1}. ${job.title} | ${job.company} | ${job.location} | ${job.appliedAt || '-'} | page=${job.page} | ${job.url}`
+    )
   }
 }
 

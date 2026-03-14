@@ -7,7 +7,12 @@ import { clearFieldAnswers } from "../../api/controllers/field-answers";
 import { clearGptInteractions } from "../../api/controllers/gpt-interactions";
 import type { DiscordClient } from "../shared/discord/discord-client";
 import type { EasyApplyStepValues } from "../shared/interface/easy-apply/step-values.types";
-import type { EasyApplyJobResult, SearchJobTagOptions } from "../shared/interface/scrap/jobs.types";
+import type {
+    AppliedJobsScanResult,
+    EasyApplyJobResult,
+    ScanAppliedJobsOptions,
+    SearchJobTagOptions
+} from "../shared/interface/scrap/jobs.types";
 import type { VisitConnectionsOptions } from "../shared/interface/scrap/network.types";
 import type { UserProfile } from "../shared/interface/user/user-profile.types";
 import { ElementHandle } from "../shared/utils/element-handle";
@@ -114,6 +119,10 @@ export class LinkedinFeatures {
 
     async searchJobTag(searchJobTag: string, options?: SearchJobTagOptions): Promise<EasyApplyJobResult[]> {
         return this._jobFlow.searchJobTag(searchJobTag, options)
+    }
+
+    async scanAppliedJobs(options?: ScanAppliedJobsOptions): Promise<AppliedJobsScanResult> {
+        return this._jobFlow.scanAppliedJobs(options)
     }
 
     async upvoteOnPosts(options?: UpvoteOptions): Promise<string[]> {

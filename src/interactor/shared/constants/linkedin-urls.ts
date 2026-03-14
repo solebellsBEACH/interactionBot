@@ -13,6 +13,7 @@ export const LINKEDIN_URLS = {
   peopleSearch: `${LINKEDIN_BASE_URL}/search/results/people/`,
   contentSearch: `${LINKEDIN_BASE_URL}/search/results/content/`,
   jobSearch: `${LINKEDIN_BASE_URL}/jobs/search/`,
+  appliedJobs: `${LINKEDIN_BASE_URL}/my-items/saved-jobs/?cardType=APPLIED`,
   feedUpdateBase: `${LINKEDIN_BASE_URL}/feed/update/`,
   voyagerConnections: [
     `${LINKEDIN_BASE_URL}/voyager/api/relationships/dash/connections`,

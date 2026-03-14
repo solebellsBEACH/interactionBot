@@ -1,8 +1,15 @@
 
 import {  Page } from "playwright";
 
+import { LINKEDIN_URLS } from "../../../shared/constants/linkedin-urls";
+import { LinkedinAppliedJobsScrap } from "../../../shared/scrap/applied-jobs";
 import { LinkedinJobsScrap } from "../../../shared/scrap/jobs";
-import type { EasyApplyJobResult, SearchJobTagOptions } from "../../../shared/interface/scrap/jobs.types";
+import type {
+    AppliedJobsScanResult,
+    EasyApplyJobResult,
+    ScanAppliedJobsOptions,
+    SearchJobTagOptions
+} from "../../../shared/interface/scrap/jobs.types";
 import { LinkedinCoreFeatures } from "../../linkedin-core";
 import { env } from "../../../shared/env";
 import { logger } from "../../../shared/services/logger";
@@ -12,11 +19,13 @@ export class LinkedinJobsFlow {
         private readonly _page: Page
         private readonly _navigator: LinkedinCoreFeatures
         private readonly _linkedinJobsScrap :LinkedinJobsScrap
+        private readonly _appliedJobsScrap: LinkedinAppliedJobsScrap
 
     constructor( page: Page, navigator: LinkedinCoreFeatures ) {
             this._page = page
             this._navigator = navigator
             this._linkedinJobsScrap = new LinkedinJobsScrap(page)
+            this._appliedJobsScrap = new LinkedinAppliedJobsScrap(page)
     }
 
     async catchJobs(searchJobTag?: string, options?: SearchJobTagOptions): Promise<EasyApplyJobResult[]> {
@@ -136,6 +145,11 @@ export class LinkedinJobsFlow {
             }
 
             return Array.from(results.values())
+        }
+
+    async scanAppliedJobs(options?: ScanAppliedJobsOptions): Promise<AppliedJobsScanResult> {
+            await this._navigator.goToLinkedinURL(LINKEDIN_URLS.appliedJobs || this._appliedJobsScrap.getAppliedJobsUrl())
+            return this._appliedJobsScrap.scan(options)
         }
 
 }

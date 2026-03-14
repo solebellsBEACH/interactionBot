@@ -1,5 +1,11 @@
 import type { EasyApplyStepValues } from "../interactor/shared/interface/easy-apply/step-values.types";
-import type { EasyApplyJobResult, SearchJobTagOptions } from "../interactor/shared/interface/scrap/jobs.types";
+import type {
+  AppliedJobsRangePreset,
+  AppliedJobsScanResult,
+  EasyApplyJobResult,
+  ScanAppliedJobsOptions,
+  SearchJobTagOptions,
+} from "../interactor/shared/interface/scrap/jobs.types";
 import type { UserProfile } from "../interactor/shared/interface/user/user-profile.types";
 
 type UpvoteOptions = {
@@ -12,6 +18,7 @@ type LinkedinCommandActions = {
   searchJobTag: (searchJobTag: string, options?: SearchJobTagOptions) => Promise<EasyApplyJobResult[]>
   sendConnection: (profileUrl: string, inMailOptions?: { message: string }) => Promise<void>
   upvoteOnPosts: (options?: UpvoteOptions) => Promise<string[]>
+  scanAppliedJobs?: (options?: ScanAppliedJobsOptions) => Promise<AppliedJobsScanResult>
   reviewOwnProfile?: () => Promise<UserProfile>
   resetSession?: () => Promise<{
     cleared: {
@@ -29,6 +36,7 @@ export type AdminProcessType =
   | "apply-jobs"
   | "connect"
   | "upvote-posts"
+  | "scan-applied-jobs"
   | "profile-review"
   | "reset-session";
 export type AdminProcessStatus = "running" | "succeeded" | "failed";
@@ -70,6 +78,11 @@ export type ConnectPayload = {
 export type UpvotePayload = {
   tag: string;
   maxLikes?: number;
+};
+
+export type ScanAppliedJobsPayload = {
+  periodPreset?: AppliedJobsRangePreset;
+  customDays?: number;
 };
 
 type ProcessResult = {
@@ -315,6 +328,40 @@ export class AdminProcessManager {
     });
   }
 
+  startScanAppliedJobs(payload: ScanAppliedJobsPayload = {}) {
+    if (!this._actions.scanAppliedJobs) {
+      throw new ProcessValidationError("A varredura de vagas aplicadas não está habilitada.");
+    }
+
+    const periodPreset = this._normalizeAppliedJobsPreset(payload.periodPreset);
+    const customDays = this._normalizeAppliedJobsCustomDays(payload.customDays, periodPreset);
+
+    return this._startProcess("scan-applied-jobs", { periodPreset, customDays }, async () => {
+      const result = await this._actions.scanAppliedJobs?.({ periodPreset, customDays });
+      if (!result) {
+        throw new Error("Não foi possível varrer as vagas aplicadas.");
+      }
+
+      const stopLabel = result.stoppedEarly
+        ? " Varredura encerrada ao sair da janela escolhida."
+        : "";
+
+      return {
+        summary: `${result.total} vaga(s) aplicada(s) encontradas no filtro ${result.filterLabel}. ${result.scannedPages} página(s) varridas.${stopLabel}`,
+        output: {
+          total: result.total,
+          scannedPages: result.scannedPages,
+          totalPages: result.totalPages,
+          filterPreset: result.filterPreset,
+          filterDays: result.filterDays,
+          filterLabel: result.filterLabel,
+          stoppedEarly: result.stoppedEarly,
+          jobsPreview: result.jobs.slice(0, 100),
+        },
+      };
+    });
+  }
+
   startResetSession() {
     if (!this._actions.resetSession) {
       throw new ProcessValidationError("O reset de sessão não está habilitado.");
@@ -398,6 +445,30 @@ export class AdminProcessManager {
     const normalized = Math.trunc(value);
     if (normalized <= 0) return undefined;
     return Math.min(normalized, 100);
+  }
+
+  private _normalizeAppliedJobsPreset(value?: AppliedJobsRangePreset): AppliedJobsRangePreset {
+    if (value === "week" || value === "month" || value === "quarter" || value === "custom") {
+      return value;
+    }
+    return "month";
+  }
+
+  private _normalizeAppliedJobsCustomDays(
+    value: number | undefined,
+    periodPreset: AppliedJobsRangePreset
+  ) {
+    if (periodPreset !== "custom") return undefined;
+    if (!Number.isFinite(value)) {
+      throw new ProcessValidationError("Informe a quantidade de dias para o filtro custom.");
+    }
+
+    const normalized = Math.trunc(value ?? 0);
+    if (normalized <= 0) {
+      throw new ProcessValidationError("O filtro custom deve ter ao menos 1 dia.");
+    }
+
+    return Math.min(normalized, 3650);
   }
 
   private _normalizeWaitMs(value?: number) {
