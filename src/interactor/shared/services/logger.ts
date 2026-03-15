@@ -5,6 +5,17 @@ type LogPayload = {
   data?: unknown
 }
 
+export type LogEntry = {
+  id: string
+  createdAt: string
+  level: LogLevel
+  scope?: string
+  message: string
+  data?: unknown
+}
+
+export type LogListener = (entry: LogEntry) => void
+
 const COLORS = {
   debug: '\x1b[90m',
   info: '\x1b[36m',
@@ -13,10 +24,19 @@ const COLORS = {
 } as const
 
 const RESET = '\x1b[0m'
+const listeners = new Set<LogListener>()
+let logSequence = 0
 
 const colorize = (level: LogLevel, text: string) => `${COLORS[level]}${text}${RESET}`
 
 const formatLevel = (level: LogLevel) => colorize(level, `[${level.toUpperCase()}]`)
+
+export const subscribeLogs = (listener: LogListener) => {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
 
 export class Logger {
   private readonly _scope?: string
@@ -46,15 +66,32 @@ export class Logger {
   }
 
   private _emit(level: LogLevel, payload: LogPayload) {
-    const prefix = this._scope ? `[${this._scope}] ` : ''
-    const message = `${formatLevel(level)} ${prefix}${payload.message}`
+    const entry: LogEntry = {
+      id: `${Date.now().toString(36)}-${(logSequence++).toString(36)}`,
+      createdAt: new Date().toISOString(),
+      level,
+      scope: this._scope,
+      message: payload.message,
+      ...(payload.data === undefined ? {} : { data: payload.data })
+    }
 
-    if (payload.data === undefined) {
+    for (const listener of listeners) {
+      try {
+        listener(entry)
+      } catch {
+        // Log listeners must not interfere with runtime logging.
+      }
+    }
+
+    const prefix = entry.scope ? `[${entry.scope}] ` : ''
+    const message = `${formatLevel(level)} ${prefix}${entry.message}`
+
+    if (entry.data === undefined) {
       this._output(level, message)
       return
     }
 
-    this._output(level, message, payload.data)
+    this._output(level, message, entry.data)
   }
 
   private _output(level: LogLevel, message: string, data?: unknown) {

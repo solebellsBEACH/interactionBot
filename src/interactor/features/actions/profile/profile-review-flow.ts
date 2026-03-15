@@ -2,6 +2,7 @@ import { Page } from "playwright";
 
 import { GptClient } from "../../../shared/ai/gpt-client";
 import { env } from "../../../shared/env";
+import { logger } from "../../../shared/services/logger";
 import {
     readUserProfile,
     UserProfile,
@@ -556,7 +557,7 @@ export class LinkedinProfileReviewFlow {
                 return experiences
             }
         } catch (error) {
-            console.warn("Unable to scrape full experience details", error)
+            logger.warn("Unable to scrape full experience details", error)
         }
 
         return fallback

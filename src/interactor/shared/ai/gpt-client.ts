@@ -11,6 +11,7 @@ import type {
     UserProfileLinkedinSnapshot,
     UserProfileStackExperience
 } from "../interface/user/user-profile.types";
+import { logger } from "../services/logger";
 
 export type GptConfig = {
     enabled?: boolean
@@ -60,7 +61,7 @@ export class GptClient {
             store: true,
         })
 
-        console.log(response)
+        logger.info("GPT test response", response)
         return response
     }
 
@@ -326,7 +327,7 @@ export class GptClient {
         if (!this._config.apiKey) {
             if (!this._missingKeyLogged) {
                 this._missingKeyLogged = true
-                console.warn("GPT enabled but OPENAI_API_KEY is missing.")
+                logger.warn("GPT enabled but OPENAI_API_KEY is missing.")
             }
             return null
         }
@@ -348,7 +349,7 @@ export class GptClient {
     private _logDisabledOnce() {
         if (this._disabledLogged) return
         this._disabledLogged = true
-        console.warn("GPT is disabled. Set GPT_ENABLED=true and OPENAI_API_KEY.")
+        logger.warn("GPT is disabled. Set GPT_ENABLED=true and OPENAI_API_KEY.")
     }
 
     private _logError(source: string, error: unknown) {
@@ -357,7 +358,7 @@ export class GptClient {
             const status = record.status
             const message = record.message
             const code = record.code
-            console.warn("GPT request failed", {
+            logger.warn("GPT request failed", {
                 source,
                 status: typeof status === "number" ? status : undefined,
                 code: typeof code === "string" ? code : undefined,
@@ -365,7 +366,7 @@ export class GptClient {
             })
             return
         }
-        console.warn("GPT request failed", { source, message: String(error) })
+        logger.warn("GPT request failed", { source, message: String(error) })
     }
 
     private _extractResponseText(response: unknown) {
@@ -716,7 +717,7 @@ export class GptClient {
                 durationMs: payload.durationMs
             })
         } catch (error) {
-            console.warn("Failed to save GPT interaction", {
+            logger.warn("Failed to save GPT interaction", {
                 message: this._errorToString(error)
             })
         }

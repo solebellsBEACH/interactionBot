@@ -7,6 +7,8 @@ import type {
   SearchJobTagOptions,
 } from "../interactor/shared/interface/scrap/jobs.types";
 import type { UserProfile } from "../interactor/shared/interface/user/user-profile.types";
+import { logger } from "../interactor/shared/services/logger";
+import { adminRuntimeStore } from "./admin-runtime-store";
 
 type UpvoteOptions = {
   maxLikes?: number
@@ -407,6 +409,18 @@ export class AdminProcessManager {
     };
 
     this._running = processRecord;
+    logger.info(`Processo admin iniciado: ${type}`, { id: processRecord.id, input });
+    adminRuntimeStore.recordStep({
+      key: `process:${processRecord.id}`,
+      source: "process",
+      label: `${type} iniciado`,
+      detail: "Processo em execução.",
+      status: "running",
+      meta: {
+        processId: processRecord.id,
+        type,
+      },
+    });
 
     void run()
       .then((result) => {
@@ -414,12 +428,42 @@ export class AdminProcessManager {
         processRecord.endedAt = new Date().toISOString();
         processRecord.summary = result.summary;
         processRecord.output = result.output;
+        logger.info(`Processo admin concluído: ${type}`, {
+          id: processRecord.id,
+          summary: result.summary,
+        });
+        adminRuntimeStore.recordStep({
+          key: `process:${processRecord.id}`,
+          source: "process",
+          label: `${type} concluído`,
+          detail: result.summary,
+          status: "done",
+          meta: {
+            processId: processRecord.id,
+            type,
+          },
+        });
       })
       .catch((error: unknown) => {
         processRecord.status = "failed";
         processRecord.endedAt = new Date().toISOString();
         processRecord.summary = "Processo finalizado com erro.";
         processRecord.error = this._formatError(error);
+        logger.error(`Processo admin falhou: ${type}`, {
+          id: processRecord.id,
+          error: processRecord.error,
+        });
+        adminRuntimeStore.recordStep({
+          key: `process:${processRecord.id}`,
+          source: "process",
+          label: `${type} falhou`,
+          detail: processRecord.error,
+          status: "error",
+          meta: {
+            processId: processRecord.id,
+            type,
+          },
+        });
       })
       .finally(() => {
         this._running = null;

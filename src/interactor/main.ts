@@ -73,7 +73,7 @@ async function main(): Promise<void> {
 function resolveAdminPort(port: number) {
     if (!Number.isFinite(port)) return 5050
     const normalized = Math.trunc(port)
-    if (normalized < 1 || normalized > 65535) return 5050
+    if (normalized < 0 || normalized > 65535) return 5050
     return normalized
 }
 

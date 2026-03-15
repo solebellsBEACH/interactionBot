@@ -9,6 +9,8 @@ import {
   sanitizeCompensationValue,
   saveUserProfile,
 } from "../interactor/shared/user-profile";
+import { logger } from "../interactor/shared/services/logger";
+import { adminRuntimeStore } from "./admin-runtime-store";
 import { AdminPromptAction, AdminPromptBroker, AdminPromptError } from "./prompt-broker";
 import {
   AdminProcessManager,
@@ -23,17 +25,20 @@ export type AdminServerOptions = {
   promptBroker?: AdminPromptBroker;
 };
 
+const MAX_PORT_FALLBACK_ATTEMPTS = 20;
+
 export class AdminServer {
   private readonly _host: string;
-  private readonly _port: number;
+  private readonly _requestedPort: number;
   private readonly _processManager: AdminProcessManager;
   private readonly _promptBroker?: AdminPromptBroker;
   private readonly _adminPagePath: string;
+  private _activePort?: number;
   private _server?: Server;
 
   constructor(options: AdminServerOptions) {
     this._host = options.host;
-    this._port = options.port;
+    this._requestedPort = options.port;
     this._processManager = options.processManager;
     this._promptBroker = options.promptBroker;
     this._adminPagePath = path.resolve(process.cwd(), "src", "admin", "web", "index.html");
@@ -42,18 +47,24 @@ export class AdminServer {
   async start(): Promise<void> {
     if (this._server) return;
 
-    this._server = createServer((req, res) => {
+    const server = createServer((req, res) => {
       void this._handleRequest(req, res);
     });
 
-    await new Promise<void>((resolve, reject) => {
-      const server = this._server as Server;
-      server.once("error", reject);
-      server.listen(this._port, this._host, () => {
-        server.off("error", reject);
-        resolve();
-      });
-    });
+    this._server = server;
+
+    try {
+      this._activePort = await this._listenWithFallback(server, this._requestedPort);
+    } catch (error) {
+      this._server = undefined;
+      throw error;
+    }
+
+    if (this._requestedPort !== 0 && this._activePort !== this._requestedPort) {
+      logger.warn(
+        `Porta admin ${this._requestedPort} ocupada; usando ${this._activePort}. Defina ADMIN_PORT para fixar outra porta.`,
+      );
+    }
   }
 
   async stop(): Promise<void> {
@@ -74,7 +85,65 @@ export class AdminServer {
   }
 
   get address() {
-    return `http://${this._host}:${this._port}/admin`;
+    return `http://${this._host}:${this.port}/admin`;
+  }
+
+  get port() {
+    return this._activePort ?? this._requestedPort;
+  }
+
+  private async _listenWithFallback(server: Server, startingPort: number): Promise<number> {
+    let attempt = 0;
+    let port = startingPort;
+
+    while (port <= 65535 && attempt <= MAX_PORT_FALLBACK_ATTEMPTS) {
+      try {
+        await this._listen(server, port);
+        return this._resolveActivePort(server, port);
+      } catch (error) {
+        if (!this._isAddressInUseError(error) || startingPort === 0) {
+          throw error;
+        }
+
+        attempt += 1;
+        port += 1;
+      }
+    }
+
+    throw new Error(
+      `Nao foi possivel encontrar uma porta livre para o painel admin a partir de ${startingPort}. Defina ADMIN_PORT para outra porta.`,
+    );
+  }
+
+  private _listen(server: Server, port: number): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const onError = (error: Error) => {
+        server.off("listening", onListening);
+        reject(error);
+      };
+
+      const onListening = () => {
+        server.off("error", onError);
+        resolve();
+      };
+
+      server.once("error", onError);
+      server.once("listening", onListening);
+      server.listen(port, this._host);
+    });
+  }
+
+  private _resolveActivePort(server: Server, fallbackPort: number) {
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      return fallbackPort;
+    }
+
+    return address.port;
+  }
+
+  private _isAddressInUseError(error: unknown) {
+    return error instanceof Error && "code" in error && error.code === "EADDRINUSE";
   }
 
   private async _handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -102,6 +171,20 @@ export class AdminServer {
         const limit = this._parseLimit(requestUrl.searchParams.get("limit"));
         const items = await listGptInteractions(limit);
         this._sendJson(res, 200, { items });
+        return;
+      }
+
+      if (method === "GET" && pathname === "/api/admin/runtime") {
+        this._sendJson(res, 200, adminRuntimeStore.getSnapshot({
+          logsLimit: this._parseLimit(requestUrl.searchParams.get("logsLimit")),
+          stepsLimit: this._parseLimit(requestUrl.searchParams.get("stepsLimit")),
+        }));
+        return;
+      }
+
+      if (method === "POST" && pathname === "/api/admin/runtime/clear") {
+        adminRuntimeStore.clear();
+        this._sendJson(res, 200, { ok: true });
         return;
       }
 
@@ -391,6 +474,7 @@ export class AdminServer {
     if (
       normalized === "confirm" ||
       normalized === "manual" ||
+      normalized === "skip" ||
       normalized === "cancel" ||
       normalized === "timeout"
     ) {

@@ -1,4 +1,5 @@
 import { ChannelType, Client, GatewayIntentBits, Message, PartialGroupDMChannel, TextBasedChannel } from "discord.js";
+import { logger } from "../services/logger";
 
 export type DiscordConfig = {
     enabled: boolean
@@ -58,16 +59,16 @@ export class DiscordClient {
         if (this._config.consoleOnly) return
 
         if (this._config.enabled && !this._config.webhookUrl) {
-            console.warn("Discord enabled but DISCORD_WEBHOOK_URL is missing.")
+            logger.warn("Discord enabled but DISCORD_WEBHOOK_URL is missing.")
         }
 
         if (!this._config.interactive) return
         if (!this._config.botToken) {
-            console.warn("Discord interactive enabled but DISCORD_BOT_TOKEN is missing.")
+            logger.warn("Discord interactive enabled but DISCORD_BOT_TOKEN is missing.")
             return
         }
         if (!this._config.channelId) {
-            console.warn("Discord interactive enabled but DISCORD_CHANNEL_ID is missing.")
+            logger.warn("Discord interactive enabled but DISCORD_CHANNEL_ID is missing.")
             return
         }
 
@@ -76,7 +77,7 @@ export class DiscordClient {
             this._bindMessageListener()
             await this._sendStartupMessage()
         } catch (error) {
-            console.warn("Discord bot login failed.", error)
+            logger.warn("Discord bot login failed.", error)
         }
     }
 
@@ -97,12 +98,12 @@ export class DiscordClient {
 
     async log(message: string): Promise<void> {
         if (!this._config.enabled || this._config.consoleOnly) {
-            console.log(message)
+            logger.info(message)
             return
         }
 
         if (!this._config.webhookUrl) {
-            console.log(message)
+            logger.info(message)
             return
         }
 
@@ -167,10 +168,13 @@ export class DiscordClient {
             })
 
             if (!response.ok) {
-                console.warn("Discord webhook failed.", response.status, response.statusText)
+                logger.warn("Discord webhook failed.", {
+                    status: response.status,
+                    statusText: response.statusText
+                })
             }
         } catch (error) {
-            console.warn("Discord webhook error.", error)
+            logger.warn("Discord webhook error.", error)
         } finally {
             clearTimeout(timeout)
         }
@@ -183,7 +187,7 @@ export class DiscordClient {
             await this._initBot()
             this._bindMessageListener()
         } catch (error) {
-            console.warn("Discord bot login failed.", error)
+            logger.warn("Discord bot login failed.", error)
             return null
         }
 
@@ -318,7 +322,7 @@ export class DiscordClient {
         this._commandQueue = this._commandQueue
             .then(() => handler(command))
             .catch((error) => {
-                console.error("Discord command failed", error)
+                logger.error("Discord command failed", error)
                 return this.sendMessage("Falha ao executar o comando.")
             })
 
@@ -339,7 +343,7 @@ export class DiscordClient {
     private async _sendToPromptChannel(content: string): Promise<boolean> {
         const channel = await this._getPromptChannel()
         if (!channel) {
-            console.warn("Discord channel not found or not text-based.")
+            logger.warn("Discord channel not found or not text-based.")
             return false
         }
 
@@ -347,7 +351,7 @@ export class DiscordClient {
             await channel.send(content)
             return true
         } catch (error) {
-            console.warn("Discord message send failed.", error)
+            logger.warn("Discord message send failed.", error)
             return false
         }
     }

@@ -35,6 +35,8 @@ Variáveis opcionais:
 - `ADMIN_HOST` (padrão: `127.0.0.1`)
 - `ADMIN_PORT` (padrão: `5050`)
 
+Se `5050` estiver ocupada, o bot tenta automaticamente as próximas portas livres (`5051`, `5052`, ...). Se preferir sempre escolher uma porta livre automaticamente, use `ADMIN_PORT=0`.
+
 ## CLI (Interactor)
 Executa ações específicas no LinkedIn via `src/interactor/cli.ts`.
 

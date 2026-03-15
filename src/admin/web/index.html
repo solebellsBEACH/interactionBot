@@ -322,6 +322,16 @@
         color: var(--brand-2);
       }
 
+      .badge-danger {
+        background: rgba(165, 35, 35, 0.14);
+        color: var(--danger);
+      }
+
+      .badge-info {
+        background: rgba(30, 72, 118, 0.12);
+        color: #1e4876;
+      }
+
       .job-row-unavailable {
         opacity: 0.75;
       }
@@ -489,6 +499,93 @@
         min-width: 620px;
       }
 
+      .runtime-steps {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .step-item {
+        border: 1px solid #e1d6c2;
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(255, 251, 244, 0.72);
+      }
+
+      .step-item.active {
+        border-color: #c4a56d;
+        box-shadow: inset 0 0 0 1px rgba(196, 165, 109, 0.3);
+      }
+
+      .step-item-head {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .step-item-title {
+        font-weight: 600;
+      }
+
+      .step-item-detail {
+        margin-top: 6px;
+        font-size: 0.88rem;
+      }
+
+      .log-feed {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+        max-height: 520px;
+        overflow: auto;
+      }
+
+      .log-item {
+        border: 1px solid #e1d6c2;
+        border-radius: 12px;
+        padding: 10px;
+        background: rgba(255, 251, 244, 0.72);
+      }
+
+      .log-item-head {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .log-item-message {
+        margin-top: 8px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.88rem;
+      }
+
+      .log-item-data {
+        margin-top: 8px;
+        border: 1px solid #e3d7c1;
+        background: #fffdf9;
+        border-radius: 10px;
+        padding: 8px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.75rem;
+      }
+
+      .runtime-controls {
+        display: grid;
+        gap: 10px;
+      }
+
+      .runtime-filters {
+        display: grid;
+        gap: 8px;
+        grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(140px, 0.7fr));
+      }
+
       @media (max-width: 720px) {
         .row {
           grid-template-columns: 1fr;
@@ -509,6 +606,10 @@
         #gpt-table th:nth-child(5),
         #gpt-table td:nth-child(5) {
           display: none;
+        }
+
+        .runtime-filters {
+          grid-template-columns: 1fr;
         }
       }
     </style>
@@ -836,6 +937,56 @@
           </div>
         </article>
       </section>
+
+      <section class="panel grid" style="grid-template-columns: 0.95fr 1.25fr">
+        <article class="card">
+          <div class="toolbar">
+            <div>
+              <h2 style="margin: 0">Próximas Steps do Bot</h2>
+              <div class="meta">Etapa ativa + histórico recente do fluxo.</div>
+            </div>
+          </div>
+          <div id="runtime-active-step" class="history-item">
+            <span class="muted">Sem etapa ativa.</span>
+          </div>
+          <div id="runtime-steps" class="runtime-steps"></div>
+        </article>
+
+        <article class="card">
+          <div class="toolbar">
+            <div>
+              <h2 style="margin: 0">Logs do Bot</h2>
+              <div id="runtime-log-meta" class="meta">Carregando feed...</div>
+            </div>
+            <div class="toolbar-actions">
+              <button id="runtime-pause" class="secondary" type="button" style="width: auto; padding: 8px 10px">
+                Pausar feed
+              </button>
+              <button id="runtime-clear" class="secondary" type="button" style="width: auto; padding: 8px 10px">
+                Limpar feed
+              </button>
+            </div>
+          </div>
+          <div class="runtime-controls" style="margin-top: 10px">
+            <div class="runtime-filters">
+              <input id="runtime-log-filter" type="search" placeholder="Filtrar por texto, escopo ou payload" />
+              <select id="runtime-log-level">
+                <option value="all">Todos os níveis</option>
+                <option value="debug">debug</option>
+                <option value="info">info</option>
+                <option value="warn">warn</option>
+                <option value="error">error</option>
+              </select>
+              <select id="runtime-log-source">
+                <option value="all">Todos os escopos</option>
+              </select>
+            </div>
+          </div>
+          <div id="runtime-logs" class="log-feed">
+            <div class="muted">Carregando logs...</div>
+          </div>
+        </article>
+      </section>
     </main>
 
     <div id="admin-prompt-overlay" class="modal-overlay" hidden>
@@ -864,6 +1015,7 @@
         <div class="toolbar-actions" style="margin-top: 12px">
           <button id="admin-prompt-confirm" type="button">Confirmar GPT</button>
           <button id="admin-prompt-submit" class="secondary" type="button">Enviar resposta</button>
+          <button id="admin-prompt-skip" class="secondary" type="button">Pular campo</button>
           <button id="admin-prompt-cancel" class="secondary" type="button">Cancelar</button>
         </div>
       </div>
@@ -902,9 +1054,19 @@
       const adminPromptStatus = document.getElementById("admin-prompt-status");
       const adminPromptConfirm = document.getElementById("admin-prompt-confirm");
       const adminPromptSubmit = document.getElementById("admin-prompt-submit");
+      const adminPromptSkip = document.getElementById("admin-prompt-skip");
       const adminPromptCancel = document.getElementById("admin-prompt-cancel");
       const gptAutoConfirm = document.getElementById("gpt-auto-confirm");
       const gptAutoMeta = document.getElementById("gpt-auto-meta");
+      const runtimeActiveStep = document.getElementById("runtime-active-step");
+      const runtimeSteps = document.getElementById("runtime-steps");
+      const runtimeLogMeta = document.getElementById("runtime-log-meta");
+      const runtimeLogs = document.getElementById("runtime-logs");
+      const runtimeLogFilter = document.getElementById("runtime-log-filter");
+      const runtimeLogLevel = document.getElementById("runtime-log-level");
+      const runtimeLogSource = document.getElementById("runtime-log-source");
+      const runtimePauseButton = document.getElementById("runtime-pause");
+      const runtimeClearButton = document.getElementById("runtime-clear");
       const profileForm = document.getElementById("profile-form");
       const profileStatus = document.getElementById("profile-status");
       const profileMeta = document.getElementById("profile-meta");
@@ -980,6 +1142,16 @@
         autoConfirmGpt: false,
         autoConfirmDelayMs: 1000,
         isSaving: false,
+      };
+
+      const runtimeState = {
+        activeStep: null,
+        steps: [],
+        logs: [],
+        isPaused: false,
+        filterText: "",
+        level: "all",
+        source: "all",
       };
 
       function toNumber(value) {
@@ -1300,6 +1472,174 @@
           .join("");
       }
 
+      function getRuntimeStatusBadge(status) {
+        switch (status) {
+          case "done":
+            return { label: "concluído", className: "badge-ok" };
+          case "waiting":
+            return { label: "aguardando", className: "badge-warn" };
+          case "pending":
+            return { label: "próximo", className: "badge-info" };
+          case "skipped":
+            return { label: "pulado", className: "badge-muted" };
+          case "error":
+            return { label: "erro", className: "badge-danger" };
+          default:
+            return { label: "rodando", className: "badge-info" };
+        }
+      }
+
+      function getRuntimeLevelBadge(level) {
+        switch (level) {
+          case "error":
+            return { label: "error", className: "badge-danger" };
+          case "warn":
+            return { label: "warn", className: "badge-warn" };
+          case "debug":
+            return { label: "debug", className: "badge-muted" };
+          default:
+            return { label: "info", className: "badge-info" };
+        }
+      }
+
+      function getRuntimeLogSource(entry) {
+        const scoped = text(entry && entry.scope);
+        if (scoped) return scoped;
+
+        const message = text(entry && entry.message).toLowerCase();
+        if (!message) return "app";
+        if (message.includes("easy apply") || message.includes("[easy-apply]")) return "easy-apply";
+        if (message.includes("prompt admin")) return "prompt";
+        if (message.includes("gpt")) return "gpt";
+        if (message.includes("discord")) return "discord";
+        if (message.includes("processo admin")) return "process";
+        if (message.includes("[network]")) return "network";
+        if (message.includes("[jobs")) return "jobs";
+        return "app";
+      }
+
+      function buildRuntimeStepHtml(item, isActive = false) {
+        if (!item) {
+          return `<span class="muted">Sem etapa ativa.</span>`;
+        }
+
+        const statusBadge = getRuntimeStatusBadge(item.status);
+        const meta = [item.source || "bot", formatDate(item.createdAt)].filter(Boolean).join(" | ");
+        return `
+          <div class="step-item ${isActive ? "active" : ""}">
+            <div class="step-item-head">
+              <div class="step-item-title">${escapeHtml(item.label || "Etapa")}</div>
+              <span class="badge ${statusBadge.className}">${escapeHtml(statusBadge.label)}</span>
+            </div>
+            <div class="meta">${escapeHtml(meta)}</div>
+            <div class="step-item-detail">${escapeHtml(item.detail || "Sem detalhe adicional.")}</div>
+          </div>
+        `;
+      }
+
+      function buildRuntimeLogHtml(item) {
+        const levelBadge = getRuntimeLevelBadge(item.level || "info");
+        const source = getRuntimeLogSource(item);
+        const dataHtml = item.data
+          ? `<div class="log-item-data">${escapeHtml(item.data)}</div>`
+          : "";
+
+        return `
+          <div class="log-item">
+            <div class="log-item-head">
+              <span class="badge ${levelBadge.className}">${escapeHtml(levelBadge.label)}</span>
+              <span class="pill">${escapeHtml(source)}</span>
+              <span class="meta">${escapeHtml(formatDate(item.createdAt))}</span>
+            </div>
+            <div class="log-item-message">${escapeHtml(item.message || "")}</div>
+            ${dataHtml}
+          </div>
+        `;
+      }
+
+      function syncRuntimeSourceOptions(logs) {
+        const currentValue = runtimeState.source || "all";
+        const sources = Array.from(
+          new Set(["all", ...logs.map((item) => getRuntimeLogSource(item))])
+        );
+
+        runtimeLogSource.innerHTML = sources
+          .map((source) => {
+            const label = source === "all" ? "Todos os escopos" : source;
+            return `<option value="${escapeHtml(source)}">${escapeHtml(label)}</option>`;
+          })
+          .join("");
+
+        runtimeLogSource.value = sources.includes(currentValue) ? currentValue : "all";
+        runtimeState.source = runtimeLogSource.value;
+      }
+
+      function renderRuntime() {
+        runtimePauseButton.textContent = runtimeState.isPaused ? "Retomar feed" : "Pausar feed";
+
+        const activeStep = runtimeState.activeStep || null;
+        runtimeActiveStep.innerHTML = buildRuntimeStepHtml(activeStep, true);
+
+        const recentSteps = (Array.isArray(runtimeState.steps) ? runtimeState.steps : [])
+          .filter((item) => !activeStep || item.id !== activeStep.id)
+          .slice(0, 8);
+
+        runtimeSteps.innerHTML = recentSteps.length
+          ? recentSteps.map((item) => buildRuntimeStepHtml(item)).join("")
+          : `<div class="muted">Sem histórico recente de steps.</div>`;
+
+        const allLogs = Array.isArray(runtimeState.logs) ? runtimeState.logs : [];
+        syncRuntimeSourceOptions(allLogs);
+
+        const query = normalizeSearchText(runtimeState.filterText);
+        const visibleLogs = allLogs.filter((item) => {
+          const level = text(item.level) || "info";
+          const source = getRuntimeLogSource(item);
+          if (runtimeState.level !== "all" && level !== runtimeState.level) {
+            return false;
+          }
+          if (runtimeState.source !== "all" && source !== runtimeState.source) {
+            return false;
+          }
+          if (!query) {
+            return true;
+          }
+
+          const haystack = normalizeSearchText(
+            [item.message, item.data, source, level].filter(Boolean).join(" ")
+          );
+          return haystack.includes(query);
+        });
+
+        runtimeLogMeta.textContent = `${visibleLogs.length}/${allLogs.length} logs visíveis | ${
+          runtimeState.isPaused ? "feed pausado" : "feed ao vivo"
+        }`;
+
+        runtimeLogs.innerHTML = visibleLogs.length
+          ? visibleLogs.map((item) => buildRuntimeLogHtml(item)).join("")
+          : `<div class="muted">Nenhum log corresponde aos filtros atuais.</div>`;
+      }
+
+      async function refreshRuntime() {
+        if (runtimeState.isPaused) {
+          renderRuntime();
+          return;
+        }
+
+        try {
+          const data = await request("GET", "/api/admin/runtime?logsLimit=200&stepsLimit=24");
+          runtimeState.activeStep = data.activeStep || null;
+          runtimeState.steps = Array.isArray(data.steps) ? data.steps : [];
+          runtimeState.logs = Array.isArray(data.logs) ? data.logs : [];
+          renderRuntime();
+          return data;
+        } catch (error) {
+          runtimeLogMeta.textContent = `Falha ao carregar feed: ${error.message}`;
+          runtimeLogs.innerHTML = `<div class="danger">${escapeHtml(error.message)}</div>`;
+          throw error;
+        }
+      }
+
       function syncProfileControls() {
         const disabled = profileState.isSaving || profileState.isReviewing || profileState.isResetting;
         profileSaveButton.disabled = disabled;
@@ -1435,6 +1775,7 @@
         const disabled = adminPromptState.isSubmitting || !adminPromptState.item;
         adminPromptConfirm.disabled = disabled;
         adminPromptSubmit.disabled = disabled;
+        adminPromptSkip.disabled = disabled;
         adminPromptCancel.disabled = disabled;
       }
 
@@ -1448,6 +1789,7 @@
           setStatus(adminPromptStatus, "");
           adminPromptText.value = "";
           adminPromptSelect.innerHTML = "";
+          adminPromptSkip.textContent = "Pular campo";
           return;
         }
 
@@ -1477,6 +1819,7 @@
 
         adminPromptConfirm.textContent = "Confirmar GPT";
         adminPromptSubmit.textContent = isConfirm ? "Usar resposta manual" : "Enviar resposta";
+        adminPromptSkip.textContent = isSelect ? "Pular opção" : "Pular campo";
         setHidden(adminPromptConfirm, !isConfirm);
 
         if (isSelect) {
@@ -1952,6 +2295,10 @@
         submitAdminPrompt("manual");
       });
 
+      adminPromptSkip.addEventListener("click", () => {
+        submitAdminPrompt("skip");
+      });
+
       adminPromptCancel.addEventListener("click", () => {
         submitAdminPrompt("cancel");
       });
@@ -2122,6 +2469,41 @@
         savePromptSettings();
       });
 
+      runtimeLogFilter.addEventListener("input", (event) => {
+        runtimeState.filterText = event.currentTarget.value || "";
+        renderRuntime();
+      });
+
+      runtimeLogLevel.addEventListener("change", (event) => {
+        runtimeState.level = event.currentTarget.value || "all";
+        renderRuntime();
+      });
+
+      runtimeLogSource.addEventListener("change", (event) => {
+        runtimeState.source = event.currentTarget.value || "all";
+        renderRuntime();
+      });
+
+      runtimePauseButton.addEventListener("click", () => {
+        runtimeState.isPaused = !runtimeState.isPaused;
+        renderRuntime();
+        if (!runtimeState.isPaused) {
+          refreshRuntime();
+        }
+      });
+
+      runtimeClearButton.addEventListener("click", async () => {
+        try {
+          await request("POST", "/api/admin/runtime/clear", {});
+          runtimeState.activeStep = null;
+          runtimeState.steps = [];
+          runtimeState.logs = [];
+          renderRuntime();
+        } catch (error) {
+          runtimeLogMeta.textContent = `Falha ao limpar feed: ${error.message}`;
+        }
+      });
+
       profileReviewPreviewCard.addEventListener("click", () => {
         const profile = profileState.item;
         const reviewValue =
@@ -2166,11 +2548,13 @@
       syncAppliedJobsControls();
       refreshProcesses();
       refreshGpt();
+      refreshRuntime();
       refreshAdminPrompt();
       refreshProfile();
 
       setInterval(refreshProcesses, 3000);
       setInterval(refreshGpt, 7000);
+      setInterval(refreshRuntime, 1200);
       setInterval(refreshAdminPrompt, 200);
     </script>
   </body>

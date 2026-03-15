@@ -11,6 +11,7 @@ import { createPrompt, waitForPromptAnswer } from "../../../../api/controllers/p
 import { GptClient } from "../../../shared/ai/gpt-client";
 import { FormPromptField } from "../../../shared/interface/forms/form.types";
 import type { UserProfile } from "../../../shared/interface/user/user-profile.types";
+import { logger } from "../../../shared/services/logger";
 import { normalizeKey } from "../../../shared/utils/normalize";
 
 export class EasyApplyAbortError extends Error {
@@ -19,6 +20,8 @@ export class EasyApplyAbortError extends Error {
         this.name = 'EasyApplyAbortError'
     }
 }
+
+const SKIP_FIELD = "__interactionbot_skip_field__" as const
 
 type AnswerResolverOptions = {
     adminPromptBroker?: AdminPromptBroker
@@ -50,15 +53,25 @@ export class EasyApplyAnswerResolver {
     }
 
     async resolve(field: FormPromptField, step: number) {
+        const label = field.label || field.key || 'field'
         const cached = this._getCachedAnswer(field)
-        if (cached) return cached
+        if (cached) {
+            logger.info(`[easy-apply] etapa ${step}: usando cache para "${label}"`)
+            return cached
+        }
 
         const historyContext = await this._historyContext(field)
         const gptAnswer = this._coerceAnswer(field, await this._askWithGpt(field, step, historyContext))
         if (gptAnswer) {
-            const confirmed = this._coerceAnswer(field, await this._confirmGptAnswer(field, step, gptAnswer))
+            const gptDecision = await this._confirmGptAnswer(field, step, gptAnswer)
+            if (gptDecision === SKIP_FIELD) {
+                logger.info(`[easy-apply] etapa ${step}: campo pulado no admin para "${label}"`)
+                return null
+            }
+            const confirmed = this._coerceAnswer(field, gptDecision)
             if (confirmed) {
                 this._storeCachedAnswer(field, confirmed)
+                logger.info(`[easy-apply] etapa ${step}: usando GPT confirmado para "${label}"`)
                 return confirmed
             }
         }
@@ -66,22 +79,29 @@ export class EasyApplyAnswerResolver {
         const profileAnswer = this._coerceAnswer(field, this._answerFromProfile(field))
         if (profileAnswer) {
             this._storeCachedAnswer(field, profileAnswer)
+            logger.info(`[easy-apply] etapa ${step}: usando perfil salvo para "${label}"`)
             return profileAnswer
         }
 
         const historyAnswer = this._coerceAnswer(field, await this._answerFromHistory(field))
         if (historyAnswer) {
             this._storeCachedAnswer(field, historyAnswer)
+            logger.info(`[easy-apply] etapa ${step}: usando histórico salvo para "${label}"`)
             return historyAnswer
         }
         if (this._isStandalone) {
-            const label = field.label || field.key || 'field'
             throw new EasyApplyAbortError(`standalone-missing:${label}`)
         }
 
-        const manualAnswer = this._coerceAnswer(field, await this._askForField(field, step, true))
+        const manualDecision = await this._askForField(field, step, true)
+        if (manualDecision === SKIP_FIELD) {
+            logger.info(`[easy-apply] etapa ${step}: campo pulado manualmente para "${label}"`)
+            return null
+        }
+        const manualAnswer = this._coerceAnswer(field, manualDecision)
         if (manualAnswer) {
             this._storeCachedAnswer(field, manualAnswer)
+            logger.info(`[easy-apply] etapa ${step}: usando resposta manual para "${label}"`)
         }
         return manualAnswer
     }
@@ -236,7 +256,7 @@ export class EasyApplyAnswerResolver {
         return this._gpt.answerField(field, this._profile, historyAnswers, { step })
     }
 
-    private async _confirmGptAnswer(field: FormPromptField, step: number, gptAnswer: string): Promise<string | null> {
+    private async _confirmGptAnswer(field: FormPromptField, step: number, gptAnswer: string): Promise<string | null | typeof SKIP_FIELD> {
         const label = field.label || field.key || 'field'
         const options = field.type === 'select'
             ? (field.options || []).map((option) => option.trim()).filter(Boolean)
@@ -433,11 +453,11 @@ export class EasyApplyAnswerResolver {
             }
             return null
         } catch (error) {
-            console.warn('Unable to show GPT confirmation popup', error)
+            logger.warn('Unable to show GPT confirmation popup', error)
             return gptAnswer
         }
     }
-    private async _askForField(field: FormPromptField, step: number, forcePrompt = false) {
+    private async _askForField(field: FormPromptField, step: number, forcePrompt = false): Promise<string | null | typeof SKIP_FIELD> {
         const label = field.label || field.key || 'field'
         const adminResult = await this._requestAdminPrompt({
             kind: 'answer-field',
@@ -481,7 +501,7 @@ export class EasyApplyAnswerResolver {
         try {
             return await this._adminPromptBroker.requestPrompt(request, this._promptTimeoutMs)
         } catch (error) {
-            console.warn('Unable to request admin prompt', error)
+            logger.warn('Unable to request admin prompt', error)
             return null
         }
     }
@@ -489,13 +509,16 @@ export class EasyApplyAnswerResolver {
     private _resolveAdminPromptResult(
         result: AdminPromptResponse,
         confirmedValue: string | null
-    ) {
+    ): string | null | typeof SKIP_FIELD {
         if (result.action === 'confirm') {
             return confirmedValue
         }
         if (result.action === 'manual') {
             const value = typeof result.value === 'string' ? result.value.trim() : ''
             return value || null
+        }
+        if (result.action === 'skip') {
+            return SKIP_FIELD
         }
         return null
     }
