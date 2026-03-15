@@ -3,10 +3,13 @@ import { BrowserContext, chromium } from "playwright";
 import { AdminPromptBroker } from "../admin/prompt-broker";
 import { AdminProcessManager } from "../admin/process-manager";
 import { AdminServer } from "../admin/admin-server";
+import { hydrateControlPlaneContext } from "../api/controllers/auth";
 import { LinkedinFeatures } from "./features/linkedin";
 import { DiscordClient } from "./shared/discord/discord-client";
 import { env } from "./shared/env";
 import { logger } from "./shared/services/logger";
+import { hydrateUserProfile } from "./shared/user-profile";
+import { resolveScopedPath } from "./shared/utils/user-data-dir";
 
 let browser: BrowserContext | undefined
 let adminServer: AdminServer | undefined
@@ -27,7 +30,10 @@ async function main(): Promise<void> {
         }
     })
 
-    browser = await chromium.launchPersistentContext(env.userDataDir, {
+    await hydrateControlPlaneContext()
+    await hydrateUserProfile()
+
+    browser = await chromium.launchPersistentContext(resolveScopedPath(env.userDataDir), {
         headless: false,
         slowMo: 50,
     })

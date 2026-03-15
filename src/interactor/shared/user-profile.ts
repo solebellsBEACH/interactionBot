@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { clearRemoteUserProfile, fetchRemoteUserProfile, saveRemoteUserProfile } from "../../api/controllers/user-profile";
 import type { UserProfile } from "./interface/user/user-profile.types";
 import type {
     UserProfileCompensation,
@@ -10,6 +11,8 @@ import type {
     UserProfileReview,
     UserProfileStackExperience
 } from "./interface/user/user-profile.types";
+import { logger } from "./services/logger";
+import { getBotScopeId, hasBotControlPlaneContext } from "./utils/user-data-dir";
 
 export type {
     UserProfile,
@@ -21,8 +24,6 @@ export type {
     UserProfileReview,
     UserProfileStackExperience
 } from "./interface/user/user-profile.types";
-
-const profilePath = path.resolve(process.cwd(), "data", "user-profile.json")
 
 const defaultProfile: UserProfile = {
     summary: "",
@@ -39,6 +40,35 @@ const defaultProfile: UserProfile = {
     profileReview: null,
     updatedAt: ""
 }
+
+let profileHydrated = false
+let profilePersistQueue = Promise.resolve()
+let activeProfileScope = ""
+
+const getProfileStorageMode = () => {
+    const value = (process.env.USER_PROFILE_STORAGE || "auto").trim().toLowerCase()
+    if (value === "api" || value === "local" || value === "auto") return value
+    return "auto"
+}
+
+const shouldUseApiProfile = () => {
+    const mode = getProfileStorageMode()
+    if (mode === "api") return true
+    if (mode === "local") return false
+    return hasBotControlPlaneContext()
+}
+
+const getProfileStorageKey = () => {
+    const scopeId = getBotScopeId()
+    if (!scopeId) return "default"
+    return scopeId
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "default"
+}
+
+const getProfilePath = () => path.resolve(process.cwd(), "data", "profiles", `${getProfileStorageKey()}.json`)
 
 const normalizeText = (value: unknown) =>
     typeof value === "string"
@@ -244,6 +274,8 @@ const normalizeNullableText = (value: unknown) => {
     return normalized || null
 }
 
+const getEnvSummary = () => process.env.USER_PROFILE?.trim() || ""
+
 const normalizeKey = (value: string) =>
     value
         .normalize("NFD")
@@ -359,6 +391,7 @@ export const normalizeUserProfile = (value: unknown): UserProfile => {
 }
 
 const loadProfileFromFile = () => {
+    const profilePath = getProfilePath()
     if (!fs.existsSync(profilePath)) return null
 
     try {
@@ -370,28 +403,151 @@ const loadProfileFromFile = () => {
     }
 }
 
-const envSummary = process.env.USER_PROFILE?.trim() || ""
-const initialProfile = loadProfileFromFile()
-
 export const userProfile: UserProfile = normalizeUserProfile({
     ...defaultProfile,
-    ...(initialProfile || {}),
-    summary: initialProfile?.summary || envSummary || defaultProfile.summary
+    summary: getEnvSummary() || defaultProfile.summary
 })
 
-export const readUserProfile = () => {
-    const latest = loadProfileFromFile()
+const getProfileScope = () => `${shouldUseApiProfile() ? "api" : "local"}:${getProfileStorageKey()}`
+
+const applyCachedProfile = (value: Partial<UserProfile>) => {
+    const summary =
+        value.summary !== undefined
+            ? value.summary
+            : userProfile.summary || getEnvSummary() || defaultProfile.summary
+
     const normalized = normalizeUserProfile({
+        ...defaultProfile,
         ...userProfile,
-        ...(latest || {}),
-        summary: latest?.summary || userProfile.summary || envSummary || defaultProfile.summary
+        ...value,
+        summary
     })
 
     Object.assign(userProfile, normalized)
     return userProfile
 }
 
+const ensureProfileScope = () => {
+    const nextScope = getProfileScope()
+    if (!activeProfileScope) {
+        activeProfileScope = nextScope
+        return nextScope
+    }
+
+    if (activeProfileScope !== nextScope) {
+        activeProfileScope = nextScope
+        profileHydrated = false
+        applyCachedProfile({
+            ...defaultProfile,
+            summary: getEnvSummary() || defaultProfile.summary
+        })
+        return nextScope
+    }
+
+    return nextScope
+}
+
+const saveProfileToFile = (profile: UserProfile) => {
+    const profilePath = getProfilePath()
+    fs.mkdirSync(path.dirname(profilePath), { recursive: true })
+    fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2))
+}
+
+const queueRemoteProfileSave = (profile: UserProfile) => {
+    if (!shouldUseApiProfile()) return profilePersistQueue
+
+    profilePersistQueue = profilePersistQueue
+        .catch(() => undefined)
+        .then(async () => {
+            try {
+                const remote = await saveRemoteUserProfile(profile)
+                if (remote) {
+                    applyCachedProfile(remote)
+                }
+            } catch (error) {
+                logger.warn("Falha ao persistir user profile na API. Mantendo fallback local.", error)
+            }
+        })
+
+    return profilePersistQueue
+}
+
+const queueRemoteProfileReset = () => {
+    if (!shouldUseApiProfile()) return profilePersistQueue
+
+    profilePersistQueue = profilePersistQueue
+        .catch(() => undefined)
+        .then(async () => {
+            try {
+                await clearRemoteUserProfile()
+            } catch (error) {
+                logger.warn("Falha ao limpar user profile na API. Mantendo fallback local.", error)
+            }
+        })
+
+    return profilePersistQueue
+}
+
+export const hydrateUserProfile = async (force = false) => {
+    ensureProfileScope()
+    if (profileHydrated && !force) return userProfile
+
+    let nextProfile: UserProfile | null = null
+    if (shouldUseApiProfile()) {
+        try {
+            const remote = await fetchRemoteUserProfile()
+            if (remote) {
+                nextProfile = normalizeUserProfile(remote)
+            }
+        } catch (error) {
+            logger.warn("Falha ao carregar user profile da API. Usando fallback local.", error)
+        }
+    }
+
+    if (!nextProfile) {
+        nextProfile = loadProfileFromFile()
+    }
+
+    if (nextProfile) {
+        applyCachedProfile(nextProfile)
+    } else {
+        applyCachedProfile({
+            ...defaultProfile,
+            summary: getEnvSummary() || defaultProfile.summary
+        })
+    }
+
+    profileHydrated = true
+    return userProfile
+}
+
+export const flushUserProfile = async () => {
+    await profilePersistQueue.catch(() => undefined)
+    return userProfile
+}
+
+export const readUserProfile = () => {
+    ensureProfileScope()
+    if (shouldUseApiProfile()) {
+        profileHydrated = true
+        return userProfile
+    }
+
+    const latest = loadProfileFromFile()
+    if (latest) {
+        applyCachedProfile(latest)
+    } else if (!profileHydrated) {
+        applyCachedProfile({
+            ...defaultProfile,
+            summary: getEnvSummary() || defaultProfile.summary
+        })
+    }
+    profileHydrated = true
+    return userProfile
+}
+
 export const saveUserProfile = (value: Partial<UserProfile>) => {
+    ensureProfileScope()
     const current = readUserProfile()
     const merged = normalizeUserProfile({
         ...current,
@@ -411,13 +567,22 @@ export const saveUserProfile = (value: Partial<UserProfile>) => {
         updatedAt: new Date().toISOString()
     })
 
-    fs.mkdirSync(path.dirname(profilePath), { recursive: true })
-    fs.writeFileSync(profilePath, JSON.stringify(merged, null, 2))
-    Object.assign(userProfile, merged)
+    applyCachedProfile(merged)
+    saveProfileToFile(userProfile)
+    void queueRemoteProfileSave(userProfile)
+    profileHydrated = true
     return userProfile
 }
 
+export const saveUserProfileAsync = async (value: Partial<UserProfile>) => {
+    const profile = saveUserProfile(value)
+    await flushUserProfile()
+    return profile
+}
+
 export const resetUserProfile = () => {
+    ensureProfileScope()
+    const profilePath = getProfilePath()
     if (fs.existsSync(profilePath)) {
         fs.rmSync(profilePath, { force: true })
     }
@@ -427,5 +592,13 @@ export const resetUserProfile = () => {
     })
 
     Object.assign(userProfile, reset)
+    void queueRemoteProfileReset()
+    profileHydrated = true
     return userProfile
+}
+
+export const resetUserProfileAsync = async () => {
+    const profile = resetUserProfile()
+    await flushUserProfile()
+    return profile
 }

@@ -1,9 +1,12 @@
 import { BrowserContext, chromium } from 'playwright';
+import { hydrateControlPlaneContext } from '../api/controllers/auth';
 import { env } from './shared/env';
 import { LinkedinFeatures } from './features/linkedin';
 import { ERROR_CODES } from './shared/constants/errors';
 import { logger } from './shared/services/logger';
+import { hydrateUserProfile } from './shared/user-profile';
 import { parseArgs, ParsedArgs } from './shared/utils/parse-cli-args';
+import { resolveScopedPath } from './shared/utils/user-data-dir';
 
 let browser: BrowserContext | undefined
 let shuttingDown = false
@@ -171,7 +174,10 @@ const main = async (): Promise<void> => {
     }
   })
 
-  browser = await chromium.launchPersistentContext(env.userDataDir, {
+  await hydrateControlPlaneContext()
+  await hydrateUserProfile()
+
+  browser = await chromium.launchPersistentContext(resolveScopedPath(env.userDataDir), {
     headless,
     slowMo: 50
   })

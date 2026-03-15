@@ -1,0 +1,734 @@
+{
+  "summary": "Lucas Xavier - Senior Full Stack Engineer | React.js | Web3.js | TypeScript | Node.js | Micro Frontends | Remote-First | Accessibility | WCAG\nLocation: Vila Velha, Espírito Santo, Brazil\nCurrent company: Questrade Financial Group\nBirth date: 2002-12-14\nCompensation: USD/h: 23 | BRL/h: 100 | Pretensão CLT: 14000 | Pretensão PJ: 18000\nAbout: Passionate Full Stack Engineer with over 5 years of experience designing and building scalable web applications using modern JavaScript frameworks. Skilled in React.js, Angular 17+, Node.js, NestJS, TypeScript, and Micro Frontends. I currently work remotely at Questrade Financial Group (Toronto, Canada), enhancing the performance and reliability of the MyQuestrade platform through modular architecture and continuous integration. I value clean architecture, collaboration across global teams, and delivering measurable impact — such as reducing critical page load times by 15% and optimizing backend integrations. 🚀 Open to opportunities in remote-first international teams, particularly in FinTech, SaaS, or scalable product environments. 💬 Tech Stack: React, Angular, Next.js, Node.js, NestJS, TypeScript, Docker, PostgreSQL, Datadog, Amplitude, CI/CD 🌍 Languages: English (Fluent), Portuguese (Native) React.js, Angular 17+, TypeScript, Node.js, NestJS, Next.js, Micro Frontends, Clean Architecture, Docker, CI/CD, PostgreSQL, Datadog, Amplitude, Cypress, E2E Testing, Performance Optimization, FinTech, SaaS, Remote Work, Full Stack Engineer, Front End Engineer, Agile, SCRUM. Passionate Full Stack Engineer with over 5 years of experience designing and building scalable web applications using modern JavaScript frameworks. Skilled in React.js, Angular 17+, Node.js, NestJS, TypeScript, and Micro Frontends. I currently work remotely at Questrade Financial Group (Toronto, Canada), enhancing the performance and reliability of the MyQuestrade platform through modular architecture and continuous integration. I value clean architecture, collaboration across global teams, and delivering measurable impact — such as reducing critical page load times by 15% and optimizing backend integrations. 🚀 Open to opportunities in remote-first international teams, particularly in FinTech, SaaS, or scalable product environments. 💬 Tech Stack: React, Angular, Next.js, Node.js, NestJS, TypeScript, Docker, PostgreSQL, Datadog, Amplitude, CI/CD 🌍 Languages: English (Fluent), Portuguese (Native) React.js, Angular 17+, TypeScript, Node.js, NestJS, Next.js, Micro Frontends, Clean Architecture, Docker, CI/CD, PostgreSQL, Datadog, Amplitude, Cypress, E2E Testing, Performance Optimization, FinTech, SaaS, Remote Work, Full Stack Engineer, Front End Engineer, Agile, SCRUM.\nTop skills: React.js, Node.js, Inglês, AngularJS, Micro Frontends\nLanguages: Inglês (Inglês), Português (Português)\nStack experience: React (5 anos e 9 meses), Angular (5 anos e 9 meses), Node.js (5 anos e 9 meses), TypeScript (5 anos e 9 meses), Spring Boot (5 anos e 9 meses), Docker (5 anos e 9 meses), MongoDB (5 anos e 9 meses), SQL (5 anos e 9 meses), Redux (5 anos e 9 meses), Sass (5 anos e 9 meses)",
+  "answers": {
+    "data-de-nascimento": "2002-12-14",
+    "data-nascimento": "2002-12-14",
+    "date-of-birth": "2002-12-14",
+    "birth-date": "2002-12-14",
+    "birthdate": "2002-12-14",
+    "dob": "2002-12-14",
+    "valor-hora-dolar": "23",
+    "valor-hora-usd": "23",
+    "hourly-rate-usd": "23",
+    "hourly-rate-dollar": "23",
+    "valor-hora-reais": "100",
+    "valor-hora-brl": "100",
+    "hourly-rate-reais": "100",
+    "hourly-rate-brl": "100",
+    "pretensao-clt": "14000",
+    "pretensao-salarial-clt": "14000",
+    "salary-expectation-clt": "14000",
+    "pretensao-pj": "18000",
+    "pretensao-salarial-pj": "18000",
+    "salary-expectation-pj": "18000",
+    "react-experience": "5.8",
+    "react-years-of-experience": "5.8",
+    "years-of-react-experience": "5.8",
+    "experience-with-react": "5.8",
+    "react-experience-years": "5.8",
+    "angular-experience": "5.8",
+    "angular-years-of-experience": "5.8",
+    "years-of-angular-experience": "5.8",
+    "experience-with-angular": "5.8",
+    "angular-experience-years": "5.8",
+    "node-js-experience": "5.8",
+    "node-js-years-of-experience": "5.8",
+    "years-of-node-js-experience": "5.8",
+    "experience-with-node-js": "5.8",
+    "node-js-experience-years": "5.8",
+    "typescript-experience": "5.8",
+    "typescript-years-of-experience": "5.8",
+    "years-of-typescript-experience": "5.8",
+    "experience-with-typescript": "5.8",
+    "typescript-experience-years": "5.8",
+    "spring-boot-experience": "5.8",
+    "spring-boot-years-of-experience": "5.8",
+    "years-of-spring-boot-experience": "5.8",
+    "experience-with-spring-boot": "5.8",
+    "spring-boot-experience-years": "5.8",
+    "docker-experience": "5.8",
+    "docker-years-of-experience": "5.8",
+    "years-of-docker-experience": "5.8",
+    "experience-with-docker": "5.8",
+    "docker-experience-years": "5.8",
+    "mongodb-experience": "5.8",
+    "mongodb-years-of-experience": "5.8",
+    "years-of-mongodb-experience": "5.8",
+    "experience-with-mongodb": "5.8",
+    "mongodb-experience-years": "5.8",
+    "sql-experience": "5.8",
+    "sql-years-of-experience": "5.8",
+    "years-of-sql-experience": "5.8",
+    "experience-with-sql": "5.8",
+    "sql-experience-years": "5.8",
+    "redux-experience": "5.8",
+    "redux-years-of-experience": "5.8",
+    "years-of-redux-experience": "5.8",
+    "experience-with-redux": "5.8",
+    "redux-experience-years": "5.8",
+    "sass-experience": "5.8",
+    "sass-years-of-experience": "5.8",
+    "years-of-sass-experience": "5.8",
+    "experience-with-sass": "5.8",
+    "sass-experience-years": "5.8",
+    "rest-api-experience": "5.8",
+    "rest-api-years-of-experience": "5.8",
+    "years-of-rest-api-experience": "5.8",
+    "experience-with-rest-api": "5.8",
+    "rest-api-experience-years": "5.8",
+    "javascript-experience": "5.8",
+    "javascript-years-of-experience": "5.8",
+    "years-of-javascript-experience": "5.8",
+    "experience-with-javascript": "5.8",
+    "javascript-experience-years": "5.8",
+    "express-experience": "5.8",
+    "express-years-of-experience": "5.8",
+    "years-of-express-experience": "5.8",
+    "experience-with-express": "5.8",
+    "express-experience-years": "5.8",
+    "react-native-experience": "5.8",
+    "react-native-years-of-experience": "5.8",
+    "years-of-react-native-experience": "5.8",
+    "experience-with-react-native": "5.8",
+    "react-native-experience-years": "5.8",
+    "next-js-experience": "5.8",
+    "next-js-years-of-experience": "5.8",
+    "years-of-next-js-experience": "5.8",
+    "experience-with-next-js": "5.8",
+    "next-js-experience-years": "5.8",
+    "redux-saga-experience": "5.8",
+    "redux-saga-years-of-experience": "5.8",
+    "years-of-redux-saga-experience": "5.8",
+    "experience-with-redux-saga": "5.8",
+    "redux-saga-experience-years": "5.8",
+    "styled-components-experience": "5.8",
+    "styled-components-years-of-experience": "5.8",
+    "years-of-styled-components-experience": "5.8",
+    "experience-with-styled-components": "5.8",
+    "styled-components-experience-years": "5.8",
+    "bootstrap-experience": "5.8",
+    "bootstrap-years-of-experience": "5.8",
+    "years-of-bootstrap-experience": "5.8",
+    "experience-with-bootstrap": "5.8",
+    "bootstrap-experience-years": "5.8",
+    "expo-experience": "5.8",
+    "expo-years-of-experience": "5.8",
+    "years-of-expo-experience": "5.8",
+    "experience-with-expo": "5.8",
+    "expo-experience-years": "5.8",
+    "firebase-experience": "5.8",
+    "firebase-years-of-experience": "5.8",
+    "years-of-firebase-experience": "5.8",
+    "experience-with-firebase": "5.8",
+    "firebase-experience-years": "5.8",
+    "socket-io-experience": "5.8",
+    "socket-io-years-of-experience": "5.8",
+    "years-of-socket-io-experience": "5.8",
+    "experience-with-socket-io": "5.8",
+    "socket-io-experience-years": "5.8",
+    "adonisjs-experience": "5.8",
+    "adonisjs-years-of-experience": "5.8",
+    "years-of-adonisjs-experience": "5.8",
+    "experience-with-adonisjs": "5.8",
+    "adonisjs-experience-years": "5.8",
+    "java-experience": "5.8",
+    "java-years-of-experience": "5.8",
+    "years-of-java-experience": "5.8",
+    "experience-with-java": "5.8",
+    "java-experience-years": "5.8",
+    "plasmo-experience": "5.8",
+    "plasmo-years-of-experience": "5.8",
+    "years-of-plasmo-experience": "5.8",
+    "experience-with-plasmo": "5.8",
+    "plasmo-experience-years": "5.8",
+    "micro-frontends-experience": "3.4",
+    "micro-frontends-years-of-experience": "3.4",
+    "years-of-micro-frontends-experience": "3.4",
+    "experience-with-micro-frontends": "3.4",
+    "micro-frontends-experience-years": "3.4",
+    "nestjs-experience": "3.4",
+    "nestjs-years-of-experience": "3.4",
+    "years-of-nestjs-experience": "3.4",
+    "experience-with-nestjs": "3.4",
+    "nestjs-experience-years": "3.4",
+    "mysql-experience": "3.4",
+    "mysql-years-of-experience": "3.4",
+    "years-of-mysql-experience": "3.4",
+    "experience-with-mysql": "3.4",
+    "mysql-experience-years": "3.4",
+    "datadog-experience": "2.4",
+    "datadog-years-of-experience": "2.4",
+    "years-of-datadog-experience": "2.4",
+    "experience-with-datadog": "2.4",
+    "datadog-experience-years": "2.4",
+    "amplitude-experience": "2.4",
+    "amplitude-years-of-experience": "2.4",
+    "years-of-amplitude-experience": "2.4",
+    "experience-with-amplitude": "2.4",
+    "amplitude-experience-years": "2.4",
+    "e2e-testing-experience": "2.4",
+    "e2e-testing-years-of-experience": "2.4",
+    "years-of-e2e-testing-experience": "2.4",
+    "experience-with-e2e-testing": "2.4",
+    "e2e-testing-experience-years": "2.4"
+  },
+  "birthDate": "2002-12-14",
+  "compensation": {
+    "hourlyUsd": "23",
+    "hourlyBrl": "100",
+    "clt": "14000",
+    "pj": "18000"
+  },
+  "stackExperience": {
+    "React": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Angular": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Node.js": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "TypeScript": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Spring Boot": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Docker": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "MongoDB": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "SQL": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Redux": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Sass": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "REST API": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "JavaScript": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Express": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "React Native": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Next.js": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Redux Saga": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Styled Components": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Bootstrap": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Expo": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Firebase": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Socket.IO": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "AdonisJS": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Java": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Plasmo": {
+      "firstSeenAt": "2020-07-01T00:00:00.000Z",
+      "months": 69,
+      "years": "5.8",
+      "durationLabel": "5 anos e 9 meses",
+      "sourceCompanies": [
+        "Luby Software"
+      ],
+      "sourceTitles": [
+        "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo"
+      ]
+    },
+    "Micro Frontends": {
+      "firstSeenAt": "2022-11-01T00:00:00.000Z",
+      "months": 41,
+      "years": "3.4",
+      "durationLabel": "3 anos e 5 meses",
+      "sourceCompanies": [
+        "AdGrowth",
+        "Alive App Brasil",
+        "Inflr"
+      ],
+      "sourceTitles": [
+        "Frontend Developer| React | Micro Frontends |Redux",
+        "Fullstack Developer | Micro Frontends | Express | NestJS | Node.js | TypeScript"
+      ]
+    },
+    "NestJS": {
+      "firstSeenAt": "2022-11-01T00:00:00.000Z",
+      "months": 41,
+      "years": "3.4",
+      "durationLabel": "3 anos e 5 meses",
+      "sourceCompanies": [
+        "AdGrowth",
+        "Alive App Brasil",
+        "Inflr"
+      ],
+      "sourceTitles": [
+        "Frontend Developer| React | Micro Frontends |Redux",
+        "Fullstack Developer | Micro Frontends | Express | NestJS | Node.js | TypeScript"
+      ]
+    },
+    "MySQL": {
+      "firstSeenAt": "2022-11-01T00:00:00.000Z",
+      "months": 41,
+      "years": "3.4",
+      "durationLabel": "3 anos e 5 meses",
+      "sourceCompanies": [
+        "Alive App Brasil",
+        "Inflr"
+      ],
+      "sourceTitles": [
+        "Fullstack Developer | Micro Frontends | Express | NestJS | Node.js | TypeScript"
+      ]
+    },
+    "Datadog": {
+      "firstSeenAt": "2023-11-01T00:00:00.000Z",
+      "months": 29,
+      "years": "2.4",
+      "durationLabel": "2 anos e 5 meses",
+      "sourceCompanies": [
+        "Questrade Financial Group"
+      ],
+      "sourceTitles": [
+        "Senior Software Engineer | React | Micro Frontends | Typescript | Datadog | Amplitude"
+      ]
+    },
+    "Amplitude": {
+      "firstSeenAt": "2023-11-01T00:00:00.000Z",
+      "months": 29,
+      "years": "2.4",
+      "durationLabel": "2 anos e 5 meses",
+      "sourceCompanies": [
+        "Questrade Financial Group"
+      ],
+      "sourceTitles": [
+        "Senior Software Engineer | React | Micro Frontends | Typescript | Datadog | Amplitude"
+      ]
+    },
+    "E2E Testing": {
+      "firstSeenAt": "2023-11-01T00:00:00.000Z",
+      "months": 29,
+      "years": "2.4",
+      "durationLabel": "2 anos e 5 meses",
+      "sourceCompanies": [
+        "Questrade Financial Group"
+      ],
+      "sourceTitles": [
+        "Senior Software Engineer | React | Micro Frontends | Typescript | Datadog | Amplitude"
+      ]
+    }
+  },
+  "linkedinProfile": {
+    "capturedAt": "2026-03-15T15:38:29.458Z",
+    "name": "Lucas Xavier",
+    "headline": "Senior Full Stack Engineer | React.js | Web3.js | TypeScript | Node.js | Micro Frontends | Remote-First | Accessibility | WCAG",
+    "location": "Vila Velha, Espírito Santo, Brazil",
+    "website": "https://solebellsbeach.github.io/showMe/",
+    "connections": "500+ connections",
+    "currentCompany": "Questrade Financial Group",
+    "topEducation": "Universidade Vila Velha - UVV",
+    "about": "Passionate Full Stack Engineer with over 5 years of experience designing and building scalable web applications using modern JavaScript frameworks. Skilled in React.js, Angular 17+, Node.js, NestJS, TypeScript, and Micro Frontends. I currently work remotely at Questrade Financial Group (Toronto, Canada), enhancing the performance and reliability of the MyQuestrade platform through modular architecture and continuous integration. I value clean architecture, collaboration across global teams, and delivering measurable impact — such as reducing critical page load times by 15% and optimizing backend integrations. 🚀 Open to opportunities in remote-first international teams, particularly in FinTech, SaaS, or scalable product environments. 💬 Tech Stack: React, Angular, Next.js, Node.js, NestJS, TypeScript, Docker, PostgreSQL, Datadog, Amplitude, CI/CD 🌍 Languages: English (Fluent), Portuguese (Native) React.js, Angular 17+, TypeScript, Node.js, NestJS, Next.js, Micro Frontends, Clean Architecture, Docker, CI/CD, PostgreSQL, Datadog, Amplitude, Cypress, E2E Testing, Performance Optimization, FinTech, SaaS, Remote Work, Full Stack Engineer, Front End Engineer, Agile, SCRUM. Passionate Full Stack Engineer with over 5 years of experience designing and building scalable web applications using modern JavaScript frameworks. Skilled in React.js, Angular 17+, Node.js, NestJS, TypeScript, and Micro Frontends. I currently work remotely at Questrade Financial Group (Toronto, Canada), enhancing the performance and reliability of the MyQuestrade platform through modular architecture and continuous integration. I value clean architecture, collaboration across global teams, and delivering measurable impact — such as reducing critical page load times by 15% and optimizing backend integrations. 🚀 Open to opportunities in remote-first international teams, particularly in FinTech, SaaS, or scalable product environments. 💬 Tech Stack: React, Angular, Next.js, Node.js, NestJS, TypeScript, Docker, PostgreSQL, Datadog, Amplitude, CI/CD 🌍 Languages: English (Fluent), Portuguese (Native) React.js, Angular 17+, TypeScript, Node.js, NestJS, Next.js, Micro Frontends, Clean Architecture, Docker, CI/CD, PostgreSQL, Datadog, Amplitude, Cypress, E2E Testing, Performance Optimization, FinTech, SaaS, Remote Work, Full Stack Engineer, Front End Engineer, Agile, SCRUM.",
+    "topSkills": [
+      "React.js",
+      "Node.js",
+      "Inglês",
+      "AngularJS",
+      "Micro Frontends"
+    ],
+    "languages": [
+      "Inglês (Inglês)",
+      "Português (Português)"
+    ],
+    "experiences": [
+      {
+        "title": "Senior Software Engineer | React | Micro Frontends | Typescript | Datadog | Amplitude",
+        "company": "Questrade Financial Group",
+        "employmentType": "Full-time",
+        "location": "Toronto, Ontario, Canada · Remote",
+        "dateRangeLabel": "Nov 2023 - Present",
+        "description": "MyQuestrade Portal Questrade is the only Canadian owned discount brokerage independent of all big banks, with the same protection assurance. helped me get this job LinkedIn helped me get this job -Fixing bugs, creating new features, and participating in technical meetings in English. -Collaborating with backend teams for efficient integration with NodeJs services. -Optimized processes resulting in a 15% reduction in critical page load times. -Implemented unit and end-to-end (E2E) testing to improve code reliability. -Integrated monitoring and logging with Datadog for enhanced observability. -Authored extensive technical documentation using Confluence to ensure knowledge sharing. -Monitored user behavior and performance metrics across multiple frontends using Amplitude. -Worked across several Micro Frontends contributing to the MyQuestrade platform -Fixing bugs, creating new features, and participating in technical meetings in English. -Collaborating with backend teams for efficient integration with NodeJs services. -Optimized processes resulting in a 15% reduction in critical page load times. -Implemented unit and end-to-end (E2E) testing to improve code reliability. -Integrated monitoring and logging with Datadog for enhanced observability. -Authored extensive technical documentation using Confluence to ensure knowledge sharing. -Monitored user behavior and performance metrics across multiple frontends using Amplitude. -Worked across several Micro Frontends contributing to the MyQuestrade platform Skills: AngularJS · Inglês · Micro Frontends · SpringBoot",
+        "startDate": "2023-11-01T00:00:00.000Z",
+        "endDate": "2026-03-01T00:00:00.000Z",
+        "isCurrent": true,
+        "stacks": [
+          "React",
+          "Angular",
+          "Node.js",
+          "TypeScript",
+          "Micro Frontends",
+          "Datadog",
+          "Amplitude",
+          "E2E Testing",
+          "Spring Boot"
+        ]
+      },
+      {
+        "title": "Frontend Developer| React | Micro Frontends |Redux",
+        "company": "AdGrowth",
+        "employmentType": "Full-time",
+        "location": "helped me get this job",
+        "dateRangeLabel": "Nov 2022 - Oct 2023",
+        "description": "AdGrowth Home Page AdGrowth is an adtech focused on mobile growth that serves mobile apps, brands, companies and publishers around the world LinkedIn helped me get this job -Built a sales platform using React Micro Frontends focusing on modularity and performance. -Created backend APIs with NestJS, improving service integration and code maintainability. -Engaged in technical planning, feature development, and implementing best practices for agile delivery. -Contributed to architectural improvements reducing system response times by 20%. -Built a sales platform using React Micro Frontends focusing on modularity and performance. -Created backend APIs with NestJS, improving service integration and code maintainability. -Engaged in technical planning, feature development, and implementing best practices for agile delivery. -Contributed to architectural improvements reducing system response times by 20%. Skills: SQL · Git · API REST · Desenvolvimento de front-end · REST (Transferência de estado representacional ) · CSS · Node.js · Jest · HTML5 · MongoDB · SASS · Docker · HTML · Spring Boot",
+        "startDate": "2022-11-01T00:00:00.000Z",
+        "endDate": "2023-10-01T00:00:00.000Z",
+        "isCurrent": false,
+        "stacks": [
+          "React",
+          "Node.js",
+          "NestJS",
+          "Micro Frontends",
+          "Docker",
+          "MongoDB",
+          "SQL",
+          "Redux",
+          "Sass",
+          "Spring Boot",
+          "REST API"
+        ]
+      },
+      {
+        "title": "Fullstack Developer | Micro Frontends | Express | NestJS | Node.js | TypeScript",
+        "company": "Alive App Brasil",
+        "employmentType": "Full-time",
+        "location": "helped me get this job",
+        "dateRangeLabel": "Nov 2022 - Oct 2023",
+        "description": "Alive App Brazil -Technical lead for admin panel development managing campaigns and influencers.-Designed system architecture and built internal UI component libraries for reusability.-Maintained secure, scalable backend APIs with focus on authentication and data management.-Implemented improvements reducing average API response times by 25%. -Technical lead for admin panel development managing campaigns and influencers. -Designed system architecture and built internal UI component libraries for reusability. -Maintained secure, scalable backend APIs with focus on authentication and data management. -Implemented improvements reducing average API response times by 25%. LinkedIn helped me get this job - Implemented improvements reducing average API response times by 25%. - Technical lead for admin panel development managing campaigns and influencers. - Designed system architecture and built internal UI component libraries for reusability. - Maintained secure, scalable backend APIs with focus on authentication and data management. - Implemented improvements reducing average API response times by 25%. - Technical lead for admin panel development managing campaigns and influencers. - Designed system architecture and built internal UI component libraries for reusability. - Maintained secure, scalable backend APIs with focus on authentication and data management. Skills: MySQL · Inglês · Babel.js · Desenvolvimento de software · JavaScript · Webpack · SQL · Linguagens de programação · Python · Git · Diferencial · Programação (computação) · Codificação de front-end · API REST · Vue.js · Desenvolvimento de front-end · REST (Transferência de estado representacional ) · CSS · Node.js · Jest · HTML5 · MongoDB · Desenvolvimento de projetos · SASS · Docker · HTML -Technical lead for admin panel development managing campaigns and influencers. -Designed system architecture and built internal UI component libraries for reusability. -Maintained secure, scalable backend APIs with focus on authentication and data management. -Implemented improvements reducing average API response times by 25%.",
+        "startDate": "2022-11-01T00:00:00.000Z",
+        "endDate": "2023-10-01T00:00:00.000Z",
+        "isCurrent": false,
+        "stacks": [
+          "Node.js",
+          "NestJS",
+          "TypeScript",
+          "JavaScript",
+          "Micro Frontends",
+          "Docker",
+          "MongoDB",
+          "MySQL",
+          "SQL",
+          "Sass",
+          "Express",
+          "REST API"
+        ]
+      },
+      {
+        "title": "Fullstack Developer | Micro Frontends | Express | NestJS | Node.js | TypeScript",
+        "company": "Inflr",
+        "employmentType": "",
+        "location": "helped me get this job",
+        "dateRangeLabel": "Nov 2022 - Oct 2023",
+        "description": "A complete technology ecosystem for influencersmarketing focused on maximizing results A complete technology ecosystem for influencers marketing focused on maximizing results LinkedIn helped me get this job - Developed scalable campaign and user management platform. - Implemented access control and security features to enhance data protection. - Optimized backend endpoints reducing latency by 20%, improving user experience. - Worked closely with marketing teams to ensure feature requirements were met - Developed scalable campaign and user management platform. - Implemented access control and security features to enhance data protection. - Optimized backend endpoints reducing latency by 20%, improving user experience. - Worked closely with marketing teams to ensure feature requirements were met Skills: MySQL · Inglês · Babel.js · Desenvolvimento de software · JavaScript · Webpack · SQL · Linguagens de programação · Python · Git · Diferencial · Programação (computação) · Codificação de front-end · API REST · Vue.js · Desenvolvimento de front-end · REST (Transferência de estado representacional ) · CSS · Node.js · Jest · HTML5 · MongoDB · Desenvolvimento de projetos · SASS · Docker · HTML A complete technology ecosystem for influencers marketing focused on maximizing results",
+        "startDate": "2022-11-01T00:00:00.000Z",
+        "endDate": "2023-10-01T00:00:00.000Z",
+        "isCurrent": false,
+        "stacks": [
+          "Node.js",
+          "NestJS",
+          "TypeScript",
+          "JavaScript",
+          "Micro Frontends",
+          "Docker",
+          "MongoDB",
+          "MySQL",
+          "SQL",
+          "Sass",
+          "Express",
+          "REST API"
+        ]
+      },
+      {
+        "title": "JavaScript FullStack Developer | ReactJS | Next.js | Node.js | TypeScript | Plasmo",
+        "company": "Luby Software",
+        "employmentType": "Full-time",
+        "location": "São Paulo, Brazil · Remote",
+        "dateRangeLabel": "Jul 2020 - Nov 2022",
+        "description": "As a member of the fullstack team, I played a key role in developing innovative, high-quality solutions. Below are some of the projects I have been involved in: - Luby Timesheet: In the Timesheet Luby project, I took on the responsibility of developing the backend using Node.js with the Adonis framework, while on the frontend I used React JS, TypeScript and Redux, as well as other related technologies. In this project, I had the opportunity to improve my fullstack skills and work on a system to track hours worked efficiently. - AFPESP: In this project, I worked on developing a mobile application using React Native, Expo, TypeScript, Sass, Firebase and other related libraries. Contributed to the development of essential features and functionalities for the application, aiming for a fluid and intuitive user experience. - Prevent Senior: At Prevent Senior, my role was to work as a fullstack developer. In the backend, I used Node.js with the Express framework and applied the clean architecture, in addition to using the MongoDB database and Socket.IO for real-time communication. On the frontend, I worked with Next.js, TypeScript, Redux and other technologies to develop a robust and scalable interface. - Kolping: At Kolping, I participated in the development of an administrative panel in Angular, also using the Bootstrap library for styling. In this project, I worked on the frontend, focusing on creating a friendly and functional interface for managing and administering activities. - Ranking of Politicians: In this project, I worked mainly on the frontend using Next.js, React, Redux-Saga and Styled Components. Furthermore, I actively participated in gathering requirements with the client and was responsible for creating all cards and flows on the Kanban board. I contributed to the development of a system that evaluated and classified politicians based on specific criteria. As a member of the fullstack team, I played a key role in developing innovative, high-quality solutions. Below are some of the projects I have been involved in: - Luby Timesheet: In the Timesheet Luby project, I took on the responsibility of developing the backend using Node.js with the Adonis framework, while on the frontend I used React JS, TypeScript and Redux, as well as other related technologies. In this project, I had the opportunity to improve my fullstack skills and work on a system to track hours worked efficiently. - AFPESP: In this project, I worked on developing a mobile application using React Native, Expo, TypeScript, Sass, Firebase and other related libraries. Contributed to the development of essential features and functionalities for the application, aiming for a fluid and intuitive user experience. - Prevent Senior: At Prevent Senior, my role was to work as a fullstack developer. In the backend, I used Node.js with the Express framework and applied the clean architecture, in addition to using the MongoDB database and Socket.IO for real-time communication. On the frontend, I worked with Next.js, TypeScript, Redux and other technologies to develop a robust and scalable interface. - Kolping: At Kolping, I participated in the development of an administrative panel in Angular, also using the Bootstrap library for styling. In this project, I worked on the frontend, focusing on creating a friendly and functional interface for managing and administering activities. - Ranking of Politicians: In this project, I worked mainly on the frontend using Next.js, React, Redux-Saga and Styled Components. Furthermore, I actively participated in gathering requirements with the client and was responsible for creating all cards and flows on the Kanban board. I contributed to the development of a system that evaluated and classified politicians based on specific criteria. Skills: SQL · API REST · Desenvolvimento de front-end · REST (Transferência de estado representacional ) · CSS · Node.js · Jest · HTML5 · MongoDB · Desenvolvimento de projetos · SASS · Java · Docker · HTML · Spring Boot",
+        "startDate": "2020-07-01T00:00:00.000Z",
+        "endDate": "2022-11-01T00:00:00.000Z",
+        "isCurrent": false,
+        "stacks": [
+          "React Native",
+          "React",
+          "Next.js",
+          "Angular",
+          "Node.js",
+          "TypeScript",
+          "JavaScript",
+          "Docker",
+          "MongoDB",
+          "SQL",
+          "Redux Saga",
+          "Redux",
+          "Styled Components",
+          "Sass",
+          "Bootstrap",
+          "Expo",
+          "Firebase",
+          "Express",
+          "Socket.IO",
+          "AdonisJS",
+          "Java",
+          "Spring Boot",
+          "Plasmo",
+          "REST API"
+        ]
+      }
+    ],
+    "education": [
+      {
+        "school": "Universidade Vila Velha - UVV",
+        "degree": "Universidade Vila Velha - UVV",
+        "period": "Bacharelado em Sistemas de Informação: Engenharia de Software e Data Science, Tecnologia da Informação"
+      },
+      {
+        "school": "Ifes - Instituto Federal do Espírito Santo",
+        "degree": "Ifes - Instituto Federal do Espírito Santo",
+        "period": "Tecnico Informatica, Informatica Para Internet"
+      }
+    ],
+    "projects": [
+      {
+        "title": "LinkedIn Query Helper (React + Plasmo Chrome Extension)",
+        "description": "LinkedIn Query Helper (React + Plasmo Chrome Extension) Developed a Chrome extension that automates LinkedIn job searches and filters. 🔗 github.com/solebellsBEACH/LinkedIn-Query-Helper Developed a Chrome extension that automates LinkedIn job searches and filters. 🔗 github.com/solebellsBEACH/LinkedIn-Query-Helper JavaScript"
+      },
+      {
+        "title": "NasaFlow (Angular + NASA APIs)",
+        "description": "NasaFlow (Angular + NASA APIs) Built an interactive space dashboard consuming multiple NASA APIs. 🔗 github.com/solebellsBEACH/NasaFlow_Angular Built an interactive space dashboard consuming multiple NASA APIs. 🔗 github.com/solebellsBEACH/NasaFlow_Angular AngularJS and TypeScript"
+      }
+    ],
+    "totalExperienceMonths": 69,
+    "totalExperienceLabel": "5 anos e 9 meses"
+  },
+  "profileReview": null,
+  "updatedAt": "2026-03-15T15:38:29.460Z"
+}

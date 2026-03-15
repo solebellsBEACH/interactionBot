@@ -13,7 +13,7 @@ import {
     UserProfileLinkedinSnapshot,
     UserProfileReview,
     UserProfileStackExperience,
-    saveUserProfile
+    saveUserProfileAsync
 } from "../../../shared/user-profile";
 import { LinkedinCoreFeatures } from "../../linkedin-core";
 
@@ -366,7 +366,7 @@ export class LinkedinProfileReviewFlow {
         const review = await this._createReview(snapshot.linkedinProfile, compensation, snapshot.stackExperience, birthDate)
         const generatedAnswers = buildGeneratedAnswers(compensation, snapshot.stackExperience)
 
-        return saveUserProfile({
+        return saveUserProfileAsync({
             summary: buildSummary(snapshot.linkedinProfile, snapshot.stackExperience, compensation, birthDate),
             answers: {
                 ...generatedAnswers

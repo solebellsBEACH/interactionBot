@@ -6,6 +6,8 @@
   "scripts": {
     "start": "ts-node src/interactor/main.ts",
     "open:linkedin": "npx ts-node src/interactor/main.ts",
+    "worker": "ts-node src/interactor/worker.ts",
+    "test:phase1": "node --test -r ts-node/register src/interactor/worker/worker-job.test.ts src/interactor/shared/user-profile.test.ts",
     "install:chrome": "npx playwright install chrome",
     "install:browsers": "npx playwright install chromium",
     "test": "node scripts/test-functions.mjs",

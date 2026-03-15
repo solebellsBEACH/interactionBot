@@ -1,32 +1,21 @@
-export type AdminPromptKind = "confirm-gpt" | "answer-field";
-export type AdminPromptFieldType = "input" | "select";
+import {
+  answerAdminPrompt,
+  getAdminPromptState,
+  requestAdminPrompt,
+  updateAdminPromptSettings,
+  waitForAdminPromptAnswer,
+  type AdminPromptItem,
+  type AdminPromptRequest,
+  type AdminPromptResponse,
+  type AdminPromptSettings,
+} from "../api/controllers/admin-prompts";
 import { logger } from "../interactor/shared/services/logger";
+import { hasBotControlPlaneContext } from "../interactor/shared/utils/user-data-dir";
 import { adminRuntimeStore } from "./admin-runtime-store";
 
+export type AdminPromptKind = "confirm-gpt" | "answer-field";
+export type AdminPromptFieldType = "input" | "select";
 export type AdminPromptAction = "confirm" | "manual" | "skip" | "cancel" | "timeout";
-
-export type AdminPromptRequest = {
-  id: string;
-  kind: AdminPromptKind;
-  createdAt: string;
-  step: number;
-  fieldLabel: string;
-  fieldKey?: string;
-  fieldType: AdminPromptFieldType;
-  prompt: string;
-  suggestedAnswer?: string;
-  options?: string[];
-};
-
-export type AdminPromptResponse = {
-  action: AdminPromptAction;
-  value?: string | null;
-};
-
-export type AdminPromptSettings = {
-  autoConfirmGpt: boolean;
-  autoConfirmDelayMs: number;
-};
 
 type PendingPrompt = {
   request: AdminPromptRequest;
@@ -49,15 +38,44 @@ export class AdminPromptBroker {
     autoConfirmDelayMs: 1000,
   };
 
-  getPendingPrompt() {
+  async getPendingPrompt() {
+    if (this._shouldUseRemote()) {
+      try {
+        const state = await getAdminPromptState();
+        return state.item || null;
+      } catch {
+        // fallback local
+      }
+    }
+
     return this._pending?.request || null;
   }
 
-  getSettings() {
+  async getSettings() {
+    if (this._shouldUseRemote()) {
+      try {
+        const state = await getAdminPromptState();
+        this._settings = { ...state.settings };
+        return { ...this._settings };
+      } catch {
+        // fallback local
+      }
+    }
+
     return { ...this._settings };
   }
 
-  updateSettings(next: Partial<AdminPromptSettings>) {
+  async updateSettings(next: Partial<AdminPromptSettings>) {
+    if (this._shouldUseRemote()) {
+      try {
+        const data = await updateAdminPromptSettings(next);
+        this._settings = { ...data.settings };
+        return this.getSettings();
+      } catch (error) {
+        throw new AdminPromptError(this._formatError(error));
+      }
+    }
+
     if (typeof next.autoConfirmGpt === "boolean") {
       this._settings.autoConfirmGpt = next.autoConfirmGpt;
     }
@@ -77,6 +95,72 @@ export class AdminPromptBroker {
     request: Omit<AdminPromptRequest, "id" | "createdAt">,
     timeoutMs: number
   ): Promise<AdminPromptResponse> {
+    if (this._shouldUseRemote()) {
+      return this._requestPromptRemote(request, timeoutMs);
+    }
+
+    return this._requestPromptLocal(request, timeoutMs);
+  }
+
+  async answerPrompt(id: string, response: AdminPromptResponse) {
+    if (this._shouldUseRemote()) {
+      try {
+        const data = await answerAdminPrompt(id, response);
+        return data.item;
+      } catch (error) {
+        throw new AdminPromptError(this._formatError(error));
+      }
+    }
+
+    return this._answerPromptLocal(id, response);
+  }
+
+  private async _requestPromptRemote(
+    request: Omit<AdminPromptRequest, "id" | "createdAt">,
+    timeoutMs: number
+  ) {
+    const promptRequest: AdminPromptRequest = {
+      ...request,
+      id: this._createId(),
+      createdAt: new Date().toISOString(),
+      timeoutMs,
+    };
+    const promptLabel = this._buildPromptLabel(promptRequest);
+    const promptKey = this._buildPromptKey(promptRequest.id || "");
+
+    adminRuntimeStore.recordStep({
+      key: promptKey,
+      source: "prompt",
+      label: promptLabel,
+      detail: this._buildPromptDetail(promptRequest),
+      status: "waiting",
+      meta: {
+        kind: promptRequest.kind,
+        step: promptRequest.step,
+        field: promptRequest.fieldLabel || promptRequest.fieldKey || "field",
+        fieldType: promptRequest.fieldType,
+      },
+    });
+    logger.info(`Prompt admin aguardando resposta: ${promptLabel}`);
+
+    try {
+      const data = await requestAdminPrompt(promptRequest);
+      const resolved = await waitForAdminPromptAnswer(data.item.id, timeoutMs);
+      this._recordPromptResolution(promptRequest, resolved);
+      return resolved;
+    } catch (error) {
+      const message = this._formatError(error);
+      if (message.includes("Já existe uma resposta pendente")) {
+        throw new AdminPromptError("Já existe uma resposta pendente no admin.");
+      }
+      throw new AdminPromptError(message);
+    }
+  }
+
+  private async _requestPromptLocal(
+    request: Omit<AdminPromptRequest, "id" | "createdAt">,
+    timeoutMs: number
+  ) {
     if (this._pending) {
       throw new AdminPromptError("Já existe uma resposta pendente no admin.");
     }
@@ -88,24 +172,12 @@ export class AdminPromptBroker {
         createdAt: new Date().toISOString(),
       };
       const promptLabel = this._buildPromptLabel(promptRequest);
-      const promptKey = this._buildPromptKey(promptRequest.id);
+      const promptKey = this._buildPromptKey(promptRequest.id || "");
 
       const timeoutId = setTimeout(() => {
         if (!this._pending || this._pending.request.id !== promptRequest.id) return;
         this._pending = null;
-        adminRuntimeStore.recordStep({
-          key: promptKey,
-          source: "prompt",
-          label: promptLabel,
-          detail: "Tempo esgotado aguardando resposta.",
-          status: "error",
-          meta: {
-            action: "timeout",
-            step: promptRequest.step,
-            field: promptRequest.fieldLabel || promptRequest.fieldKey || "field",
-          },
-        });
-        logger.warn(`Prompt admin expirou: ${promptLabel}`);
+        this._recordPromptResolution(promptRequest, { action: "timeout", value: null });
         resolve({ action: "timeout", value: null });
       }, Math.max(timeoutMs, 1_000));
 
@@ -139,7 +211,7 @@ export class AdminPromptBroker {
       if (request.kind === "confirm-gpt" && this._settings.autoConfirmGpt) {
         this._pending.autoConfirmId = setTimeout(() => {
           if (!this._pending || this._pending.request.id !== promptRequest.id) return;
-          this.answerPrompt(promptRequest.id, {
+          void this.answerPrompt(promptRequest.id || "", {
             action: "confirm",
             value: request.suggestedAnswer || null,
           });
@@ -148,7 +220,7 @@ export class AdminPromptBroker {
     });
   }
 
-  answerPrompt(id: string, response: AdminPromptResponse) {
+  private _answerPromptLocal(id: string, response: AdminPromptResponse) {
     const pending = this._pending;
     if (!pending) {
       throw new AdminPromptError("Nenhuma resposta pendente no admin.");
@@ -163,7 +235,16 @@ export class AdminPromptBroker {
       clearTimeout(pending.autoConfirmId);
     }
 
-    const promptLabel = this._buildPromptLabel(pending.request);
+    this._recordPromptResolution(pending.request, response);
+    pending.resolve(response);
+    return pending.request;
+  }
+
+  private _recordPromptResolution(
+    request: Pick<AdminPromptRequest, "id" | "kind" | "step" | "fieldLabel" | "fieldKey" | "fieldType" | "suggestedAnswer">,
+    response: AdminPromptResponse
+  ) {
+    const promptLabel = this._buildPromptLabel(request);
     const status =
       response.action === "confirm" || response.action === "manual"
         ? "done"
@@ -172,36 +253,39 @@ export class AdminPromptBroker {
           : "error";
 
     adminRuntimeStore.recordStep({
-      key: this._buildPromptKey(pending.request.id),
+      key: this._buildPromptKey(request.id || ""),
       source: "prompt",
       label: promptLabel,
       detail: this._buildResponseDetail(response),
       status,
       meta: {
         action: response.action,
-        step: pending.request.step,
-        field: pending.request.fieldLabel || pending.request.fieldKey || "field",
+        step: request.step,
+        field: request.fieldLabel || request.fieldKey || "field",
       },
     });
     logger.info(`Prompt admin resolvido: ${promptLabel}`, {
       action: response.action,
       value: response.value ?? null,
     });
+  }
 
-    pending.resolve(response);
-    return pending.request;
+  private _shouldUseRemote() {
+    return hasBotControlPlaneContext();
   }
 
   private _buildPromptKey(id: string) {
     return `prompt:${id}`;
   }
 
-  private _buildPromptLabel(request: AdminPromptRequest) {
+  private _buildPromptLabel(request: Pick<AdminPromptRequest, "step" | "fieldLabel" | "fieldKey">) {
     const field = request.fieldLabel || request.fieldKey || "campo";
     return `Etapa ${request.step}: ${field}`;
   }
 
-  private _buildPromptDetail(request: AdminPromptRequest) {
+  private _buildPromptDetail(
+    request: Pick<AdminPromptRequest, "kind" | "fieldType" | "options" | "suggestedAnswer">
+  ) {
     if (request.kind === "confirm-gpt") {
       return request.suggestedAnswer
         ? `Confirmar sugestão do GPT: ${this._truncate(request.suggestedAnswer)}`
@@ -242,4 +326,12 @@ export class AdminPromptBroker {
     const normalized = value.replace(/\s+/g, " ").trim();
     return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized;
   }
+
+  private _formatError(error: unknown) {
+    if (error instanceof Error) return error.message || error.name;
+    if (typeof error === "string") return error;
+    return "Erro desconhecido";
+  }
 }
+
+export type { AdminPromptItem, AdminPromptRequest, AdminPromptResponse, AdminPromptSettings };

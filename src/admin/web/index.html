@@ -1154,6 +1154,12 @@
         source: "all",
       };
 
+      const adminStreamState = {
+        eventSource: null,
+        reconnectTimer: null,
+        connected: false,
+      };
+
       function toNumber(value) {
         if (value === undefined || value === null || value === "") return undefined;
         const parsed = Number(value);
@@ -1611,8 +1617,9 @@
           return haystack.includes(query);
         });
 
+        const streamLabel = adminStreamState.connected ? "SSE ao vivo" : "fallback polling";
         runtimeLogMeta.textContent = `${visibleLogs.length}/${allLogs.length} logs visíveis | ${
-          runtimeState.isPaused ? "feed pausado" : "feed ao vivo"
+          runtimeState.isPaused ? "feed pausado" : streamLabel
         }`;
 
         runtimeLogs.innerHTML = visibleLogs.length
@@ -1914,6 +1921,79 @@
             setStatus(adminPromptStatus, error.message, true);
           }
         }
+      }
+
+      function applyAdminSnapshot(data) {
+        const runtime = (data && data.runtime) || {};
+        runtimeState.activeStep = runtime.activeStep || null;
+        runtimeState.steps = Array.isArray(runtime.steps) ? runtime.steps : [];
+        runtimeState.logs = Array.isArray(runtime.logs) ? runtime.logs : [];
+        renderRuntime();
+
+        const prompt = (data && data.prompt) || {};
+        if (!adminPromptSettings.isSaving) {
+          renderPromptSettings(prompt.settings || {});
+        }
+
+        const item = prompt.item || null;
+        const currentId = adminPromptState.item ? adminPromptState.item.id : "";
+        const nextId = item ? item.id : "";
+        if (currentId !== nextId) {
+          renderAdminPrompt(item);
+        }
+      }
+
+      function disconnectAdminStream() {
+        if (adminStreamState.eventSource) {
+          adminStreamState.eventSource.close();
+          adminStreamState.eventSource = null;
+        }
+        if (adminStreamState.reconnectTimer) {
+          window.clearTimeout(adminStreamState.reconnectTimer);
+          adminStreamState.reconnectTimer = null;
+        }
+        adminStreamState.connected = false;
+      }
+
+      function scheduleAdminStreamReconnect() {
+        if (adminStreamState.reconnectTimer) return;
+        adminStreamState.reconnectTimer = window.setTimeout(() => {
+          adminStreamState.reconnectTimer = null;
+          connectAdminStream();
+        }, 2000);
+      }
+
+      function connectAdminStream() {
+        if (!window.EventSource) return;
+        disconnectAdminStream();
+
+        const stream = new EventSource("/api/admin/stream");
+        adminStreamState.eventSource = stream;
+
+        stream.addEventListener("open", () => {
+          adminStreamState.connected = true;
+          renderRuntime();
+        });
+
+        stream.addEventListener("snapshot", (event) => {
+          adminStreamState.connected = true;
+          try {
+            const payload = JSON.parse(event.data || "{}");
+            applyAdminSnapshot(payload);
+          } catch (error) {
+            console.error("Falha ao processar snapshot admin", error);
+          }
+        });
+
+        stream.addEventListener("error", () => {
+          adminStreamState.connected = false;
+          renderRuntime();
+          if (adminStreamState.eventSource === stream) {
+            stream.close();
+            adminStreamState.eventSource = null;
+          }
+          scheduleAdminStreamReconnect();
+        });
       }
 
       function getProcessById(state, id) {
@@ -2551,11 +2631,12 @@
       refreshRuntime();
       refreshAdminPrompt();
       refreshProfile();
+      connectAdminStream();
 
       setInterval(refreshProcesses, 3000);
       setInterval(refreshGpt, 7000);
-      setInterval(refreshRuntime, 1200);
-      setInterval(refreshAdminPrompt, 200);
+      setInterval(refreshRuntime, 15000);
+      setInterval(refreshAdminPrompt, 15000);
     </script>
   </body>
 </html>

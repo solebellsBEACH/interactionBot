@@ -5,11 +5,15 @@ import { URL } from "url";
 
 import { listGptInteractions } from "../api/controllers/gpt-interactions";
 import {
+  hydrateUserProfile,
   readUserProfile,
   sanitizeCompensationValue,
   saveUserProfile,
+  saveUserProfileAsync,
 } from "../interactor/shared/user-profile";
+import { env } from "../interactor/shared/env";
 import { logger } from "../interactor/shared/services/logger";
+import { getBotTenantId, getBotWorkspaceId, hasBotControlPlaneContext } from "../interactor/shared/utils/user-data-dir";
 import { adminRuntimeStore } from "./admin-runtime-store";
 import { AdminPromptAction, AdminPromptBroker, AdminPromptError } from "./prompt-broker";
 import {
@@ -167,6 +171,21 @@ export class AdminServer {
         return;
       }
 
+      if (method === "GET" && pathname === "/api/admin/stream") {
+        await this._serveAdminStream(res);
+        return;
+      }
+
+      if (method === "GET" && pathname === "/api/admin/config") {
+        this._sendJson(res, 200, {
+          apiBaseUrl: env.api.baseUrl,
+          tenantId: getBotTenantId() || null,
+          workspaceId: getBotWorkspaceId() || null,
+          remoteAdminState: hasBotControlPlaneContext(),
+        });
+        return;
+      }
+
       if (method === "GET" && pathname === "/api/admin/gpt-responses") {
         const limit = this._parseLimit(requestUrl.searchParams.get("limit"));
         const items = await listGptInteractions(limit);
@@ -175,25 +194,31 @@ export class AdminServer {
       }
 
       if (method === "GET" && pathname === "/api/admin/runtime") {
-        this._sendJson(res, 200, adminRuntimeStore.getSnapshot({
-          logsLimit: this._parseLimit(requestUrl.searchParams.get("logsLimit")),
-          stepsLimit: this._parseLimit(requestUrl.searchParams.get("stepsLimit")),
-        }));
+        this._sendJson(
+          res,
+          200,
+          await adminRuntimeStore.getSnapshot({
+            logsLimit: this._parseLimit(requestUrl.searchParams.get("logsLimit")),
+            stepsLimit: this._parseLimit(requestUrl.searchParams.get("stepsLimit")),
+          })
+        );
         return;
       }
 
       if (method === "POST" && pathname === "/api/admin/runtime/clear") {
-        adminRuntimeStore.clear();
+        await adminRuntimeStore.clear();
         this._sendJson(res, 200, { ok: true });
         return;
       }
 
       if (method === "GET" && pathname === "/api/admin/profile") {
+        await hydrateUserProfile();
         this._sendJson(res, 200, { profile: readUserProfile() });
         return;
       }
 
       if (method === "POST" && pathname === "/api/admin/profile") {
+        await hydrateUserProfile();
         const body = await this._readJsonBody(req);
         const current = readUserProfile();
         const hasOwn = (key: string) => Object.prototype.hasOwnProperty.call(body, key);
@@ -274,7 +299,7 @@ export class AdminServer {
           answers["salary-expectation-pj"] = compensation.pj;
         }
 
-        const profile = saveUserProfile({
+        const profile = await saveUserProfileAsync({
           birthDate,
           compensation,
           answers,
@@ -285,12 +310,17 @@ export class AdminServer {
       }
 
       if (method === "GET" && pathname === "/api/admin/prompts/current") {
+        const promptBroker = this._promptBroker;
+        const settings = promptBroker
+          ? await promptBroker.getSettings()
+          : {
+              autoConfirmGpt: false,
+              autoConfirmDelayMs: 1000,
+            };
+
         this._sendJson(res, 200, {
-          item: this._promptBroker?.getPendingPrompt() || null,
-          settings: this._promptBroker?.getSettings() || {
-            autoConfirmGpt: false,
-            autoConfirmDelayMs: 1000,
-          },
+          item: promptBroker ? await promptBroker.getPendingPrompt() : null,
+          settings,
         });
         return;
       }
@@ -302,7 +332,7 @@ export class AdminServer {
           throw new ProcessValidationError("Prompt interativo do admin não está habilitado.");
         }
 
-        const settings = promptBroker.updateSettings({
+        const settings = await promptBroker.updateSettings({
           autoConfirmGpt: this._readBool(body.autoConfirmGpt),
           autoConfirmDelayMs: this._readNumber(body.autoConfirmDelayMs),
         });
@@ -328,7 +358,7 @@ export class AdminServer {
           throw new ProcessValidationError("A ação do prompt é inválida.");
         }
 
-        const item = promptBroker.answerPrompt(id, {
+        const item = await promptBroker.answerPrompt(id, {
           action,
           value: this._readString(body.value) || null,
         });
@@ -498,6 +528,68 @@ export class AdminServer {
     res.statusCode = 302;
     res.setHeader("location", location);
     res.end();
+  }
+
+  private async _serveAdminStream(res: ServerResponse) {
+    res.statusCode = 200;
+    res.setHeader("content-type", "text/event-stream; charset=utf-8");
+    res.setHeader("cache-control", "no-cache, no-transform");
+    res.setHeader("connection", "keep-alive");
+
+    let closed = false;
+    let lastPayload = "";
+    let running = false;
+
+    const buildPayload = async () => {
+      const runtime = await adminRuntimeStore.getSnapshot({
+        logsLimit: 200,
+        stepsLimit: 24,
+      });
+      const promptBroker = this._promptBroker;
+      const settings = promptBroker
+        ? await promptBroker.getSettings()
+        : {
+            autoConfirmGpt: false,
+            autoConfirmDelayMs: 1000,
+          };
+
+      return {
+        runtime,
+        prompt: {
+          item: promptBroker ? await promptBroker.getPendingPrompt() : null,
+          settings,
+        },
+      };
+    };
+
+    const pushSnapshot = async () => {
+      if (closed || running) return;
+      running = true;
+      try {
+        const payload = JSON.stringify(await buildPayload());
+        if (payload !== lastPayload) {
+          res.write(`event: snapshot\ndata: ${payload}\n\n`);
+          lastPayload = payload;
+        } else {
+          res.write(": keep-alive\n\n");
+        }
+      } catch {
+        res.write(": keep-alive\n\n");
+      } finally {
+        running = false;
+      }
+    };
+
+    const intervalId = setInterval(() => {
+      void pushSnapshot();
+    }, 1000);
+
+    res.on("close", () => {
+      closed = true;
+      clearInterval(intervalId);
+    });
+
+    await pushSnapshot();
   }
 
   private async _readJsonBody(req: IncomingMessage) {

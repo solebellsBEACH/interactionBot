@@ -17,7 +17,7 @@ import type { VisitConnectionsOptions } from "../shared/interface/scrap/network.
 import type { UserProfile } from "../shared/interface/user/user-profile.types";
 import { ElementHandle } from "../shared/utils/element-handle";
 import { env } from "../shared/env";
-import { resetUserProfile } from "../shared/user-profile";
+import { resetUserProfileAsync } from "../shared/user-profile";
 import { LinkedinDiscordCommands } from "./actions/commands/discord-commands";
 import { LinkedinConnectFlow } from "./actions/connect/connect-flow";
 import { DashboardFlow } from "./actions/dashboard/dashboard-flow";
@@ -88,7 +88,7 @@ export class LinkedinFeatures {
             clearGptInteractions()
         ])
 
-        resetUserProfile()
+        await resetUserProfileAsync()
 
         return {
             cleared: {

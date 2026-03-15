@@ -18,13 +18,13 @@ const request = async <T>(path: string, options: RequestOptions = {}): Promise<T
   const controller = new AbortController()
   const timeout = options.timeoutMs ?? DEFAULT_TIMEOUT
   const timeoutId = setTimeout(() => controller.abort(), timeout)
-  const userId = (process.env.BOT_USER_ID || '').trim()
+  const authToken = (process.env.API_AUTH_TOKEN || env.api.authToken || '').trim()
   try {
     const response = await fetch(buildUrl(path), {
       method: options.method || 'GET',
       headers: {
         'content-type': 'application/json',
-        ...(userId ? { 'x-user-id': userId } : {})
+        ...(authToken ? { authorization: `Bearer ${authToken}` } : {})
       },
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: controller.signal

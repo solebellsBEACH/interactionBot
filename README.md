@@ -8,6 +8,8 @@ Aplicação mínima em Node.js/Playwright que abre o LinkedIn com interface grá
 
 ### Variáveis
 - `API_BASE_URL` (default: `http://localhost:3001`)
+- `LOG_FORMAT=pretty|json` (opcional; use `json` para logs estruturados)
+- `LOG_LEVEL=debug|info|warn|error` (opcional; padrão efetivo `info`)
 
 ## Instalação
 ```bash
@@ -88,6 +90,55 @@ npx ts-node src/interactor/cli.ts --action catch-jobs --tag "backend" --maxResul
 npx ts-node src/interactor/cli.ts --action connect --profileUrl "https://www.linkedin.com/in/usuario" --message "Oi! Vamos nos conectar?"
 ```
 
+## Worker por Job
+Para preparar o bot para SaaS, existe um entrypoint separado por job em `src/interactor/worker.ts`.
+
+### Como usar
+Via JSON inline:
+```bash
+API_AUTH_TOKEN=ibw_xxx BOT_TENANT_ID=tenant-a BOT_WORKSPACE_ID=workspace-a npm run worker -- --job '{"id":"job-1","runId":"run-1","userId":"user-a","type":"profile-review","headless":true}'
+```
+
+Via arquivo:
+```bash
+API_AUTH_TOKEN=ibw_xxx BOT_TENANT_ID=tenant-a BOT_WORKSPACE_ID=workspace-a npm run worker -- --jobFile ./worker-job.json
+```
+
+### Payloads suportados
+- `easy-apply`: `{ "jobUrl": "https://www.linkedin.com/jobs/view/..." }`
+- `search-jobs`: `{ "tag": "backend", "apply": true, "maxApplies": 5, "waitBetweenMs": 1500, "options": { ... } }`
+- `apply-jobs`: `{ "jobUrls": ["..."], "waitBetweenMs": 1500 }`
+- `connect`: `{ "profileUrl": "https://www.linkedin.com/in/...", "message": "..." }`
+- `upvote-posts`: `{ "tag": "node", "maxLikes": 3 }`
+- `scan-applied-jobs`: `{ "periodPreset": "last-7-days" }`
+- `profile-review`: `{}`
+- `reset-session`: `{}`
+
+### Persistência de estado
+- `API_AUTH_TOKEN` ou `BOT_API_TOKEN`: bearer token emitido pelo control plane.
+- `BOT_TENANT_ID`: tenant resolvido pelo control plane.
+- `BOT_WORKSPACE_ID`: workspace resolvida pelo control plane.
+- `BOT_USER_ID`: ator humano opcional do job. Continua útil para auditoria, mas não é mais a chave principal de tenant.
+- `USER_PROFILE_STORAGE=local|api|auto`: controla onde o perfil consolidado é salvo.
+- Em `local`, o perfil fica em `data/profiles/<workspace-ou-tenant-ou-user>.json`.
+- Em `api`, o worker tenta usar `/user-profile` e publicar execução em `/worker-runs/...`.
+- Em `auto`, usa API quando existe contexto autenticado do control plane; se a API falhar, o fallback local continua funcionando.
+- Para o painel admin persistir prompts, logs e próximas steps na API, defina `API_AUTH_TOKEN`.
+
+## Admin Runtime Remoto
+Quando o bot sobe com `API_AUTH_TOKEN`, ele hidrata o contexto autenticado em `/auth/me` e o admin deixa de depender só de memória local:
+
+- `AdminPromptBroker` passa a persistir prompts e settings na API.
+- `adminRuntimeStore` publica logs e steps na API.
+- o frontend do admin recebe snapshots por SSE em `/api/admin/stream`, alimentados pelo backend persistido.
+
+Se a API falhar ou não houver token do control plane, o admin continua com fallback local para não bloquear o fluxo.
+
+## Observabilidade
+Quando `LOG_FORMAT=json`, o bot passa a emitir logs estruturados com `runId`, `tenantId`, `workspaceId` e `userId` quando esses valores existem no ambiente.
+
+No worker, esse contexto também é enviado para `/worker-runs/:runId/events`, então os eventos remotos ficam correlacionáveis com a execução local.
+
 ## Teste das funções do bot
 ```bash
 npm test
@@ -100,6 +151,14 @@ Esse comando executa todas as ações do bot via `src/interactor/cli.ts`, valida
 - `BOT_TEST_TIMEOUT_MS` (default: 180000)
 - `BOT_TEST_HEADLESS` (default: true)
 - `BOT_TEST_MAX_RESULTS`, `BOT_TEST_MAX_PAGES`, `BOT_TEST_POSTED_DAYS`, `BOT_TEST_MAX_LIKES`
+
+## Testes da Fase 1
+```bash
+npm run test:phase1
+```
+
+Esse comando valida o parser do worker, o contexto por job e o isolamento do `user-profile` por `BOT_USER_ID`.
+Também cobre o escopo preferencial por `workspace` quando existe contexto SaaS.
 
 ## Teste UI com Playwright Test
 ```bash

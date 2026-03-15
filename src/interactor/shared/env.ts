@@ -88,6 +88,7 @@ export const env = {
   },
   api: {
     baseUrl: readString('API_BASE_URL', 'http://localhost:3001'),
+    authToken: readString('API_AUTH_TOKEN', readString('BOT_API_TOKEN')),
   },
   linkedinURLs: {
     postUrl: readString('LINKEDIN_POST_URL', DEFAULTS.linkedin.postUrl),
