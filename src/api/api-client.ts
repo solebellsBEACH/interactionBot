@@ -19,12 +19,14 @@ const request = async <T>(path: string, options: RequestOptions = {}): Promise<T
   const timeout = options.timeoutMs ?? DEFAULT_TIMEOUT
   const timeoutId = setTimeout(() => controller.abort(), timeout)
   const authToken = (process.env.API_AUTH_TOKEN || env.api.authToken || '').trim()
+  const linkedinAccountId = (process.env.BOT_LINKEDIN_ACCOUNT_ID || '').trim()
   try {
     const response = await fetch(buildUrl(path), {
       method: options.method || 'GET',
       headers: {
         'content-type': 'application/json',
-        ...(authToken ? { authorization: `Bearer ${authToken}` } : {})
+        ...(authToken ? { authorization: `Bearer ${authToken}` } : {}),
+        ...(linkedinAccountId ? { 'x-linkedin-account-id': linkedinAccountId } : {})
       },
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: controller.signal

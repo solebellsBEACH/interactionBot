@@ -109,6 +109,57 @@ test("user profile local usa workspace como escopo preferencial quando há conte
   }
 });
 
+test("user profile local usa linkedin_account_id como escopo preferencial quando disponível", async () => {
+  const previousCwd = process.cwd();
+  const previousUserId = process.env.BOT_USER_ID;
+  const previousTenantId = process.env.BOT_TENANT_ID;
+  const previousWorkspaceId = process.env.BOT_WORKSPACE_ID;
+  const previousLinkedinAccountId = process.env.BOT_LINKEDIN_ACCOUNT_ID;
+  const previousStorage = process.env.USER_PROFILE_STORAGE;
+  const previousSummary = process.env.USER_PROFILE;
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "interaction-bot-account-profile-"));
+
+  try {
+    process.chdir(tempDir);
+    process.env.USER_PROFILE_STORAGE = "local";
+    delete process.env.USER_PROFILE;
+    delete process.env.BOT_USER_ID;
+    delete process.env.BOT_TENANT_ID;
+    delete process.env.BOT_WORKSPACE_ID;
+    delete process.env.BOT_LINKEDIN_ACCOUNT_ID;
+
+    setBotControlPlaneContext({
+      tenant: { id: "tenant-a" },
+      workspace: { id: "workspace-a" },
+      user: { id: "user-a" },
+    });
+    process.env.BOT_LINKEDIN_ACCOUNT_ID = "account-a";
+
+    await resetUserProfileAsync();
+    await saveUserProfileAsync({
+      summary: "Resumo Conta A",
+      answers: { role: "account-a" },
+    });
+
+    const accountPath = path.join(tempDir, "data", "profiles", "account-a.json");
+    assert.equal(fs.existsSync(accountPath), true);
+
+    process.env.BOT_LINKEDIN_ACCOUNT_ID = "account-b";
+    const reloaded = readUserProfile();
+    assert.equal(reloaded.summary, "");
+    assert.deepEqual(reloaded.answers, {});
+  } finally {
+    process.chdir(previousCwd);
+    restoreEnv("BOT_USER_ID", previousUserId);
+    restoreEnv("BOT_TENANT_ID", previousTenantId);
+    restoreEnv("BOT_WORKSPACE_ID", previousWorkspaceId);
+    restoreEnv("BOT_LINKEDIN_ACCOUNT_ID", previousLinkedinAccountId);
+    restoreEnv("USER_PROFILE_STORAGE", previousStorage);
+    restoreEnv("USER_PROFILE", previousSummary);
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 const restoreEnv = (key: string, value: string | undefined) => {
   if (value === undefined) {
     delete process.env[key];

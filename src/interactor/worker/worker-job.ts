@@ -16,6 +16,7 @@ export type WorkerJob = {
   id?: string;
   runId?: string;
   userId?: string;
+  linkedinAccountId?: string;
   type: WorkerJobType;
   headless?: boolean;
   payload?: Record<string, unknown>;
@@ -129,6 +130,7 @@ export const parseWorkerJob = (value: unknown): WorkerJob => {
     ...(readString(record.id) ? { id: readString(record.id) } : {}),
     ...(readString(record.runId) ? { runId: readString(record.runId) } : {}),
     ...(readString(record.userId) ? { userId: readString(record.userId) } : {}),
+    ...(readString(record.linkedinAccountId) ? { linkedinAccountId: readString(record.linkedinAccountId) } : {}),
     type,
     ...(readBool(record.headless) !== undefined ? { headless: readBool(record.headless) } : {}),
     payload: ensurePayload(record.payload),
@@ -149,6 +151,9 @@ export const applyWorkerUserContext = (job: WorkerJob) => {
   }
   if (job.runId) {
     process.env.BOT_RUN_ID = job.runId;
+  }
+  if (job.linkedinAccountId) {
+    process.env.BOT_LINKEDIN_ACCOUNT_ID = job.linkedinAccountId;
   }
 };
 

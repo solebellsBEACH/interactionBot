@@ -5,7 +5,7 @@ import { LinkedinFeatures } from "./features/linkedin";
 import { env } from "./shared/env";
 import { hydrateUserProfile, flushUserProfile } from "./shared/user-profile";
 import { logger } from "./shared/services/logger";
-import { resolveScopedPath } from "./shared/utils/user-data-dir";
+import { prepareBrowserUserDataDir } from "./shared/utils/user-data-dir";
 import {
   applyWorkerUserContext,
   readWorkerJob,
@@ -15,7 +15,29 @@ import {
 import { WorkerRunReporter } from "./worker/worker-run-reporter";
 
 let browser: BrowserContext | undefined;
+let workerSession:
+  | {
+      path: string;
+      sessionMode: "persistent" | "ephemeral";
+      cleanup: () => Promise<void>;
+    }
+  | undefined;
 let shuttingDown = false;
+let cleanedUp = false;
+
+const cleanupWorkerResources = async (reporter?: WorkerRunReporter) => {
+  if (cleanedUp) {
+    return;
+  }
+
+  cleanedUp = true;
+  reporter?.stop();
+  await browser?.close().catch(() => undefined);
+  await flushUserProfile().catch(() => undefined);
+  await workerSession?.cleanup().catch((error) => {
+    logger.warn("Falha ao limpar userDataDir efêmero do worker", error);
+  });
+};
 
 const main = async () => {
   const job = readWorkerJob();
@@ -26,20 +48,31 @@ const main = async () => {
   const reporter = new WorkerRunReporter(job);
   await reporter.start();
 
-  process.once("SIGINT", async () => {
+  const shutdown = async (signal: "SIGINT" | "SIGTERM") => {
     shuttingDown = true;
-    logger.info("Encerrando worker...");
-    reporter.stop();
-    try {
-      await browser?.close();
-      await flushUserProfile();
-    } finally {
-      process.exit(0);
-    }
+    logger.info("Encerrando worker...", {
+      signal,
+      jobId: job.id || null,
+      runId: reporter.runId,
+    });
+    await cleanupWorkerResources(reporter);
+    process.exit(0);
+  };
+
+  process.once("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
+  process.once("SIGTERM", () => {
+    void shutdown("SIGTERM");
   });
 
   const headless = resolveWorkerHeadless(job);
-  browser = await chromium.launchPersistentContext(resolveScopedPath(env.userDataDir), {
+  workerSession = await prepareBrowserUserDataDir(env.userDataDir, {
+    sessionMode: env.worker.sessionMode === "ephemeral" ? "ephemeral" : "persistent",
+    runId: reporter.runId,
+    jobId: job.id,
+  });
+  browser = await chromium.launchPersistentContext(workerSession.path, {
     headless,
     slowMo: 0,
   });
@@ -56,22 +89,22 @@ const main = async () => {
       jobId: job.id || null,
       runId: reporter.runId,
       userId: job.userId || null,
+      linkedinAccountId: job.linkedinAccountId || null,
       headless,
+      sessionMode: workerSession.sessionMode,
+      userDataDir: workerSession.path,
     });
     const result = await runWorkerJob(features, job);
-    await flushUserProfile();
     await reporter.succeed(result);
     logger.info(`Worker job concluído: ${job.type}`, {
       runId: reporter.runId,
       summary: result.summary,
     });
   } catch (error) {
-    await flushUserProfile();
     await reporter.fail(error);
     throw error;
   } finally {
-    reporter.stop();
-    await browser?.close().catch(() => undefined);
+    await cleanupWorkerResources(reporter);
   }
 };
 

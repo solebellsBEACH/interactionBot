@@ -37,6 +37,7 @@ export class AdminServer {
   private readonly _processManager: AdminProcessManager;
   private readonly _promptBroker?: AdminPromptBroker;
   private readonly _adminPagePath: string;
+  private readonly _adminAssetsPath: string;
   private _activePort?: number;
   private _server?: Server;
 
@@ -46,6 +47,7 @@ export class AdminServer {
     this._processManager = options.processManager;
     this._promptBroker = options.promptBroker;
     this._adminPagePath = path.resolve(process.cwd(), "src", "admin", "web", "index.html");
+    this._adminAssetsPath = path.resolve(process.cwd(), "src", "admin", "web");
   }
 
   async start(): Promise<void> {
@@ -163,6 +165,11 @@ export class AdminServer {
 
       if (method === "GET" && (pathname === "/admin" || pathname === "/admin/")) {
         this._serveAdminPage(res);
+        return;
+      }
+
+      if (method === "GET" && pathname === "/admin/saas-dashboard.js") {
+        this._serveAdminAsset(res, "saas-dashboard.js", "application/javascript; charset=utf-8");
         return;
       }
 
@@ -521,6 +528,18 @@ export class AdminServer {
       res.end(html);
     } catch {
       this._sendJson(res, 500, { error: "Não foi possível carregar o frontend admin." });
+    }
+  }
+
+  private _serveAdminAsset(res: ServerResponse, filename: string, contentType: string) {
+    try {
+      const assetPath = path.resolve(this._adminAssetsPath, filename);
+      const contents = fs.readFileSync(assetPath, "utf-8");
+      res.statusCode = 200;
+      res.setHeader("content-type", contentType);
+      res.end(contents);
+    } catch {
+      this._sendJson(res, 404, { error: "Asset admin não encontrado." });
     }
   }
 

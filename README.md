@@ -31,6 +31,7 @@ Ao executar o bot, um painel admin HTTP local sobe junto para controlar os proce
 - URL padrão: `http://127.0.0.1:5050/admin`
 - Processos disponíveis: busca de vagas, Easy Apply, conexão, upvote de posts, análise de perfil e reset de sessão.
 - Área de monitoramento: respostas recentes do GPT usadas no preenchimento automático.
+- Bloco novo `Control Plane SaaS`: workspaces, memberships, contas LinkedIn, billing/quotas, campanhas, jobs, runs, falhas, métricas, auditoria e runtime remoto persistido na API.
 
 Variáveis opcionais:
 - `ADMIN_ENABLED=true|false` (padrão: `true`)
@@ -38,6 +39,15 @@ Variáveis opcionais:
 - `ADMIN_PORT` (padrão: `5050`)
 
 Se `5050` estiver ocupada, o bot tenta automaticamente as próximas portas livres (`5051`, `5052`, ...). Se preferir sempre escolher uma porta livre automaticamente, use `ADMIN_PORT=0`.
+
+### Usar o bloco `Control Plane SaaS`
+- Suba o `interactionBot-api`.
+- Abra o admin local.
+- Informe `API base URL` e um bearer token de usuário emitido pelo backend.
+- O painel passa a consumir diretamente `/auth/*`, `/control-plane/*`, `/linkedin-accounts`, `/billing/*`, `/campaigns/*`, `/worker-jobs/*`, `/worker-runs/*`, `/observability/*` e `/admin/runtime/stream`.
+- A troca de workspace emite um novo token pelo próprio backend; a seleção de conta LinkedIn filtra os cards account-scoped e o stream remoto.
+
+O token do painel SaaS fica apenas em `sessionStorage` do navegador; `API base URL` e a última conta selecionada ficam em `localStorage`.
 
 ## CLI (Interactor)
 Executa ações específicas no LinkedIn via `src/interactor/cli.ts`.
@@ -93,6 +103,10 @@ npx ts-node src/interactor/cli.ts --action connect --profileUrl "https://www.lin
 ## Worker por Job
 Para preparar o bot para SaaS, existe um entrypoint separado por job em `src/interactor/worker.ts`.
 
+Na fase atual do control plane, a `workspace` é o escopo operacional principal do bot. `tenant` continua existindo para billing e organização, mas os endpoints operacionais da API resolvem estado por `workspace` autenticada.
+Dentro da workspace, cada sessão operacional do LinkedIn agora é isolada por `linkedin_account_id`.
+As quotas operacionais da fase 3 são aplicadas no backend por `workspace + linkedin_account` quando o bot dispara jobs, campanhas ou aplicações via API.
+
 ### Como usar
 Via JSON inline:
 ```bash
@@ -117,13 +131,18 @@ API_AUTH_TOKEN=ibw_xxx BOT_TENANT_ID=tenant-a BOT_WORKSPACE_ID=workspace-a npm r
 ### Persistência de estado
 - `API_AUTH_TOKEN` ou `BOT_API_TOKEN`: bearer token emitido pelo control plane.
 - `BOT_TENANT_ID`: tenant resolvido pelo control plane.
-- `BOT_WORKSPACE_ID`: workspace resolvida pelo control plane.
+- `BOT_WORKSPACE_ID`: workspace resolvida pelo control plane. Este é o escopo principal para `user-profile`, `worker-runs`, `admin runtime` e fallback local por pasta.
+- `BOT_LINKEDIN_ACCOUNT_ID`: conta LinkedIn operacional do job. Este é o escopo preferencial para `userDataDir`, `user-profile` local e chamadas account-scoped da API.
 - `BOT_USER_ID`: ator humano opcional do job. Continua útil para auditoria, mas não é mais a chave principal de tenant.
+- `BOT_SESSION_MODE=persistent|ephemeral`: controla se o Chromium usa diretório persistente por escopo ou um diretório temporário por execução. O queue worker da API força `ephemeral`.
+- `BOT_WORKER_TIMEOUT_MS`: timeout operacional repassado pelo worker plane para logs e diagnóstico local.
 - `USER_PROFILE_STORAGE=local|api|auto`: controla onde o perfil consolidado é salvo.
-- Em `local`, o perfil fica em `data/profiles/<workspace-ou-tenant-ou-user>.json`.
+- Em `local`, o perfil fica em `data/profiles/<linkedin-account-ou-workspace-ou-tenant-ou-user>.json`.
 - Em `api`, o worker tenta usar `/user-profile` e publicar execução em `/worker-runs/...`.
 - Em `auto`, usa API quando existe contexto autenticado do control plane; se a API falhar, o fallback local continua funcionando.
 - Para o painel admin persistir prompts, logs e próximas steps na API, defina `API_AUTH_TOKEN`.
+- Quando `BOT_LINKEDIN_ACCOUNT_ID` estiver definido, o bot envia `x-linkedin-account-id` automaticamente para a API.
+- Em `BOT_SESSION_MODE=ephemeral`, o `userDataDir` é criado por `workspace + linkedin_account + runId + jobId` e removido ao fim da execução.
 
 ## Admin Runtime Remoto
 Quando o bot sobe com `API_AUTH_TOKEN`, ele hidrata o contexto autenticado em `/auth/me` e o admin deixa de depender só de memória local:
@@ -134,10 +153,32 @@ Quando o bot sobe com `API_AUTH_TOKEN`, ele hidrata o contexto autenticado em `/
 
 Se a API falhar ou não houver token do control plane, o admin continua com fallback local para não bloquear o fluxo.
 
+## Billing e quotas
+Os limites operacionais agora vivem no control plane:
+- plano base por tenant em `/billing/plan`
+- overrides por workspace em `/billing/workspace-limits`
+- histórico de rejeições em `/billing/rejections`
+
+Na prática, isso afeta:
+- criação de campanhas ativas
+- criação de contas LinkedIn
+- enqueue de `worker-jobs`
+- execuções do scheduler
+- concorrência real do queue worker
+
+Se um enqueue falhar por quota, a API responde `409` e o bot deve tratar isso como limite operacional, não como erro transitório.
+
 ## Observabilidade
-Quando `LOG_FORMAT=json`, o bot passa a emitir logs estruturados com `runId`, `tenantId`, `workspaceId` e `userId` quando esses valores existem no ambiente.
+Quando `LOG_FORMAT=json`, o bot passa a emitir logs estruturados com `runId`, `tenantId`, `workspaceId`, `linkedinAccountId` e `userId` quando esses valores existem no ambiente.
 
 No worker, esse contexto também é enviado para `/worker-runs/:runId/events`, então os eventos remotos ficam correlacionáveis com a execução local.
+
+## Worker stateless
+Na fase 4, o worker foi preparado para execução isolada:
+- cada job pode subir Chromium com `userDataDir` efêmero
+- o isolamento operacional é `workspace + linkedin_account`
+- o diretório temporário é limpo no encerramento normal e por sinal
+- isso reduz reuso acidental de cookies/sessão entre contas e clientes
 
 ## Teste das funções do bot
 ```bash
@@ -157,8 +198,15 @@ Esse comando executa todas as ações do bot via `src/interactor/cli.ts`, valida
 npm run test:phase1
 ```
 
-Esse comando valida o parser do worker, o contexto por job e o isolamento do `user-profile` por `BOT_USER_ID`.
-Também cobre o escopo preferencial por `workspace` quando existe contexto SaaS.
+Esse comando valida o parser do worker, o contexto por job e o fallback local do `user-profile`.
+Também cobre o escopo preferencial por `workspace` e por `linkedin_account_id` quando existe contexto SaaS.
+
+## Testes da Fase 4
+```bash
+npm run test:phase4
+```
+
+Esse comando adiciona a cobertura do `userDataDir` efêmero por execução, mantendo os testes anteriores do parser do worker e do `user-profile`.
 
 ## Teste UI com Playwright Test
 ```bash

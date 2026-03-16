@@ -53,6 +53,10 @@ const readNumber = (key: string, fallback = 0) => {
 
 export const env = {
   userDataDir: readString('USER_DATA_DIR', DEFAULTS.userDataDir),
+  worker: {
+    sessionMode: readString('BOT_SESSION_MODE', 'persistent'),
+    timeoutMs: readNumber('BOT_WORKER_TIMEOUT_MS', 0),
+  },
   admin: {
     enabled: readBool('ADMIN_ENABLED', true),
     host: readString('ADMIN_HOST', '127.0.0.1'),

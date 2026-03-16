@@ -84,6 +84,7 @@ const getRuntimeContext = () =>
     runId: (process.env.BOT_RUN_ID || '').trim() || undefined,
     tenantId: (process.env.BOT_TENANT_ID || '').trim() || undefined,
     workspaceId: (process.env.BOT_WORKSPACE_ID || '').trim() || undefined,
+    linkedinAccountId: (process.env.BOT_LINKEDIN_ACCOUNT_ID || '').trim() || undefined,
     userId: (process.env.BOT_USER_ID || '').trim() || undefined
   })
 

@@ -13,6 +13,7 @@ test("parseWorkerJob normaliza payload e contexto do worker", () => {
     id: "job-1",
     runId: "run-1",
     userId: "tenant-a",
+    linkedinAccountId: "account-a",
     type: "search-jobs",
     headless: "false",
     payload: {
@@ -25,6 +26,7 @@ test("parseWorkerJob normaliza payload e contexto do worker", () => {
     id: "job-1",
     runId: "run-1",
     userId: "tenant-a",
+    linkedinAccountId: "account-a",
     type: "search-jobs",
     headless: false,
     payload: {
@@ -37,11 +39,13 @@ test("parseWorkerJob normaliza payload e contexto do worker", () => {
 test("resolveWorkerHeadless e applyWorkerUserContext respeitam job e env", () => {
   const previousUserId = process.env.BOT_USER_ID;
   const previousRunId = process.env.BOT_RUN_ID;
+  const previousLinkedinAccountId = process.env.BOT_LINKEDIN_ACCOUNT_ID;
   const previousHeadless = process.env.WORKER_HEADLESS;
 
   try {
     delete process.env.BOT_USER_ID;
     delete process.env.BOT_RUN_ID;
+    delete process.env.BOT_LINKEDIN_ACCOUNT_ID;
     process.env.WORKER_HEADLESS = "false";
 
     assert.equal(resolveWorkerHeadless({ type: "reset-session" }), false);
@@ -49,15 +53,18 @@ test("resolveWorkerHeadless e applyWorkerUserContext respeitam job e env", () =>
     applyWorkerUserContext({
       type: "reset-session",
       userId: "tenant-b",
+      linkedinAccountId: "account-b",
       runId: "run-2",
     });
 
     assert.equal(process.env.BOT_USER_ID, "tenant-b");
+    assert.equal(process.env.BOT_LINKEDIN_ACCOUNT_ID, "account-b");
     assert.equal(process.env.BOT_RUN_ID, "run-2");
     assert.equal(resolveWorkerHeadless({ type: "reset-session", headless: true }), true);
   } finally {
     restoreEnv("BOT_USER_ID", previousUserId);
     restoreEnv("BOT_RUN_ID", previousRunId);
+    restoreEnv("BOT_LINKEDIN_ACCOUNT_ID", previousLinkedinAccountId);
     restoreEnv("WORKER_HEADLESS", previousHeadless);
   }
 });

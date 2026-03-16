@@ -1,3 +1,5 @@
+import fs from "fs/promises";
+import os from "os";
 import path from "path";
 
 const normalizeSegment = (value: string) =>
@@ -28,8 +30,20 @@ export const getBotWorkspaceId = () => {
   return value || undefined;
 };
 
+export const getBotLinkedinAccountId = () => {
+  const value = (process.env.BOT_LINKEDIN_ACCOUNT_ID || "").trim();
+  return value || undefined;
+};
+
+export type BotSessionMode = "persistent" | "ephemeral";
+
+export const getBotSessionMode = (): BotSessionMode => {
+  const value = (process.env.BOT_SESSION_MODE || "").trim().toLowerCase();
+  return value === "ephemeral" ? "ephemeral" : "persistent";
+};
+
 export const getBotScopeId = () => {
-  return getBotWorkspaceId() || getBotTenantId() || getBotActorUserId();
+  return getBotLinkedinAccountId() || getBotWorkspaceId() || getBotTenantId() || getBotActorUserId();
 };
 
 export const hasBotControlPlaneAuthToken = () => {
@@ -56,4 +70,43 @@ export const setBotControlPlaneContext = (context: {
 export const resolveScopedPath = (basePath: string, scopeId = getBotScopeId()) => {
   if (!scopeId) return basePath;
   return path.resolve(basePath, normalizeSegment(scopeId));
+};
+
+export const prepareBrowserUserDataDir = async (
+  basePath: string,
+  options?: {
+    scopeId?: string;
+    sessionMode?: BotSessionMode;
+    runId?: string;
+    jobId?: string;
+  }
+) => {
+  const sessionMode = options?.sessionMode ?? getBotSessionMode();
+  const scopeId = options?.scopeId ?? getBotScopeId();
+
+  if (sessionMode !== "ephemeral") {
+    return {
+      path: resolveScopedPath(basePath, scopeId),
+      sessionMode,
+      cleanup: async () => undefined,
+    };
+  }
+
+  const rootDir = path.resolve(os.tmpdir(), "interactionbot-worker-sessions");
+  await fs.mkdir(rootDir, { recursive: true });
+
+  const seed = [scopeId, options?.runId, options?.jobId].filter(Boolean).join("-") || "session";
+  const prefix = `${normalizeSegment(seed)}-`;
+  const sessionPath = await fs.mkdtemp(path.join(rootDir, prefix));
+
+  return {
+    path: sessionPath,
+    sessionMode,
+    cleanup: async () => {
+      await fs.rm(sessionPath, {
+        recursive: true,
+        force: true,
+      });
+    },
+  };
 };
