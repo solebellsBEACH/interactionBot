@@ -390,8 +390,15 @@
                   <div class="li-empty-title">Perfil LinkedIn não capturado</div>
                   <div class="li-empty-sub">Clique em "Capturar" para abrir o LinkedIn e importar automaticamente seu perfil.</div>
                   <button id="li-capture-btn-empty" class="li-btn li-btn-capture" type="button" style="margin-top:4px">◎ Capturar perfil agora</button>
+                  <div id="capture-progress" style="font-size:0.78rem;color:#8a7a68;font-family:'IBM Plex Mono',monospace;text-align:center;min-height:18px;padding-top:4px"></div>
                 </div>
 
+              </div>
+
+              <!-- Capture progress bar (shown during capture) -->
+              <div id="capture-progress-bar" style="display:none;padding:8px 20px;background:rgba(14,122,109,0.05);border-top:1px solid var(--line);font-size:0.78rem;color:#4a7a74;font-family:'IBM Plex Mono',monospace">
+                <span id="capture-step-label">Iniciando captura…</span>
+                <a href="/admin/dashboard" target="_blank" style="float:right;color:var(--brand);font-size:0.76rem;text-decoration:none">Ver no Dashboard ↗</a>
               </div>
 
               <!-- Captured bar -->
@@ -788,12 +795,37 @@
       });
 
       // ── Capture ──
+      const captureProgressBar  = document.getElementById("capture-progress-bar");
+      const captureStepLabel    = document.getElementById("capture-step-label");
+      const captureProgressEl   = document.getElementById("capture-progress");
+
+      function startCaptureProgressPoll() {
+        captureProgressBar.style.display = "";
+        captureProgressEl.textContent = "Iniciando…";
+        state._capturePoll = setInterval(async () => {
+          try {
+            const rt = await request("GET", "/api/admin/runtime?stepsLimit=1&logsLimit=0");
+            if (rt.activeStep && rt.activeStep.label) {
+              captureStepLabel.textContent = rt.activeStep.label;
+              captureProgressEl.textContent = rt.activeStep.label;
+            }
+          } catch {}
+        }, 2000);
+      }
+
+      function stopCaptureProgressPoll() {
+        clearInterval(state._capturePoll);
+        captureProgressBar.style.display = "none";
+        captureProgressEl.textContent = "";
+      }
+
       async function captureProfile() {
         if (state.isCapturing) return;
         state.isCapturing = true;
         [liCaptureBtn, liCaptureBtnEmpty].forEach((b) => { b.disabled = true; b.textContent = "Capturando…"; });
         liEditBtn.disabled = true;
         setStatus(liStatusView, "Abrindo LinkedIn e analisando com GPT…");
+        startCaptureProgressPoll();
         try {
           const data = await request("POST", "/api/admin/processes/profile-review", {});
           const proc = await waitForProcess(data.id, 8 * 60 * 1000);
@@ -802,6 +834,7 @@
           setStatus(liStatusView, proc.summary || "Perfil capturado.");
         } catch (err) { setStatus(liStatusView, err.message, true); }
         finally {
+          stopCaptureProgressPoll();
           state.isCapturing = false;
           [liCaptureBtn, liCaptureBtnEmpty].forEach((b) => { b.disabled = false; b.textContent = "◎ Capturar"; });
           liCaptureBtnEmpty.textContent = "◎ Capturar perfil agora";

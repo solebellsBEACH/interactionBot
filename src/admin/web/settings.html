@@ -60,6 +60,7 @@
           <!-- Environment info -->
           <article class="card">
             <h2>Informações do Ambiente</h2>
+            <p class="helper" style="margin:0 0 10px">Dados técnicos do servidor e control plane.</p>
             <div id="config-info">
               <div class="info-row"><span class="info-label">Status</span><span class="info-value muted">Carregando…</span></div>
             </div>
@@ -81,9 +82,9 @@
         <!-- Connect LinkedIn account + Upvote posts -->
         <div class="grid" style="margin-bottom: 14px">
           <article class="card">
-            <h2>Conectar perfil LinkedIn</h2>
+            <h2>Enviar Convite de Conexão</h2>
             <form id="connect-form" class="stack">
-              <p class="helper">Envia um pedido de conexão para um perfil LinkedIn com mensagem opcional.</p>
+              <p class="helper">Envia um pedido de conexão para outro usuário no LinkedIn, com mensagem opcional.</p>
               <div>
                 <label for="connect-profile-url">URL do perfil LinkedIn</label>
                 <input id="connect-profile-url" name="profileUrl" type="url" placeholder="https://www.linkedin.com/in/..." required />
@@ -117,34 +118,15 @@
           </article>
         </div>
 
-        <!-- Easy apply single job -->
-        <div class="grid" style="margin-bottom: 14px">
-          <article class="card">
-            <h2>Aplicar em Vaga Específica</h2>
-            <form id="easy-apply-form" class="stack">
-              <p class="helper">Inicia o Easy Apply em uma única URL de vaga no LinkedIn.</p>
-              <div>
-                <label for="easy-apply-url">URL da vaga</label>
-                <input id="easy-apply-url" name="jobUrl" type="url" placeholder="https://www.linkedin.com/jobs/view/..." required />
-              </div>
-              <button id="easy-apply-submit" type="submit">Aplicar nesta vaga</button>
-              <p class="status" id="easy-apply-status"></p>
-            </form>
-          </article>
-
-          <article class="card">
-            <h2>Sessão e Dados Locais</h2>
-            <div class="stack">
-              <p class="helper">Limpa a sessão do LinkedIn e todos os dados locais do bot (perfil, respostas, histórico GPT). Esta ação é irreversível.</p>
-              <div class="info-row">
-                <span class="info-label">Ação disponível</span>
-                <span class="info-value">Deslogar e limpar</span>
-              </div>
-              <button id="reset-session" class="danger-button" type="button">Deslogar e limpar tudo</button>
-              <p class="status" id="reset-status"></p>
-            </div>
-          </article>
-        </div>
+        <!-- Session reset — destructive, full width -->
+        <article class="card" style="margin-bottom: 14px; border-color: rgba(165,35,35,0.25)">
+          <h2>Sessão e Dados Locais</h2>
+          <div class="stack">
+            <p class="helper">Desloga do LinkedIn e apaga todos os dados locais do bot — perfil, histórico de respostas GPT e logs. <strong>Esta ação é irreversível.</strong></p>
+            <button id="reset-session" class="danger-button" type="button" style="max-width:320px">Deslogar e limpar tudo</button>
+            <p class="status" id="reset-status"></p>
+          </div>
+        </article>
       </main>
     </div>
 
@@ -172,8 +154,6 @@
       const connectStatus = document.getElementById("connect-status");
       const upvoteForm = document.getElementById("upvote-form");
       const upvoteStatus = document.getElementById("upvote-status");
-      const easyApplyForm = document.getElementById("easy-apply-form");
-      const easyApplyStatus = document.getElementById("easy-apply-status");
       const resetSessionBtn = document.getElementById("reset-session");
       const resetStatus = document.getElementById("reset-status");
 
@@ -265,21 +245,6 @@
           setStatus(upvoteStatus, proc.summary || "Upvote concluído."); upvoteForm.reset();
         } catch (err) { setStatus(upvoteStatus, err.message, true); }
         finally { upvoteForm.querySelector("button").disabled = false; loadProcesses(); }
-      });
-
-      easyApplyForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const jobUrl = text(easyApplyForm.jobUrl.value);
-        if (!jobUrl) { setStatus(easyApplyStatus, "Informe a URL da vaga.", true); return; }
-        easyApplyForm.querySelector("button").disabled = true;
-        setStatus(easyApplyStatus, "Iniciando Easy Apply…");
-        try {
-          const data = await request("POST", "/api/admin/processes/easy-apply", { jobUrl });
-          const proc = await waitForProcess(data.id, 15 * 60 * 1000);
-          if (proc.status !== "succeeded") throw new Error(proc.error || proc.summary || "Falha ao aplicar.");
-          setStatus(easyApplyStatus, proc.summary || "Aplicação concluída."); easyApplyForm.reset();
-        } catch (err) { setStatus(easyApplyStatus, err.message, true); }
-        finally { easyApplyForm.querySelector("button").disabled = false; loadProcesses(); }
       });
 
       resetSessionBtn.addEventListener("click", async () => {

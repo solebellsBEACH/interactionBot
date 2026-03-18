@@ -246,7 +246,7 @@
         </div>
         <p id="admin-prompt-status" class="status"></p>
         <div class="toolbar-actions" style="margin-top:12px">
-          <button id="admin-prompt-confirm" type="button">Confirmar GPT</button>
+          <button id="admin-prompt-confirm" type="button">✓ Aceitar sugestão do GPT</button>
           <button id="admin-prompt-submit" class="secondary" type="button">Enviar resposta</button>
           <button id="admin-prompt-skip" class="secondary" type="button">Pular campo</button>
           <button id="admin-prompt-cancel" class="secondary" type="button">Cancelar</button>
@@ -585,15 +585,15 @@
         const isConfirm = item.kind === "confirm-gpt";
         const options = Array.isArray(item.options) ? item.options.filter(Boolean) : [];
         const suggested = item.suggestedAnswer || "";
-        adminPromptTitle.textContent = isConfirm ? "Confirmar resposta GPT" : "Responder campo";
+        adminPromptTitle.textContent = isConfirm ? "GPT sugeriu uma resposta" : "Bot precisa da sua resposta";
         adminPromptMeta.textContent = [`etapa ${item.step}`, item.fieldLabel || item.fieldKey || "campo"].join(" | ");
         adminPromptMessage.textContent = item.prompt || "";
         setStatus(adminPromptStatus, "");
         if (isConfirm && adminPromptSettings.autoConfirmGpt) setStatus(adminPromptStatus, `Modo automático ativo: confirma em ${adminPromptSettings.autoConfirmDelayMs}ms.`);
         setHidden(adminPromptSuggestedWrap, !suggested); adminPromptSuggested.textContent = suggested;
-        adminPromptConfirm.textContent = "Confirmar GPT";
-        adminPromptSubmit.textContent = isConfirm ? "Usar resposta manual" : "Enviar resposta";
-        adminPromptSkip.textContent = isSelect ? "Pular opção" : "Pular campo";
+        adminPromptConfirm.textContent = "✓ Aceitar sugestão do GPT";
+        adminPromptSubmit.textContent = isConfirm ? "✎ Usar outra resposta" : "Enviar resposta";
+        adminPromptSkip.textContent = isSelect ? "⏭ Pular opção" : "⏭ Pular campo";
         setHidden(adminPromptConfirm, !isConfirm);
         if (isSelect) {
           adminPromptSelect.innerHTML = "";

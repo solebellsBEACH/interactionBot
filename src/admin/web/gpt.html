@@ -27,14 +27,14 @@
           <article class="card">
             <h2>Configuração do GPT</h2>
             <div class="stack">
-              <div>
-                <label for="gpt-auto-confirm">Confirmação automática</label>
-                <select id="gpt-auto-confirm">
-                  <option value="false">Desativado — aguarda sua resposta</option>
-                  <option value="true">Ativado — confirma automaticamente</option>
-                </select>
+              <div class="toggle-row">
+                <label class="toggle-wrap" for="gpt-auto-confirm">
+                  <input type="checkbox" id="gpt-auto-confirm" role="switch" />
+                  <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                </label>
+                <label class="toggle-label" for="gpt-auto-confirm">Confirmação automática</label>
               </div>
-              <p id="gpt-auto-meta" class="helper">Quando desativado, o painel aguarda sua resposta antes de enviar.</p>
+              <p id="gpt-auto-meta" class="toggle-meta">Desativado — o painel aguarda sua resposta no Dashboard.</p>
               <p class="status" id="gpt-settings-status"></p>
             </div>
           </article>
@@ -60,7 +60,7 @@
               </div>
               <input id="gpt-filter" type="search" placeholder="Filtrar por campo, fonte ou resposta" style="flex:1 1 280px;min-width:220px" />
             </div>
-            <div style="max-height:600px;overflow:auto;border:1px solid #e3d7c1;border-radius:14px;background:#fffdf9">
+            <div class="table-wrap">
               <table id="gpt-table">
                 <thead>
                   <tr>
@@ -143,16 +143,17 @@
         if (!settings) return;
         promptSettings.autoConfirmGpt = Boolean(settings.autoConfirmGpt);
         if (typeof settings.autoConfirmDelayMs === "number") promptSettings.autoConfirmDelayMs = settings.autoConfirmDelayMs;
-        gptAutoConfirm.value = promptSettings.autoConfirmGpt ? "true" : "false";
+        gptAutoConfirm.checked = promptSettings.autoConfirmGpt;
         gptAutoMeta.textContent = promptSettings.autoConfirmGpt
           ? `Ativado — confirma automaticamente em ${promptSettings.autoConfirmDelayMs}ms se ninguém responder.`
           : "Desativado — o painel aguarda sua resposta no Dashboard.";
       }
 
       async function savePromptSettings() {
-        const next = gptAutoConfirm.value === "true";
+        const next = gptAutoConfirm.checked;
         const prev = { autoConfirmGpt: promptSettings.autoConfirmGpt, autoConfirmDelayMs: promptSettings.autoConfirmDelayMs };
         promptSettings.autoConfirmGpt = next; promptSettings.isSaving = true;
+        gptAutoConfirm.disabled = true;
         try {
           const data = await request("POST", "/api/admin/prompts/settings", { autoConfirmGpt: next, autoConfirmDelayMs: 1000 });
           renderPromptSettings(data.settings || {}); setStatus(gptSettingsStatus, "Configuração salva.");

@@ -21,6 +21,10 @@
           </div>
         </div>
 
+        <div class="flow-hint" id="jobs-flow-hint" hidden>
+          Vagas carregadas. Selecione as desejadas na tabela abaixo e clique em <strong>Aplicar selecionadas</strong>.
+        </div>
+
         <!-- Top grid: search form + applied jobs scan -->
         <div class="grid" style="margin-bottom: 14px">
           <article class="card">
@@ -52,12 +56,12 @@
               </div>
               <div class="row single">
                 <div>
-                  <label for="search-wait-ms">Pausa entre aplicações (ms)</label>
+                  <label for="search-wait-ms">Intervalo entre aplicações (ms) <span style="font-weight:400;color:#9e8f7a">— padrão 1500 ≈ 1,5s</span></label>
                   <input id="search-wait-ms" name="waitBetweenMs" type="number" min="0" value="1500" />
                 </div>
               </div>
               <label class="check"><input type="checkbox" id="search-easy-only" name="easyApplyOnly" checked /> Somente Easy Apply</label>
-              <label class="check"><input type="checkbox" id="search-non-promoted" name="onlyNonPromoted" /> Somente não promovidas</label>
+              <label class="check"><input type="checkbox" id="search-non-promoted" name="onlyNonPromoted" /> Excluir vagas patrocinadas</label>
               <p class="helper">A busca carrega vagas na tabela abaixo. Selecione as desejadas e clique em aplicar.</p>
               <button class="secondary" id="search-submit" type="submit">Buscar vagas</button>
               <p class="status" id="search-status"></p>
@@ -83,9 +87,49 @@
               </div>
               <button id="applied-jobs-submit" class="secondary" type="submit">Varrer vagas aplicadas</button>
               <div id="applied-jobs-meta" class="meta">Nenhuma varredura executada.</div>
-              <pre id="applied-jobs-output" class="code-block code-block--compact">Sem dados.</pre>
+              <div class="table-wrap" style="max-height:220px;margin-top:4px">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Vaga</th>
+                      <th>Empresa</th>
+                      <th>Local</th>
+                      <th>Aplicada</th>
+                      <th>Link</th>
+                    </tr>
+                  </thead>
+                  <tbody id="applied-jobs-body">
+                    <tr><td colspan="6" class="muted">Sem dados.</td></tr>
+                  </tbody>
+                </table>
+              </div>
               <p class="status" id="applied-jobs-status"></p>
             </form>
+          </article>
+        </div>
+
+        <!-- Single job apply -->
+        <div class="grid" style="grid-template-columns: 1fr 2fr; margin-bottom: 14px">
+          <article class="card">
+            <h2>Aplicar em Vaga Específica</h2>
+            <form id="easy-apply-form" class="stack">
+              <p class="helper">Inicia o Easy Apply em uma única URL de vaga do LinkedIn.</p>
+              <div>
+                <label for="easy-apply-url">URL da vaga</label>
+                <input id="easy-apply-url" name="jobUrl" type="url" placeholder="https://www.linkedin.com/jobs/view/..." required />
+              </div>
+              <button id="easy-apply-submit" type="submit">Aplicar nesta vaga</button>
+              <p class="status" id="easy-apply-status"></p>
+            </form>
+          </article>
+          <article class="card" style="background:rgba(14,122,109,0.04)">
+            <h2 style="font-size:0.9rem;color:#5a4a36">Como funciona o fluxo de vagas</h2>
+            <ol style="margin:0;padding-left:18px;display:grid;gap:8px">
+              <li class="helper"><strong>Buscar vagas</strong> — preencha a tag/cargo, filtros opcionais e clique em Buscar. O bot varre o LinkedIn e carrega a tabela abaixo.</li>
+              <li class="helper"><strong>Selecionar</strong> — marque as vagas desejadas na tabela (apenas vagas com Easy Apply podem ser selecionadas).</li>
+              <li class="helper"><strong>Aplicar selecionadas</strong> — o bot abre cada vaga e preenche o formulário automaticamente via GPT.</li>
+            </ol>
           </article>
         </div>
 
@@ -197,8 +241,11 @@
       const appliedJobsCustomDays = document.getElementById("applied-jobs-custom-days");
       const appliedJobsSubmit = document.getElementById("applied-jobs-submit");
       const appliedJobsMeta = document.getElementById("applied-jobs-meta");
-      const appliedJobsOutput = document.getElementById("applied-jobs-output");
+      const appliedJobsBody = document.getElementById("applied-jobs-body");
       const appliedJobsStatus = document.getElementById("applied-jobs-status");
+      const easyApplyForm = document.getElementById("easy-apply-form");
+      const easyApplyStatus = document.getElementById("easy-apply-status");
+      const jobsFlowHint = document.getElementById("jobs-flow-hint");
 
       // ── State ──
       const jobsState = { items: [], selectedUrls: new Set(), filterText: "", sortKey: "title", sortDirection: "asc", lastSearchTag: "", lastSearchTotal: 0, isSearching: false, isApplying: false };
@@ -310,7 +357,7 @@
       function resetAppliedJobsView() {
         appliedJobsState.lastResult = null;
         appliedJobsMeta.textContent = "Nenhuma varredura executada.";
-        appliedJobsOutput.textContent = "Sem dados.";
+        appliedJobsBody.innerHTML = `<tr><td colspan="6" class="muted">Sem dados.</td></tr>`;
       }
       function renderAppliedJobsScan(result) {
         const total = typeof result?.total === "number" ? result.total : 0;
@@ -319,15 +366,25 @@
         const jobs = Array.isArray(result?.jobsPreview) ? result.jobsPreview : [];
         const filterLabel = result?.filterLabel || "período atual";
         const pagesLabel = totalPages ? `${scanned} de ${totalPages} pág.` : `${scanned} pág.`;
-        const previewLabel = total > jobs.length ? ` | ${jobs.length} preview(s)` : "";
+        const previewLabel = total > jobs.length ? ` | ${jobs.length} exibindo` : "";
         const stopLabel = result?.stoppedEarly ? " | parada automática" : "";
-        appliedJobsMeta.textContent = `${total} vaga(s) | filtro: ${filterLabel} | ${pagesLabel}${previewLabel}${stopLabel}`;
-        if (!jobs.length) { appliedJobsOutput.textContent = total ? "Sem preview disponível." : "Nenhuma vaga aplicada."; return; }
-        appliedJobsOutput.textContent = jobs.map((j, i) => [
-          `${i+1}. ${j.title||"-"}`, `Empresa: ${j.company||"-"}`, `Local: ${j.location||"-"}`,
-          `Aplicada: ${j.appliedAt||"-"}`, `Idade: ${typeof j.appliedAgeDays==="number" ? `${Math.round(j.appliedAgeDays)} dia(s)` : "desconhecida"}`,
-          `URL: ${j.url||"-"}`
-        ].join("\n")).join("\n\n");
+        appliedJobsMeta.textContent = `${total} vaga(s) aplicada(s) | ${filterLabel} | ${pagesLabel}${previewLabel}${stopLabel}`;
+        if (!jobs.length) {
+          appliedJobsBody.innerHTML = `<tr><td colspan="6" class="muted">${total ? "Sem preview disponível." : "Nenhuma vaga aplicada."}</td></tr>`;
+          return;
+        }
+        appliedJobsBody.innerHTML = jobs.map((j, i) => {
+          const ageStr = typeof j.appliedAgeDays === "number" ? `<span class="meta"> (${Math.round(j.appliedAgeDays)}d)</span>` : "";
+          const link = j.url ? `<a class="job-link" href="${escapeHtml(j.url)}" target="_blank" rel="noreferrer">abrir</a>` : "-";
+          return `<tr>
+            <td class="meta">${i + 1}</td>
+            <td>${escapeHtml(j.title || "-")}</td>
+            <td>${escapeHtml(j.company || "-")}</td>
+            <td>${escapeHtml(j.location || "-")}</td>
+            <td><span class="meta">${escapeHtml(j.appliedAt || "-")}</span>${ageStr}</td>
+            <td>${link}</td>
+          </tr>`;
+        }).join("");
       }
 
       // ── Event listeners ──
@@ -353,7 +410,9 @@
           jobsState.items = Array.isArray(output.jobs) ? output.jobs : [];
           jobsState.lastSearchTotal = typeof output.total === "number" ? output.total : jobsState.items.length;
           setStatus(searchStatus, proc.summary || `${jobsState.items.length} vaga(s) carregadas.`);
-          setStatus(jobsStatus, jobsState.items.length ? "Selecione as vagas e clique em aplicar selecionadas." : "Nenhuma vaga encontrada.");
+          setStatus(jobsStatus, "");
+          if (jobsState.items.length) jobsFlowHint.removeAttribute("hidden");
+          else jobsFlowHint.setAttribute("hidden", "");
         } catch (err) {
           Object.assign(jobsState, prev); jobsFilter.value = prev.filterText;
           setStatus(searchStatus, err.message, true); setStatus(jobsStatus, "");
@@ -395,6 +454,8 @@
       applySelectedJobsButton.addEventListener("click", async () => {
         const selected = jobsState.items.filter((j) => jobsState.selectedUrls.has(j.url));
         if (!selected.length) { setStatus(jobsStatus, "Selecione ao menos uma vaga com Easy Apply.", true); return; }
+        if (!confirm(`Aplicar em ${selected.length} vaga(s) selecionada(s)?\n\nO bot vai preencher cada formulário automaticamente via GPT. Acompanhe o progresso no Dashboard.`)) return;
+        jobsFlowHint.setAttribute("hidden", "");
         jobsState.isApplying = true; renderJobsTable();
         setStatus(jobsStatus, `Aplicando em ${selected.length} vaga(s)…`);
         try {
@@ -426,7 +487,7 @@
         const customDays = toNumber(appliedJobsCustomDays.value);
         if (periodPreset === "custom" && !customDays) { setStatus(appliedJobsStatus, "Informe a quantidade de dias.", true); return; }
         appliedJobsState.isScanning = true; syncAppliedJobsControls();
-        appliedJobsMeta.textContent = "Varredura em andamento…"; appliedJobsOutput.textContent = "Aguardando…"; setStatus(appliedJobsStatus, "Varrendo vagas aplicadas…");
+        appliedJobsMeta.textContent = "Varredura em andamento…"; appliedJobsBody.innerHTML = `<tr><td colspan="6" class="muted">Aguardando…</td></tr>`; setStatus(appliedJobsStatus, "Varrendo vagas aplicadas…");
         try {
           const data = await request("POST", "/api/admin/processes/scan-applied-jobs", { periodPreset, customDays });
           const proc = await waitForProcess(data.id, 25 * 60 * 1000);
@@ -438,6 +499,23 @@
           if (prev) renderAppliedJobsScan(prev); else resetAppliedJobsView();
           setStatus(appliedJobsStatus, err.message, true);
         } finally { appliedJobsState.isScanning = false; syncAppliedJobsControls(); }
+      });
+
+      // ── Easy Apply single job ──
+      easyApplyForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const jobUrl = text(easyApplyForm.jobUrl.value);
+        if (!jobUrl) { setStatus(easyApplyStatus, "Informe a URL da vaga.", true); return; }
+        easyApplyForm.querySelector("button[type=submit]").disabled = true;
+        setStatus(easyApplyStatus, "Iniciando Easy Apply…");
+        try {
+          const data = await request("POST", "/api/admin/processes/easy-apply", { jobUrl });
+          const proc = await waitForProcess(data.id, 15 * 60 * 1000);
+          if (proc.status !== "succeeded") throw new Error(proc.error || proc.summary || "Falha ao aplicar.");
+          setStatus(easyApplyStatus, proc.summary || "Aplicação concluída.");
+          easyApplyForm.reset();
+        } catch (err) { setStatus(easyApplyStatus, err.message, true); }
+        finally { easyApplyForm.querySelector("button[type=submit]").disabled = false; }
       });
 
       // ── Init ──
