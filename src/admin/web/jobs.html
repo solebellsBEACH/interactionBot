@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vagas — InteractionBot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/admin/shared.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar" id="sidebar"></aside>
+
+      <main class="main-content">
+        <div class="page-header">
+          <div>
+            <h1>Vagas</h1>
+            <p class="page-header-lead">Busque vagas no LinkedIn e aplique com Easy Apply</p>
+          </div>
+        </div>
+
+        <!-- Top grid: search form + applied jobs scan -->
+        <div class="grid" style="margin-bottom: 14px">
+          <article class="card">
+            <h2>Buscar Vagas</h2>
+            <form id="search-form" class="stack">
+              <div>
+                <label for="search-tag">Tag</label>
+                <input id="search-tag" name="tag" placeholder="react next" required />
+              </div>
+              <div class="row">
+                <div>
+                  <label for="search-max-results">Máx. vagas</label>
+                  <input id="search-max-results" name="maxResults" type="number" min="1" />
+                </div>
+                <div>
+                  <label for="search-max-pages">Máx. páginas</label>
+                  <input id="search-max-pages" name="maxPages" type="number" min="1" />
+                </div>
+              </div>
+              <div class="row">
+                <div>
+                  <label for="search-location">Localização</label>
+                  <input id="search-location" name="location" placeholder="Remote" />
+                </div>
+                <div>
+                  <label for="search-max-applicants">Máx. candidaturas</label>
+                  <input id="search-max-applicants" name="maxApplicants" type="number" min="1" />
+                </div>
+              </div>
+              <div class="row single">
+                <div>
+                  <label for="search-wait-ms">Pausa entre aplicações (ms)</label>
+                  <input id="search-wait-ms" name="waitBetweenMs" type="number" min="0" value="1500" />
+                </div>
+              </div>
+              <label class="check"><input type="checkbox" id="search-easy-only" name="easyApplyOnly" checked /> Somente Easy Apply</label>
+              <label class="check"><input type="checkbox" id="search-non-promoted" name="onlyNonPromoted" /> Somente não promovidas</label>
+              <p class="helper">A busca carrega vagas na tabela abaixo. Selecione as desejadas e clique em aplicar.</p>
+              <button class="secondary" id="search-submit" type="submit">Buscar vagas</button>
+              <p class="status" id="search-status"></p>
+            </form>
+          </article>
+
+          <article class="card">
+            <h2>Vagas Aplicadas</h2>
+            <form id="applied-jobs-form" class="stack">
+              <p class="helper">Varre <code>/my-items/saved-jobs?cardType=APPLIED</code> e conta as vagas aplicadas no período.</p>
+              <div>
+                <label for="applied-jobs-period-preset">Período</label>
+                <select id="applied-jobs-period-preset" name="periodPreset">
+                  <option value="week">1 semana</option>
+                  <option value="month" selected>1 mês</option>
+                  <option value="quarter">3 meses</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+              <div id="applied-jobs-custom-wrap" hidden>
+                <label for="applied-jobs-custom-days">Custom (dias)</label>
+                <input id="applied-jobs-custom-days" name="customDays" type="number" min="1" placeholder="45" />
+              </div>
+              <button id="applied-jobs-submit" class="secondary" type="submit">Varrer vagas aplicadas</button>
+              <div id="applied-jobs-meta" class="meta">Nenhuma varredura executada.</div>
+              <pre id="applied-jobs-output" class="code-block code-block--compact">Sem dados.</pre>
+              <p class="status" id="applied-jobs-status"></p>
+            </form>
+          </article>
+        </div>
+
+        <!-- Jobs table -->
+        <section class="panel">
+          <article class="card">
+            <div class="toolbar">
+              <div>
+                <h2 style="margin:0">Vagas Encontradas</h2>
+                <p class="muted" id="jobs-summary">Faça uma busca para carregar as vagas.</p>
+              </div>
+              <input id="jobs-filter" type="search" placeholder="Filtrar por título, empresa, localização ou URL" disabled />
+            </div>
+            <div class="toolbar" style="margin-top:10px">
+              <div class="meta" id="jobs-meta">0 vagas carregadas.</div>
+              <div class="toolbar-actions">
+                <button id="select-visible-jobs" class="secondary" type="button" disabled>Selecionar visíveis</button>
+                <button id="clear-selected-jobs" class="secondary" type="button" disabled>Limpar seleção</button>
+                <button id="apply-selected-jobs" type="button" disabled>Aplicar selecionadas</button>
+              </div>
+            </div>
+            <p class="status" id="jobs-status"></p>
+            <div class="table-wrap">
+              <table id="jobs-table">
+                <thead>
+                  <tr>
+                    <th><input id="jobs-select-all" class="table-check" type="checkbox" aria-label="Selecionar todas" disabled /></th>
+                    <th><button class="sort-button active" data-label="Título" data-sort-key="title" type="button">Título</button></th>
+                    <th><button class="sort-button" data-label="Empresa" data-sort-key="company" type="button">Empresa</button></th>
+                    <th><button class="sort-button" data-label="Local" data-sort-key="location" type="button">Local</button></th>
+                    <th><button class="sort-button" data-label="Candidaturas" data-sort-key="applicants" type="button">Candidaturas</button></th>
+                    <th><button class="sort-button" data-label="Easy Apply" data-sort-key="easyApply" type="button">Easy Apply</button></th>
+                    <th><button class="sort-button" data-label="Promovida" data-sort-key="promoted" type="button">Promovida</button></th>
+                    <th>Link</th>
+                  </tr>
+                </thead>
+                <tbody id="jobs-table-body">
+                  <tr><td colspan="8" class="muted">Nenhuma busca executada.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="/admin/nav.js"></script>
+    <script>
+      // ── Utilities ──
+      function escapeHtml(v) {
+        return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+      }
+      function text(v) { return typeof v === "string" ? v.trim() : ""; }
+      function toNumber(v) {
+        if (v === undefined || v === null || v === "") return undefined;
+        const n = Number(v);
+        return isNaN(n) ? undefined : n;
+      }
+      function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+      function setStatus(el, msg, isErr = false) {
+        el.textContent = msg || "";
+        el.className = msg ? `status ${isErr ? "danger" : "ok"}` : "status";
+      }
+      function setHidden(el, hidden) {
+        if (!el) return;
+        hidden ? el.setAttribute("hidden", "") : el.removeAttribute("hidden");
+      }
+      function formatDate(v) {
+        if (!v) return "-";
+        const d = new Date(v);
+        return isNaN(d) ? "-" : d.toLocaleString("pt-BR");
+      }
+      function normalizeText(v) {
+        return String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+      }
+      function formatApplicants(v) {
+        if (typeof v !== "number" || isNaN(v)) return "-";
+        return v.toLocaleString("pt-BR");
+      }
+      async function request(method, url, payload) {
+        const res = await fetch(url, {
+          method,
+          headers: { "content-type": "application/json" },
+          body: payload ? JSON.stringify(payload) : undefined,
+        });
+        let data = {};
+        try { data = await res.json(); } catch {}
+        if (!res.ok) throw new Error(data?.error || `Erro HTTP ${res.status}`);
+        return data;
+      }
+
+      // ── DOM refs ──
+      const searchForm = document.getElementById("search-form");
+      const searchSubmit = document.getElementById("search-submit");
+      const searchStatus = document.getElementById("search-status");
+      const jobsStatus = document.getElementById("jobs-status");
+      const jobsSummary = document.getElementById("jobs-summary");
+      const jobsMeta = document.getElementById("jobs-meta");
+      const jobsFilter = document.getElementById("jobs-filter");
+      const jobsTableBody = document.getElementById("jobs-table-body");
+      const jobsSelectAll = document.getElementById("jobs-select-all");
+      const selectVisibleJobsButton = document.getElementById("select-visible-jobs");
+      const clearSelectedJobsButton = document.getElementById("clear-selected-jobs");
+      const applySelectedJobsButton = document.getElementById("apply-selected-jobs");
+      const sortButtons = Array.from(document.querySelectorAll(".sort-button"));
+      const appliedJobsForm = document.getElementById("applied-jobs-form");
+      const appliedJobsPeriodPreset = document.getElementById("applied-jobs-period-preset");
+      const appliedJobsCustomWrap = document.getElementById("applied-jobs-custom-wrap");
+      const appliedJobsCustomDays = document.getElementById("applied-jobs-custom-days");
+      const appliedJobsSubmit = document.getElementById("applied-jobs-submit");
+      const appliedJobsMeta = document.getElementById("applied-jobs-meta");
+      const appliedJobsOutput = document.getElementById("applied-jobs-output");
+      const appliedJobsStatus = document.getElementById("applied-jobs-status");
+
+      // ── State ──
+      const jobsState = { items: [], selectedUrls: new Set(), filterText: "", sortKey: "title", sortDirection: "asc", lastSearchTag: "", lastSearchTotal: 0, isSearching: false, isApplying: false };
+      const appliedJobsState = { isScanning: false, lastResult: null };
+
+      // ── Jobs rendering ──
+      function renderBadge(val, trueLabel, falseLabel, trueCls = "badge-ok", falseCls = "badge-muted") {
+        return val ? `<span class="badge ${trueCls}">${trueLabel}</span>` : `<span class="badge ${falseCls}">${falseLabel}</span>`;
+      }
+      function getSortValue(job, key) {
+        if (key === "easyApply" || key === "promoted") return job[key] ? 1 : 0;
+        return normalizeText(job[key] || "");
+      }
+      function compareJobs(a, b) {
+        const dir = jobsState.sortDirection === "asc" ? 1 : -1;
+        if (jobsState.sortKey === "applicants") {
+          const lm = a.applicants == null, rm = b.applicants == null;
+          if (lm && rm) return 0; if (lm) return 1; if (rm) return -1;
+          return (a.applicants - b.applicants) * dir;
+        }
+        const l = getSortValue(a, jobsState.sortKey), r = getSortValue(b, jobsState.sortKey);
+        if (typeof l === "number" && typeof r === "number") return (l - r) * dir;
+        return String(l).localeCompare(String(r), "pt-BR") * dir;
+      }
+      function getFilteredJobs() {
+        const query = normalizeText(jobsState.filterText);
+        const filtered = query
+          ? jobsState.items.filter((j) => normalizeText([j.title, j.company, j.location, j.url].filter(Boolean).join(" ")).includes(query))
+          : [...jobsState.items];
+        return filtered.sort(compareJobs);
+      }
+      function syncSortButtons() {
+        sortButtons.forEach((btn) => {
+          const isActive = btn.dataset.sortKey === jobsState.sortKey;
+          const arrow = isActive ? (jobsState.sortDirection === "asc" ? " ↑" : " ↓") : "";
+          btn.classList.toggle("active", isActive);
+          btn.textContent = `${btn.dataset.label}${arrow}`;
+        });
+      }
+      function syncJobsControls(visible) {
+        const selectable = visible.filter((j) => j.easyApply);
+        const selectedCount = jobsState.selectedUrls.size;
+        const selVisCount = selectable.filter((j) => jobsState.selectedUrls.has(j.url)).length;
+        jobsFilter.disabled = jobsState.items.length === 0 && !jobsState.isSearching;
+        searchSubmit.disabled = jobsState.isSearching || jobsState.isApplying;
+        selectVisibleJobsButton.disabled = jobsState.isSearching || jobsState.isApplying || selectable.length === 0;
+        clearSelectedJobsButton.disabled = jobsState.isSearching || jobsState.isApplying || selectedCount === 0;
+        applySelectedJobsButton.disabled = jobsState.isSearching || jobsState.isApplying || selectedCount === 0;
+        jobsSelectAll.disabled = jobsState.isSearching || jobsState.isApplying || selectable.length === 0;
+        jobsSelectAll.checked = selectable.length > 0 && selVisCount === selectable.length;
+        jobsSelectAll.indeterminate = selVisCount > 0 && selVisCount < selectable.length;
+      }
+      function renderJobsTable() {
+        const visible = getFilteredJobs();
+        const selectedCount = jobsState.selectedUrls.size;
+        syncSortButtons(); syncJobsControls(visible);
+        if (jobsState.isSearching) {
+          jobsSummary.textContent = jobsState.lastSearchTag ? `Buscando "${jobsState.lastSearchTag}"…` : "Buscando vagas…";
+          jobsMeta.textContent = "Aguardando resultado…";
+          jobsTableBody.innerHTML = `<tr><td colspan="8" class="muted">Buscando vagas…</td></tr>`;
+          return;
+        }
+        if (!jobsState.items.length) {
+          jobsSummary.textContent = jobsState.lastSearchTag ? `Nenhuma vaga encontrada para "${jobsState.lastSearchTag}".` : "Faça uma busca para carregar as vagas.";
+          jobsMeta.textContent = "0 vagas carregadas.";
+          jobsTableBody.innerHTML = `<tr><td colspan="8" class="muted">Nenhuma busca executada.</td></tr>`;
+          return;
+        }
+        jobsSummary.textContent = `${jobsState.lastSearchTotal || jobsState.items.length} vaga(s) encontradas para "${jobsState.lastSearchTag}".`;
+        jobsMeta.textContent = `${jobsState.items.length} carregadas | ${visible.length} visíveis | ${selectedCount} selecionadas`;
+        if (!visible.length) { jobsTableBody.innerHTML = `<tr><td colspan="8" class="muted">Nenhuma vaga no filtro atual.</td></tr>`; return; }
+        jobsTableBody.innerHTML = visible.map((job) => {
+          const checked = jobsState.selectedUrls.has(job.url);
+          const disabled = !job.easyApply;
+          return `<tr class="${disabled ? "job-row-unavailable" : ""}"><td><input class="table-check" type="checkbox" data-job-select="true" data-url="${escapeHtml(job.url)}" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""} title="${disabled ? "Somente Easy Apply" : "Selecionar"}" /></td><td>${escapeHtml(job.title || "-")}</td><td>${escapeHtml(job.company || "-")}</td><td>${escapeHtml(job.location || "-")}</td><td>${formatApplicants(job.applicants)}</td><td>${renderBadge(job.easyApply,"Sim","Não")}</td><td>${renderBadge(job.promoted,"Sim","Não","badge-warn","badge-muted")}</td><td><a class="job-link" href="${escapeHtml(job.url)}" target="_blank" rel="noreferrer">abrir</a></td></tr>`;
+        }).join("");
+      }
+
+      // ── Process waiter ──
+      async function refreshProcesses() {
+        return request("GET", "/api/admin/processes");
+      }
+      function getProcessById(state, id) {
+        if (state.running && state.running.id === id) return state.running;
+        return (state.history || []).find((p) => p.id === id) || null;
+      }
+      async function waitForProcess(id, timeoutMs = 10 * 60 * 1000) {
+        const start = Date.now();
+        while (Date.now() - start < timeoutMs) {
+          try {
+            const state = await refreshProcesses();
+            const proc = getProcessById(state, id);
+            if (proc && proc.status !== "running") return proc;
+          } catch {}
+          await sleep(1500);
+        }
+        throw new Error("Tempo limite aguardando o processo terminar.");
+      }
+
+      // ── Applied jobs ──
+      function syncAppliedJobsControls() {
+        appliedJobsSubmit.disabled = appliedJobsState.isScanning;
+        appliedJobsPeriodPreset.disabled = appliedJobsState.isScanning;
+        appliedJobsCustomDays.disabled = appliedJobsState.isScanning;
+      }
+      function syncAppliedJobsFilterFields() {
+        setHidden(appliedJobsCustomWrap, appliedJobsPeriodPreset.value !== "custom");
+      }
+      function resetAppliedJobsView() {
+        appliedJobsState.lastResult = null;
+        appliedJobsMeta.textContent = "Nenhuma varredura executada.";
+        appliedJobsOutput.textContent = "Sem dados.";
+      }
+      function renderAppliedJobsScan(result) {
+        const total = typeof result?.total === "number" ? result.total : 0;
+        const scanned = typeof result?.scannedPages === "number" ? result.scannedPages : 0;
+        const totalPages = typeof result?.totalPages === "number" && isFinite(result.totalPages) ? result.totalPages : null;
+        const jobs = Array.isArray(result?.jobsPreview) ? result.jobsPreview : [];
+        const filterLabel = result?.filterLabel || "período atual";
+        const pagesLabel = totalPages ? `${scanned} de ${totalPages} pág.` : `${scanned} pág.`;
+        const previewLabel = total > jobs.length ? ` | ${jobs.length} preview(s)` : "";
+        const stopLabel = result?.stoppedEarly ? " | parada automática" : "";
+        appliedJobsMeta.textContent = `${total} vaga(s) | filtro: ${filterLabel} | ${pagesLabel}${previewLabel}${stopLabel}`;
+        if (!jobs.length) { appliedJobsOutput.textContent = total ? "Sem preview disponível." : "Nenhuma vaga aplicada."; return; }
+        appliedJobsOutput.textContent = jobs.map((j, i) => [
+          `${i+1}. ${j.title||"-"}`, `Empresa: ${j.company||"-"}`, `Local: ${j.location||"-"}`,
+          `Aplicada: ${j.appliedAt||"-"}`, `Idade: ${typeof j.appliedAgeDays==="number" ? `${Math.round(j.appliedAgeDays)} dia(s)` : "desconhecida"}`,
+          `URL: ${j.url||"-"}`
+        ].join("\n")).join("\n\n");
+      }
+
+      // ── Event listeners ──
+      function resetSearchForm() {
+        searchForm.reset();
+        searchForm.easyApplyOnly.checked = true;
+        searchForm.onlyNonPromoted.checked = false;
+        searchForm.waitBetweenMs.value = "1500";
+      }
+
+      searchForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const form = e.currentTarget;
+        const prev = { items: [...jobsState.items], selectedUrls: new Set(jobsState.selectedUrls), filterText: jobsState.filterText, lastSearchTag: jobsState.lastSearchTag, lastSearchTotal: jobsState.lastSearchTotal };
+        jobsState.isSearching = true; jobsState.items = []; jobsState.selectedUrls = new Set(); jobsState.filterText = ""; jobsState.lastSearchTag = text(form.tag.value); jobsState.lastSearchTotal = 0; jobsFilter.value = "";
+        setStatus(searchStatus, "Busca iniciada…"); setStatus(jobsStatus, ""); renderJobsTable();
+        try {
+          const payload = { tag: jobsState.lastSearchTag, apply: false, maxResults: toNumber(form.maxResults.value), maxPages: toNumber(form.maxPages.value), location: text(form.location.value) || undefined, maxApplicants: toNumber(form.maxApplicants.value), waitBetweenMs: toNumber(form.waitBetweenMs.value), easyApplyOnly: Boolean(form.easyApplyOnly.checked), onlyNonPromoted: Boolean(form.onlyNonPromoted.checked), includeDetails: true };
+          const data = await request("POST", "/api/admin/processes/search-jobs", payload);
+          const proc = await waitForProcess(data.id);
+          if (proc.status !== "succeeded") throw new Error(proc.error || proc.summary || "Falha ao buscar vagas.");
+          const output = proc.output || {};
+          jobsState.items = Array.isArray(output.jobs) ? output.jobs : [];
+          jobsState.lastSearchTotal = typeof output.total === "number" ? output.total : jobsState.items.length;
+          setStatus(searchStatus, proc.summary || `${jobsState.items.length} vaga(s) carregadas.`);
+          setStatus(jobsStatus, jobsState.items.length ? "Selecione as vagas e clique em aplicar selecionadas." : "Nenhuma vaga encontrada.");
+        } catch (err) {
+          Object.assign(jobsState, prev); jobsFilter.value = prev.filterText;
+          setStatus(searchStatus, err.message, true); setStatus(jobsStatus, "");
+        } finally { jobsState.isSearching = false; resetSearchForm(); renderJobsTable(); }
+      });
+
+      jobsFilter.addEventListener("input", (e) => { jobsState.filterText = e.currentTarget.value || ""; renderJobsTable(); });
+
+      sortButtons.forEach((btn) => btn.addEventListener("click", () => {
+        const key = btn.dataset.sortKey; if (!key) return;
+        if (jobsState.sortKey === key) { jobsState.sortDirection = jobsState.sortDirection === "asc" ? "desc" : "asc"; }
+        else { jobsState.sortKey = key; jobsState.sortDirection = "asc"; }
+        renderJobsTable();
+      }));
+
+      jobsTableBody.addEventListener("change", (e) => {
+        const t = e.target;
+        if (!(t instanceof HTMLInputElement) || t.dataset.jobSelect !== "true") return;
+        const url = t.dataset.url || ""; if (!url) return;
+        if (t.checked) jobsState.selectedUrls.add(url); else jobsState.selectedUrls.delete(url);
+        renderJobsTable();
+      });
+
+      jobsSelectAll.addEventListener("change", (e) => {
+        const vis = getFilteredJobs().filter((j) => j.easyApply);
+        vis.forEach((j) => e.currentTarget.checked ? jobsState.selectedUrls.add(j.url) : jobsState.selectedUrls.delete(j.url));
+        renderJobsTable();
+      });
+
+      selectVisibleJobsButton.addEventListener("click", () => {
+        getFilteredJobs().filter((j) => j.easyApply).forEach((j) => jobsState.selectedUrls.add(j.url));
+        renderJobsTable();
+      });
+
+      clearSelectedJobsButton.addEventListener("click", () => {
+        jobsState.selectedUrls = new Set(); renderJobsTable(); setStatus(jobsStatus, "");
+      });
+
+      applySelectedJobsButton.addEventListener("click", async () => {
+        const selected = jobsState.items.filter((j) => jobsState.selectedUrls.has(j.url));
+        if (!selected.length) { setStatus(jobsStatus, "Selecione ao menos uma vaga com Easy Apply.", true); return; }
+        jobsState.isApplying = true; renderJobsTable();
+        setStatus(jobsStatus, `Aplicando em ${selected.length} vaga(s)…`);
+        try {
+          const waitMs = toNumber(searchForm.waitBetweenMs.value);
+          const data = await request("POST", "/api/admin/processes/apply-jobs", { jobUrls: selected.map((j) => j.url), waitBetweenMs: waitMs });
+          const timeout = Math.max(10 * 60 * 1000, selected.length * ((waitMs ?? 1500) + 20000));
+          const proc = await waitForProcess(data.id, timeout);
+          if (proc.status !== "succeeded") throw new Error(proc.error || proc.summary || "Falha ao aplicar.");
+          const out = proc.output || {};
+          const failed = Array.isArray(out.failed) ? out.failed : [];
+          const attempted = typeof out.attempted === "number" ? out.attempted : selected.length;
+          const applied = typeof out.applied === "number" ? out.applied : 0;
+          jobsState.selectedUrls = new Set(failed);
+          setStatus(jobsStatus, failed.length ? `${applied}/${attempted} concluídas. ${failed.length} falharam e continuam selecionadas.` : `${applied}/${attempted} concluídas.`);
+        } catch (err) { setStatus(jobsStatus, err.message, true); }
+        finally { jobsState.isApplying = false; resetSearchForm(); renderJobsTable(); }
+      });
+
+      appliedJobsPeriodPreset.addEventListener("change", () => {
+        if (appliedJobsPeriodPreset.value !== "custom") appliedJobsCustomDays.value = "";
+        syncAppliedJobsFilterFields();
+      });
+
+      appliedJobsForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (appliedJobsState.isScanning) return;
+        const prev = appliedJobsState.lastResult;
+        const periodPreset = appliedJobsPeriodPreset.value || "month";
+        const customDays = toNumber(appliedJobsCustomDays.value);
+        if (periodPreset === "custom" && !customDays) { setStatus(appliedJobsStatus, "Informe a quantidade de dias.", true); return; }
+        appliedJobsState.isScanning = true; syncAppliedJobsControls();
+        appliedJobsMeta.textContent = "Varredura em andamento…"; appliedJobsOutput.textContent = "Aguardando…"; setStatus(appliedJobsStatus, "Varrendo vagas aplicadas…");
+        try {
+          const data = await request("POST", "/api/admin/processes/scan-applied-jobs", { periodPreset, customDays });
+          const proc = await waitForProcess(data.id, 25 * 60 * 1000);
+          if (proc.status !== "succeeded") throw new Error(proc.error || proc.summary || "Falha ao varrer.");
+          appliedJobsState.lastResult = proc.output || {};
+          renderAppliedJobsScan(appliedJobsState.lastResult);
+          setStatus(appliedJobsStatus, proc.summary || `${appliedJobsState.lastResult.total || 0} vaga(s) encontrada(s).`);
+        } catch (err) {
+          if (prev) renderAppliedJobsScan(prev); else resetAppliedJobsView();
+          setStatus(appliedJobsStatus, err.message, true);
+        } finally { appliedJobsState.isScanning = false; syncAppliedJobsControls(); }
+      });
+
+      // ── Init ──
+      renderJobsTable();
+      resetAppliedJobsView();
+      syncAppliedJobsFilterFields();
+      syncAppliedJobsControls();
+    </script>
+  </body>
+</html>

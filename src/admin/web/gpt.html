@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Respostas GPT — InteractionBot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/admin/shared.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar" id="sidebar"></aside>
+
+      <main class="main-content">
+        <div class="page-header">
+          <div>
+            <h1>Respostas GPT</h1>
+            <p class="page-header-lead">Histórico de interações com o GPT e configurações de confirmação automática</p>
+          </div>
+          <button id="refresh-gpt" type="button" style="width:auto;padding:8px 14px">Atualizar</button>
+        </div>
+
+        <!-- Auto-confirm settings -->
+        <div class="grid" style="grid-template-columns: 1fr 2fr; margin-bottom: 14px">
+          <article class="card">
+            <h2>Configuração do GPT</h2>
+            <div class="stack">
+              <div>
+                <label for="gpt-auto-confirm">Confirmação automática</label>
+                <select id="gpt-auto-confirm">
+                  <option value="false">Desativado — aguarda sua resposta</option>
+                  <option value="true">Ativado — confirma automaticamente</option>
+                </select>
+              </div>
+              <p id="gpt-auto-meta" class="helper">Quando desativado, o painel aguarda sua resposta antes de enviar.</p>
+              <p class="status" id="gpt-settings-status"></p>
+            </div>
+          </article>
+
+          <article class="card">
+            <h2>Sobre o modo automático</h2>
+            <p class="helper" style="margin:0">
+              Quando <strong>ativado</strong>, o bot confirma a resposta do GPT automaticamente após o delay configurado (1000ms). Use somente se confiar nas respostas do GPT para seus formulários de candidatura.
+            </p>
+            <p class="helper" style="margin-top:8px">
+              Quando <strong>desativado</strong>, um modal aparece no Dashboard sempre que o bot precisar de confirmação — você pode aprovar, corrigir ou pular.
+            </p>
+          </article>
+        </div>
+
+        <!-- GPT responses table -->
+        <section class="panel">
+          <article class="card">
+            <div class="toolbar" style="margin-bottom:10px">
+              <div>
+                <h2 style="margin:0">Histórico de Respostas</h2>
+                <div class="meta" id="gpt-table-meta">Carregando…</div>
+              </div>
+              <input id="gpt-filter" type="search" placeholder="Filtrar por campo, fonte ou resposta" style="flex:1 1 280px;min-width:220px" />
+            </div>
+            <div style="max-height:600px;overflow:auto;border:1px solid #e3d7c1;border-radius:14px;background:#fffdf9">
+              <table id="gpt-table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Campo</th>
+                    <th>Fonte</th>
+                    <th>Modelo</th>
+                    <th>Resposta</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="gpt-table-body">
+                  <tr><td colspan="6" class="muted">Carregando…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="/admin/nav.js"></script>
+    <script>
+      // ── Utilities ──
+      function escapeHtml(v) {
+        return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+      }
+      function normalizeText(v) { return String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim(); }
+      function formatDate(v) { if (!v) return "-"; const d = new Date(v); return isNaN(d) ? "-" : d.toLocaleString("pt-BR"); }
+      function setStatus(el, msg, isErr = false) { el.textContent = msg || ""; el.className = msg ? `status ${isErr ? "danger" : "ok"}` : "status"; }
+      async function request(method, url, payload) {
+        const res = await fetch(url, { method, headers:{"content-type":"application/json"}, body: payload ? JSON.stringify(payload) : undefined });
+        let data = {}; try { data = await res.json(); } catch {}
+        if (!res.ok) throw new Error(data?.error || `Erro HTTP ${res.status}`);
+        return data;
+      }
+
+      // ── DOM refs ──
+      const gptTableBody = document.getElementById("gpt-table-body");
+      const gptTableMeta = document.getElementById("gpt-table-meta");
+      const gptFilter = document.getElementById("gpt-filter");
+      const gptAutoConfirm = document.getElementById("gpt-auto-confirm");
+      const gptAutoMeta = document.getElementById("gpt-auto-meta");
+      const gptSettingsStatus = document.getElementById("gpt-settings-status");
+
+      // ── State ──
+      let allItems = [];
+      let filterText = "";
+      const promptSettings = { autoConfirmGpt: false, autoConfirmDelayMs: 1000, isSaving: false };
+
+      // ── Rendering ──
+      function renderGptRows(items) {
+        const query = normalizeText(filterText);
+        const visible = query
+          ? items.filter((item) => {
+              const haystack = normalizeText([item.fieldLabel, item.fieldKey, item.source, item.model, item.answer, item.error].filter(Boolean).join(" "));
+              return haystack.includes(query);
+            })
+          : items;
+
+        gptTableMeta.textContent = `${visible.length} de ${items.length} registro(s)`;
+
+        if (!visible.length) {
+          gptTableBody.innerHTML = `<tr><td colspan="6" class="muted">${items.length ? "Nenhum resultado para o filtro atual." : "Sem respostas registradas."}</td></tr>`;
+          return;
+        }
+
+        gptTableBody.innerHTML = visible.map((item) => {
+          const field = escapeHtml(item.fieldLabel || item.fieldKey || "-");
+          const answer = item.success ? escapeHtml(item.answer || "(vazio)") : `<span class="danger">ERRO: ${escapeHtml(item.error || "sem detalhe")}</span>`;
+          const statusBadge = item.success
+            ? `<span class="badge badge-ok">ok</span>`
+            : `<span class="badge badge-danger">erro</span>`;
+          return `<tr><td><span class="meta">${escapeHtml(formatDate(item.createdAt))}</span></td><td>${field}</td><td>${escapeHtml(item.source || "-")}</td><td><span class="meta">${escapeHtml(item.model || "-")}</span></td><td style="max-width:320px;word-break:break-word">${answer}</td><td>${statusBadge}</td></tr>`;
+        }).join("");
+      }
+
+      // ── Settings ──
+      function renderPromptSettings(settings) {
+        if (!settings) return;
+        promptSettings.autoConfirmGpt = Boolean(settings.autoConfirmGpt);
+        if (typeof settings.autoConfirmDelayMs === "number") promptSettings.autoConfirmDelayMs = settings.autoConfirmDelayMs;
+        gptAutoConfirm.value = promptSettings.autoConfirmGpt ? "true" : "false";
+        gptAutoMeta.textContent = promptSettings.autoConfirmGpt
+          ? `Ativado — confirma automaticamente em ${promptSettings.autoConfirmDelayMs}ms se ninguém responder.`
+          : "Desativado — o painel aguarda sua resposta no Dashboard.";
+      }
+
+      async function savePromptSettings() {
+        const next = gptAutoConfirm.value === "true";
+        const prev = { autoConfirmGpt: promptSettings.autoConfirmGpt, autoConfirmDelayMs: promptSettings.autoConfirmDelayMs };
+        promptSettings.autoConfirmGpt = next; promptSettings.isSaving = true;
+        try {
+          const data = await request("POST", "/api/admin/prompts/settings", { autoConfirmGpt: next, autoConfirmDelayMs: 1000 });
+          renderPromptSettings(data.settings || {}); setStatus(gptSettingsStatus, "Configuração salva.");
+        } catch (err) {
+          promptSettings.autoConfirmGpt = prev.autoConfirmGpt; promptSettings.autoConfirmDelayMs = prev.autoConfirmDelayMs;
+          renderPromptSettings(promptSettings); setStatus(gptSettingsStatus, err.message, true);
+        } finally { promptSettings.isSaving = false; gptAutoConfirm.disabled = false; }
+      }
+
+      // ── API ──
+      async function refreshGpt() {
+        try {
+          const data = await request("GET", "/api/admin/gpt-responses?limit=200");
+          allItems = Array.isArray(data.items) ? data.items : [];
+          renderGptRows(allItems);
+        } catch (e) {
+          gptTableBody.innerHTML = `<tr><td colspan="6" class="danger">${escapeHtml(e.message)}</td></tr>`;
+          gptTableMeta.textContent = "Falha ao carregar.";
+        }
+      }
+
+      async function loadSettings() {
+        try {
+          const data = await request("GET", "/api/admin/prompts/current");
+          renderPromptSettings(data.settings || {});
+        } catch {}
+      }
+
+      // ── Event listeners ──
+      document.getElementById("refresh-gpt").addEventListener("click", refreshGpt);
+
+      gptAutoConfirm.addEventListener("change", () => {
+        gptAutoConfirm.disabled = true;
+        savePromptSettings();
+      });
+
+      gptFilter.addEventListener("input", (e) => {
+        filterText = e.currentTarget.value || "";
+        renderGptRows(allItems);
+      });
+
+      // ── Init ──
+      refreshGpt();
+      loadSettings();
+      setInterval(refreshGpt, 10000);
+    </script>
+  </body>
+</html>

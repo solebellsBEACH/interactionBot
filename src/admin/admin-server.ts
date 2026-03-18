@@ -50,6 +50,10 @@ export class AdminServer {
     this._adminAssetsPath = path.resolve(process.cwd(), "src", "admin", "web");
   }
 
+  private _resolvePagePath(name: string) {
+    return path.resolve(this._adminAssetsPath, `${name}.html`);
+  }
+
   async start(): Promise<void> {
     if (this._server) return;
 
@@ -168,8 +172,38 @@ export class AdminServer {
         return;
       }
 
+      // Sub-pages
+      const subPages: Record<string, string> = {
+        "/admin/dashboard": "dashboard",
+        "/admin/dashboard/": "dashboard",
+        "/admin/jobs": "jobs",
+        "/admin/jobs/": "jobs",
+        "/admin/profile": "profile",
+        "/admin/profile/": "profile",
+        "/admin/gpt": "gpt",
+        "/admin/gpt/": "gpt",
+        "/admin/settings": "settings",
+        "/admin/settings/": "settings",
+      };
+
+      if (method === "GET" && subPages[pathname]) {
+        this._servePageByName(res, subPages[pathname]);
+        return;
+      }
+
+      // Static assets
       if (method === "GET" && pathname === "/admin/saas-dashboard.js") {
         this._serveAdminAsset(res, "saas-dashboard.js", "application/javascript; charset=utf-8");
+        return;
+      }
+
+      if (method === "GET" && pathname === "/admin/nav.js") {
+        this._serveAdminAsset(res, "nav.js", "application/javascript; charset=utf-8");
+        return;
+      }
+
+      if (method === "GET" && pathname === "/admin/shared.css") {
+        this._serveAdminAsset(res, "shared.css", "text/css; charset=utf-8");
         return;
       }
 
@@ -528,6 +562,18 @@ export class AdminServer {
       res.end(html);
     } catch {
       this._sendJson(res, 500, { error: "Não foi possível carregar o frontend admin." });
+    }
+  }
+
+  private _servePageByName(res: ServerResponse, name: string) {
+    try {
+      const pagePath = this._resolvePagePath(name);
+      const html = fs.readFileSync(pagePath, "utf-8");
+      res.statusCode = 200;
+      res.setHeader("content-type", "text/html; charset=utf-8");
+      res.end(html);
+    } catch {
+      this._sendJson(res, 404, { error: `Página '${name}' não encontrada.` });
     }
   }
 

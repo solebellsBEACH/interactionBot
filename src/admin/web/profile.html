@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Perfil — InteractionBot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/admin/shared.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar" id="sidebar"></aside>
+
+      <main class="main-content">
+        <div class="page-header">
+          <div>
+            <h1>Perfil</h1>
+            <p class="page-header-lead">Dados pessoais, compensação e análise do perfil LinkedIn</p>
+          </div>
+          <button id="refresh-profile" class="secondary" type="button" style="width:auto;padding:8px 14px">Atualizar perfil</button>
+        </div>
+
+        <!-- Profile form + stack preview side by side -->
+        <div class="grid" style="grid-template-columns: 1fr 1.2fr; margin-bottom: 14px">
+          <article class="card">
+            <h2>Meu Perfil</h2>
+            <form id="profile-form" class="stack">
+              <p class="helper">Salva dados de compensação e data de nascimento usados para preencher candidaturas.</p>
+              <div class="row">
+                <div>
+                  <label for="profile-birth-date">Data de nascimento</label>
+                  <input id="profile-birth-date" name="birthDate" type="date" />
+                </div>
+                <div></div>
+              </div>
+              <div class="row">
+                <div>
+                  <label for="profile-hourly-usd">Valor hora (USD)</label>
+                  <input id="profile-hourly-usd" name="hourlyUsd" placeholder="80" />
+                </div>
+                <div>
+                  <label for="profile-hourly-brl">Valor hora (BRL)</label>
+                  <input id="profile-hourly-brl" name="hourlyBrl" placeholder="400" />
+                </div>
+              </div>
+              <div class="row">
+                <div>
+                  <label for="profile-clt">Pretensão CLT</label>
+                  <input id="profile-clt" name="clt" placeholder="18000" />
+                </div>
+                <div>
+                  <label for="profile-pj">Pretensão PJ</label>
+                  <input id="profile-pj" name="pj" placeholder="22000" />
+                </div>
+              </div>
+              <div class="row">
+                <button id="profile-save" class="secondary" type="submit">Salvar perfil</button>
+                <button id="profile-review" type="button">Analisar perfil LinkedIn</button>
+              </div>
+              <div id="profile-meta" class="meta">Perfil ainda não carregado.</div>
+              <p class="status" id="profile-status"></p>
+            </form>
+          </article>
+
+          <article class="card">
+            <div class="toolbar">
+              <div>
+                <h2 style="margin:0">Experiência por Stack</h2>
+                <div id="profile-stack-meta" class="meta">Nenhuma stack calculada.</div>
+              </div>
+            </div>
+            <button id="profile-stack-preview-card" class="preview-launcher" type="button">
+              <div class="preview-note">Preview compacto. Clique para expandir.</div>
+              <div id="profile-stack-preview" class="preview-stack-list">
+                <div class="preview-empty">Nenhuma stack calculada.</div>
+              </div>
+            </button>
+          </article>
+        </div>
+
+        <!-- Profile review + danger zone -->
+        <div class="panel grid" style="grid-template-columns: 1.2fr 0.8fr">
+          <article class="card">
+            <h2>Profile Review JSON</h2>
+            <div class="stack">
+              <div>
+                <label>Resumo usado pelo GPT</label>
+                <div id="profile-summary" class="modal-answer compact-answer">Sem resumo salvo.</div>
+              </div>
+              <button id="profile-review-preview-card" class="preview-launcher" type="button">
+                <div class="preview-note">Preview compacto. Clique para expandir o JSON completo.</div>
+                <pre id="profile-review-json" class="code-block code-block--compact">Sem review salvo.</pre>
+              </button>
+            </div>
+          </article>
+
+          <article class="card">
+            <h2>Zona de Perigo</h2>
+            <div class="stack">
+              <p class="helper">As ações abaixo são destrutivas e não podem ser desfeitas.</p>
+              <div>
+                <label style="font-weight:600;color:var(--danger)">Deslogar e limpar tudo</label>
+                <p class="helper" style="margin-bottom:8px">Desloga do LinkedIn e remove perfil salvo, respostas, histórico GPT e aplicações locais.</p>
+                <button id="profile-reset" class="danger-button" type="button">Deslogar e limpar tudo</button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </main>
+    </div>
+
+    <!-- Content preview overlay -->
+    <div id="content-preview-overlay" class="modal-overlay" hidden>
+      <div class="modal-card">
+        <div class="toolbar">
+          <div>
+            <h2 id="content-preview-title">Detalhes</h2>
+            <div id="content-preview-meta" class="meta"></div>
+          </div>
+          <button id="content-preview-close" class="secondary" type="button" style="width:auto;padding:8px 10px">Fechar</button>
+        </div>
+        <div id="content-preview-body" class="overlay-content"></div>
+      </div>
+    </div>
+
+    <script src="/admin/nav.js"></script>
+    <script>
+      // ── Utilities ──
+      function escapeHtml(v) {
+        return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+      }
+      function text(v) { return typeof v === "string" ? v.trim() : ""; }
+      function setStatus(el, msg, isErr = false) {
+        el.textContent = msg || "";
+        el.className = msg ? `status ${isErr ? "danger" : "ok"}` : "status";
+      }
+      function setHidden(el, hidden) { if (!el) return; hidden ? el.setAttribute("hidden","") : el.removeAttribute("hidden"); }
+      function formatDate(v) { if (!v) return "-"; const d = new Date(v); return isNaN(d) ? "-" : d.toLocaleString("pt-BR"); }
+      function formatMonthYear(v) { if (!v) return "-"; const d = new Date(v); return isNaN(d) ? "-" : d.toLocaleDateString("pt-BR",{month:"short",year:"numeric"}); }
+      function truncateText(v, max = 1200) { const s = String(v||""); return s.length <= max ? s : `${s.slice(0, max-1).trimEnd()}…`; }
+      function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+      async function request(method, url, payload) {
+        const res = await fetch(url, { method, headers:{"content-type":"application/json"}, body: payload ? JSON.stringify(payload) : undefined });
+        let data = {}; try { data = await res.json(); } catch {}
+        if (!res.ok) throw new Error(data?.error || `Erro HTTP ${res.status}`);
+        return data;
+      }
+
+      // ── DOM refs ──
+      const profileForm = document.getElementById("profile-form");
+      const profileStatus = document.getElementById("profile-status");
+      const profileMeta = document.getElementById("profile-meta");
+      const profileSaveButton = document.getElementById("profile-save");
+      const profileReviewButton = document.getElementById("profile-review");
+      const profileResetButton = document.getElementById("profile-reset");
+      const profileRefreshButton = document.getElementById("refresh-profile");
+      const profileSummary = document.getElementById("profile-summary");
+      const profileReviewJson = document.getElementById("profile-review-json");
+      const profileStackMeta = document.getElementById("profile-stack-meta");
+      const profileStackPreview = document.getElementById("profile-stack-preview");
+      const profileStackPreviewCard = document.getElementById("profile-stack-preview-card");
+      const profileReviewPreviewCard = document.getElementById("profile-review-preview-card");
+      const contentPreviewOverlay = document.getElementById("content-preview-overlay");
+      const contentPreviewTitle = document.getElementById("content-preview-title");
+      const contentPreviewMeta = document.getElementById("content-preview-meta");
+      const contentPreviewBody = document.getElementById("content-preview-body");
+      const contentPreviewClose = document.getElementById("content-preview-close");
+
+      // ── State ──
+      const profileState = { item: null, isSaving: false, isReviewing: false, isResetting: false };
+
+      // ── Stack rendering ──
+      function renderStackPreviewHtml(entries) {
+        if (!entries.length) return `<div class="preview-empty">Nenhuma stack calculada.</div>`;
+        const visible = entries.slice(0, 5);
+        const html = visible.map(([stack, item]) => {
+          const dur = item.durationLabel || `${item.years} ano(s)`;
+          return `<div class="preview-stack-item"><strong>${escapeHtml(stack)}</strong><div class="preview-stack-meta">1ª aparição: ${escapeHtml(formatMonthYear(item.firstSeenAt))}</div><div class="preview-stack-meta">Tempo: ${escapeHtml(dur)}</div></div>`;
+        }).join("");
+        const rem = entries.length - visible.length;
+        return `${html}${rem > 0 ? `<div class="preview-note">+ ${rem} stack(s) no overlay</div>` : ""}`;
+      }
+      function buildStackOverlayHtml(entries) {
+        if (!entries.length) return `<div class="preview-empty">Nenhuma stack calculada.</div>`;
+        const rows = entries.map(([stack, item]) => {
+          const companies = Array.isArray(item.sourceCompanies) ? item.sourceCompanies.join(", ") : "";
+          const titles = Array.isArray(item.sourceTitles) ? item.sourceTitles.join(", ") : "";
+          return `<tr><td>${escapeHtml(stack)}</td><td>${escapeHtml(formatMonthYear(item.firstSeenAt))}</td><td>${escapeHtml(item.durationLabel||`${item.years} ano(s)`)}</td><td>${escapeHtml(companies||"-")}</td><td>${escapeHtml(titles||"-")}</td></tr>`;
+        }).join("");
+        return `<div class="overlay-table-wrap"><table class="overlay-table"><thead><tr><th>Stack</th><th>1ª Aparição</th><th>Tempo</th><th>Empresas</th><th>Cargos</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      }
+
+      // ── Profile rendering ──
+      function syncProfileControls() {
+        const dis = profileState.isSaving || profileState.isReviewing || profileState.isResetting;
+        profileSaveButton.disabled = dis; profileReviewButton.disabled = dis; profileResetButton.disabled = dis; profileRefreshButton.disabled = dis;
+      }
+      function renderProfile(profile) {
+        profileState.item = profile || null;
+        syncProfileControls();
+        const comp = (profile && profile.compensation) || {};
+        if (!profileState.isSaving) {
+          profileForm.birthDate.value = (profile && profile.birthDate) || "";
+          profileForm.hourlyUsd.value = comp.hourlyUsd || "";
+          profileForm.hourlyBrl.value = comp.hourlyBrl || "";
+          profileForm.clt.value = comp.clt || "";
+          profileForm.pj.value = comp.pj || "";
+        }
+        const li = (profile && profile.linkedinProfile) || null;
+        if (profile && (profile.updatedAt || (li && li.capturedAt))) {
+          const pieces = [];
+          if (profile.updatedAt) pieces.push(`perfil salvo: ${formatDate(profile.updatedAt)}`);
+          if (li && li.capturedAt) pieces.push(`LinkedIn varrido: ${formatDate(li.capturedAt)}`);
+          profileMeta.textContent = pieces.join(" | ");
+        } else { profileMeta.textContent = "Perfil ainda não carregado."; }
+        profileSummary.textContent = (profile && profile.summary) ? profile.summary : "Sem resumo salvo.";
+        const rv = profile && profile.profileReview ? profile.profileReview.raw || JSON.stringify(profile.profileReview.parsed || {}, null, 2) : "Sem review salvo.";
+        profileReviewJson.textContent = truncateText(rv, 1200);
+        const stackEntries = Object.entries((profile && profile.stackExperience) || {}).sort((a, b) => (b[1].months||0) - (a[1].months||0));
+        profileStackMeta.textContent = stackEntries.length ? `${stackEntries.length} stack(s) mapeada(s).` : "Nenhuma stack calculada.";
+        profileStackPreview.innerHTML = renderStackPreviewHtml(stackEntries);
+      }
+
+      // ── Content preview ──
+      function openContentPreview({ title, meta, html }) {
+        contentPreviewTitle.textContent = title || "Detalhes";
+        contentPreviewMeta.textContent = meta || "";
+        contentPreviewBody.innerHTML = html || `<div class="preview-empty">Sem conteúdo.</div>`;
+        setHidden(contentPreviewOverlay, false);
+        document.body.classList.add("modal-open");
+      }
+      function closeContentPreview() {
+        setHidden(contentPreviewOverlay, true);
+        contentPreviewBody.innerHTML = "";
+        document.body.classList.remove("modal-open");
+      }
+
+      // ── API ──
+      async function refreshProfile() {
+        try {
+          const data = await request("GET", "/api/admin/profile");
+          renderProfile(data.profile || null);
+        } catch (e) { setStatus(profileStatus, `Falha ao carregar: ${e.message}`, true); }
+      }
+      async function refreshProcesses() { return request("GET", "/api/admin/processes"); }
+      function getProcessById(state, id) {
+        if (state.running && state.running.id === id) return state.running;
+        return (state.history || []).find((p) => p.id === id) || null;
+      }
+      async function waitForProcess(id, timeout = 10 * 60 * 1000) {
+        const start = Date.now();
+        while (Date.now() - start < timeout) {
+          try {
+            const state = await refreshProcesses();
+            const proc = getProcessById(state, id);
+            if (proc && proc.status !== "running") return proc;
+          } catch {}
+          await sleep(1500);
+        }
+        throw new Error("Tempo limite aguardando o processo.");
+      }
+
+      // ── Event listeners ──
+      profileForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (profileState.isSaving || profileState.isReviewing) return;
+        profileState.isSaving = true; syncProfileControls(); setStatus(profileStatus, "Salvando perfil…");
+        try {
+          const data = await request("POST", "/api/admin/profile", { birthDate: text(profileForm.birthDate.value), hourlyUsd: text(profileForm.hourlyUsd.value), hourlyBrl: text(profileForm.hourlyBrl.value), clt: text(profileForm.clt.value), pj: text(profileForm.pj.value) });
+          renderProfile(data.profile || null); setStatus(profileStatus, "Perfil atualizado.");
+        } catch (err) { setStatus(profileStatus, err.message, true); }
+        finally { profileState.isSaving = false; syncProfileControls(); }
+      });
+
+      profileReviewButton.addEventListener("click", async () => {
+        if (profileState.isReviewing || profileState.isSaving) return;
+        profileState.isReviewing = true; syncProfileControls(); setStatus(profileStatus, "Analisando perfil LinkedIn com GPT…");
+        try {
+          const data = await request("POST", "/api/admin/processes/profile-review", {});
+          const proc = await waitForProcess(data.id, 8 * 60 * 1000);
+          if (proc.status !== "succeeded") throw new Error(proc.error || proc.summary || "Falha ao analisar.");
+          await refreshProfile(); setStatus(profileStatus, proc.summary || "Perfil analisado.");
+        } catch (err) { setStatus(profileStatus, err.message, true); }
+        finally { profileState.isReviewing = false; syncProfileControls(); }
+      });
+
+      profileResetButton.addEventListener("click", async () => {
+        if (profileState.isResetting || profileState.isSaving || profileState.isReviewing) return;
+        if (!confirm("Isso vai deslogar do LinkedIn e limpar perfil, respostas, GPT e aplicações. Continuar?")) return;
+        profileState.isResetting = true; syncProfileControls(); setStatus(profileStatus, "Deslogando e limpando dados…");
+        try {
+          const data = await request("POST", "/api/admin/processes/reset-session", {});
+          const proc = await waitForProcess(data.id, 2 * 60 * 1000);
+          if (proc.status !== "succeeded") throw new Error(proc.error || proc.summary || "Falha ao limpar.");
+          await refreshProfile(); setStatus(profileStatus, proc.summary || "Sessão limpa.");
+        } catch (err) { setStatus(profileStatus, err.message, true); }
+        finally { profileState.isResetting = false; syncProfileControls(); }
+      });
+
+      profileRefreshButton.addEventListener("click", () => refreshProfile());
+
+      profileStackPreviewCard.addEventListener("click", () => {
+        const profile = profileState.item;
+        const entries = Object.entries((profile && profile.stackExperience) || {}).sort((a, b) => (b[1].months||0) - (a[1].months||0));
+        openContentPreview({ title: "Experiência por Stack", meta: entries.length ? `${entries.length} stack(s) mapeada(s).` : "Nenhuma stack.", html: buildStackOverlayHtml(entries) });
+      });
+
+      profileReviewPreviewCard.addEventListener("click", () => {
+        const profile = profileState.item;
+        const rv = profile && profile.profileReview ? profile.profileReview.raw || JSON.stringify(profile.profileReview.parsed || {}, null, 2) : "Sem review salvo.";
+        const at = profile && profile.profileReview ? profile.profileReview.createdAt : "";
+        openContentPreview({ title: "Profile Review JSON", meta: at ? `Gerado em ${formatDate(at)}` : "Nenhum review.", html: `<pre class="overlay-pre">${escapeHtml(rv)}</pre>` });
+      });
+
+      contentPreviewClose.addEventListener("click", closeContentPreview);
+      contentPreviewOverlay.addEventListener("click", (e) => { if (e.target === contentPreviewOverlay) closeContentPreview(); });
+
+      // ── Init ──
+      refreshProfile();
+    </script>
+  </body>
+</html>
