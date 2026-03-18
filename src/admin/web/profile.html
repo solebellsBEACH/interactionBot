@@ -8,6 +8,289 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/admin/shared.css" />
+    <style>
+      /* ── Layout ── */
+      .profile-grid {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 16px;
+        align-items: start;
+      }
+      @media (max-width: 860px) { .profile-grid { grid-template-columns: 1fr; } }
+
+      /* ── LinkedIn card ── */
+      .li-card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 2px 12px rgba(70,44,8,0.06);
+      }
+
+      /* Banner */
+      .li-banner {
+        height: 100px;
+        background: linear-gradient(135deg, #0e7a6d 0%, #26a28f 55%, #b45f04 100%);
+        position: relative;
+        overflow: hidden;
+      }
+      .li-banner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+      /* Header row */
+      .li-header {
+        display: flex;
+        gap: 14px;
+        padding: 0 20px 16px;
+        border-bottom: 1px solid var(--line);
+        align-items: flex-end;
+      }
+      .li-avatar {
+        width: 76px;
+        height: 76px;
+        border-radius: 50%;
+        border: 4px solid var(--bg);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.45rem;
+        font-weight: 700;
+        color: #fff;
+        flex-shrink: 0;
+        background: linear-gradient(135deg, #0e7a6d, #b45f04);
+        box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+        overflow: hidden;
+        margin-top: -38px;
+        position: relative;
+      }
+      .li-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+
+      .li-header-info { flex: 1; min-width: 0; padding-top: 8px; }
+      .li-name     { font-size: 1.18rem; font-weight: 700; color: var(--ink); line-height: 1.3; }
+      .li-headline { font-size: 0.88rem; color: #5a4a36; margin-top: 3px; line-height: 1.4; }
+      .li-meta     {
+        display: flex; flex-wrap: wrap; gap: 10px;
+        font-size: 0.8rem; color: #7a6a56; margin-top: 6px;
+      }
+      .li-meta-item { display: flex; align-items: center; gap: 4px; }
+
+      .li-header-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; padding-top: 8px; }
+
+      /* Edit/capture buttons */
+      .li-btn {
+        display: inline-flex; align-items: center; gap: 5px;
+        width: auto; padding: 7px 13px; font-size: 0.82rem; border-radius: 8px;
+        cursor: pointer; border: none; font-family: inherit; font-weight: 600;
+      }
+      .li-btn-outline {
+        background: transparent;
+        border: 1.5px solid var(--line);
+        color: var(--ink);
+      }
+      .li-btn-outline:hover { border-color: var(--brand); color: var(--brand); }
+      .li-btn-primary {
+        background: linear-gradient(135deg, var(--brand), #0a5e53);
+        color: #fff;
+      }
+      .li-btn-primary:hover { opacity: 0.9; }
+      .li-btn-danger {
+        background: transparent;
+        border: 1.5px solid var(--line);
+        color: #9e8f7a;
+      }
+      .li-btn-danger:hover { border-color: var(--danger); color: var(--danger); }
+      .li-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      /* Capture btn style (orange accent) */
+      .li-btn-capture {
+        background: linear-gradient(135deg, var(--brand-2), #dd8a2f);
+        color: #fff;
+      }
+      .li-btn-capture:hover { opacity: 0.9; }
+
+      /* ── Body ── */
+      .li-body { padding: 0; }
+
+      /* Section */
+      .li-section {
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--line);
+      }
+      .li-section:last-child { border-bottom: none; }
+      .li-section-title {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+        color: #9e8f7a;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+
+      /* Detail grid */
+      .li-detail-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      .li-detail-label {
+        font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em;
+        color: #9e8f7a; font-weight: 600; margin-bottom: 2px;
+      }
+      .li-detail-val { font-size: 0.88rem; color: var(--ink); }
+
+      /* About text */
+      .li-about-text {
+        font-size: 0.87rem; line-height: 1.65; color: #4a3e2f;
+        white-space: pre-wrap; max-height: 120px; overflow: hidden;
+        position: relative;
+      }
+      .li-about-text.expanded { max-height: none; }
+      .li-about-expand {
+        font-size: 0.8rem; color: var(--brand); background: none;
+        border: none; cursor: pointer; padding: 4px 0; font-family: inherit;
+        font-weight: 600; margin-top: 4px; display: block;
+      }
+
+      /* Tags */
+      .li-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+      .li-tag {
+        background: rgba(14,122,109,0.08);
+        color: var(--brand);
+        border: 1px solid rgba(14,122,109,0.16);
+        border-radius: 999px;
+        padding: 3px 10px;
+        font-size: 0.77rem;
+        font-family: "IBM Plex Mono", monospace;
+      }
+
+      /* Experience */
+      .li-exp-list { display: grid; gap: 10px; }
+      .li-exp-item { border-left: 2px solid var(--line); padding: 4px 12px; }
+      .li-exp-title   { font-weight: 600; font-size: 0.88rem; }
+      .li-exp-company { font-size: 0.82rem; color: #4a3e2f; }
+      .li-exp-dates   { font-size: 0.76rem; color: #8a7a68; font-family: "IBM Plex Mono", monospace; margin-top: 1px; }
+
+      /* Education */
+      .li-edu-list { display: grid; gap: 8px; }
+      .li-edu-school { font-weight: 600; font-size: 0.87rem; }
+      .li-edu-detail { font-size: 0.79rem; color: #6d5d45; }
+
+      /* Empty state */
+      .li-empty-state {
+        display: flex; flex-direction: column; align-items: center;
+        justify-content: center; padding: 48px 24px; text-align: center; gap: 12px;
+      }
+      .li-empty-icon { font-size: 2.4rem; opacity: 0.4; }
+      .li-empty-title { font-size: 1rem; font-weight: 600; color: var(--ink); }
+      .li-empty-sub { font-size: 0.84rem; color: #9e8f7a; max-width: 280px; line-height: 1.5; }
+
+      /* Captured note */
+      .li-captured-bar {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 8px 20px;
+        background: rgba(14,122,109,0.05);
+        border-top: 1px solid var(--line);
+        font-size: 0.76rem; color: #8a7a68; font-family: "IBM Plex Mono", monospace;
+      }
+      .li-captured-bar p { margin: 0; }
+
+      /* ── Edit mode overlay ── */
+      .li-edit-panel {
+        display: none;
+        flex-direction: column;
+        gap: 0;
+      }
+      .li-edit-panel.active { display: flex; }
+      .li-view-panel.hidden { display: none; }
+
+      .li-edit-section {
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--line);
+        display: grid; gap: 10px;
+      }
+      .li-edit-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .li-edit-field { display: grid; gap: 4px; }
+      .li-edit-field label {
+        font-size: 0.71rem; text-transform: uppercase; letter-spacing: 0.08em;
+        color: #9e8f7a; font-weight: 700;
+      }
+      .li-edit-field input,
+      .li-edit-field textarea {
+        font: inherit; font-size: 0.88rem;
+        border: 1.5px solid var(--line); border-radius: 8px;
+        padding: 7px 10px; background: var(--bg); color: var(--ink); outline: none;
+        transition: border-color 0.14s;
+      }
+      .li-edit-field input:focus,
+      .li-edit-field textarea:focus {
+        border-color: var(--brand);
+        box-shadow: 0 0 0 3px rgba(14,122,109,0.10);
+      }
+      .li-edit-field textarea { resize: vertical; min-height: 100px; line-height: 1.6; }
+
+      .li-edit-actions {
+        display: flex; gap: 8px; align-items: center;
+        padding: 14px 20px;
+        background: rgba(14,122,109,0.04);
+        border-top: 1px solid var(--line);
+      }
+      .li-edit-actions p { margin: 0; font-size: 0.83rem; flex: 1; }
+
+      /* ── Empty val ── */
+      .li-val-empty { color: #b0a090; font-style: italic; }
+
+      /* ── Status ── */
+      .li-status { font-size: 0.82rem; padding: 6px 20px 10px; }
+
+      /* ── Comp card ── */
+      .comp-card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 2px 12px rgba(70,44,8,0.06);
+        position: sticky;
+        top: 20px;
+      }
+      .comp-card-head {
+        padding: 16px 18px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .comp-card-head h2 { margin: 0 0 2px; font-size: 0.98rem; }
+      .comp-card-head p  { margin: 0; font-size: 0.8rem; color: #9e8f7a; }
+      .comp-card-body { padding: 16px 18px; display: grid; gap: 12px; }
+      .comp-field { display: grid; gap: 4px; }
+      .comp-field label {
+        font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em;
+        color: #9e8f7a; font-weight: 700;
+      }
+      .comp-field input {
+        font: inherit; font-size: 0.9rem;
+        border: 1.5px solid var(--line); border-radius: 8px;
+        padding: 8px 10px; background: var(--bg); color: var(--ink); outline: none;
+        transition: border-color 0.14s; width: 100%;
+      }
+      .comp-field input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(14,122,109,0.10); }
+      .comp-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .comp-sep {
+        font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em;
+        color: #c0b0a0; font-weight: 700; margin: 2px 0 -4px;
+      }
+      .comp-card-foot {
+        padding: 12px 18px 14px;
+        border-top: 1px solid var(--line);
+        display: grid; gap: 8px;
+      }
+      .comp-save-btn {
+        width: 100%; padding: 10px; font-size: 0.9rem;
+        background: linear-gradient(135deg, var(--brand), #0a5e53);
+        color: #fff; border: none; border-radius: 10px;
+        font-family: inherit; font-weight: 700; cursor: pointer;
+        transition: opacity 0.14s;
+      }
+      .comp-save-btn:hover { opacity: 0.9; }
+      .comp-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .comp-meta-line { font-size: 0.74rem; color: #9e8f7a; font-family: "IBM Plex Mono", monospace; text-align: center; }
+    </style>
   </head>
   <body>
     <div class="layout">
@@ -17,117 +300,213 @@
         <div class="page-header">
           <div>
             <h1>Perfil</h1>
-            <p class="page-header-lead">Dados pessoais, compensação e análise do perfil LinkedIn</p>
+            <p class="page-header-lead">Dados do perfil LinkedIn e pretensão salarial</p>
           </div>
-          <button id="refresh-profile" class="secondary" type="button" style="width:auto;padding:8px 14px">Atualizar perfil</button>
+          <button id="refresh-profile" class="secondary" type="button" style="width:auto;padding:8px 14px">Atualizar</button>
         </div>
 
-        <!-- Profile form + stack preview side by side -->
-        <div class="grid" style="grid-template-columns: 1fr 1.2fr; margin-bottom: 14px">
-          <article class="card">
-            <h2>Meu Perfil</h2>
-            <form id="profile-form" class="stack">
-              <p class="helper">Salva dados de compensação e data de nascimento usados para preencher candidaturas.</p>
-              <div class="row">
-                <div>
-                  <label for="profile-birth-date">Data de nascimento</label>
-                  <input id="profile-birth-date" name="birthDate" type="date" />
+        <div class="profile-grid">
+
+          <!-- ── LinkedIn card ── -->
+          <div class="li-card">
+            <div class="li-banner" id="li-banner"></div>
+
+            <!-- ── VIEW MODE ── -->
+            <div id="li-view-panel" class="li-view-panel">
+
+              <!-- Header -->
+              <div class="li-header">
+                <div class="li-avatar" id="li-avatar">?</div>
+                <div class="li-header-info">
+                  <div class="li-name" id="li-name"><span class="li-val-empty">Nome não capturado</span></div>
+                  <div class="li-headline" id="li-headline"><span class="li-val-empty">Título não capturado</span></div>
+                  <div class="li-meta">
+                    <div class="li-meta-item" id="li-location-wrap" style="display:none">
+                      <span>📍</span><span id="li-location"></span>
+                    </div>
+                    <div class="li-meta-item" id="li-connections-wrap" style="display:none">
+                      <span>🔗</span><span id="li-connections"></span><span>conexões</span>
+                    </div>
+                  </div>
                 </div>
-                <div></div>
-              </div>
-              <div class="row">
-                <div>
-                  <label for="profile-hourly-usd">Valor hora (USD)</label>
-                  <input id="profile-hourly-usd" name="hourlyUsd" placeholder="80" />
-                </div>
-                <div>
-                  <label for="profile-hourly-brl">Valor hora (BRL)</label>
-                  <input id="profile-hourly-brl" name="hourlyBrl" placeholder="400" />
-                </div>
-              </div>
-              <div class="row">
-                <div>
-                  <label for="profile-clt">Pretensão CLT</label>
-                  <input id="profile-clt" name="clt" placeholder="18000" />
-                </div>
-                <div>
-                  <label for="profile-pj">Pretensão PJ</label>
-                  <input id="profile-pj" name="pj" placeholder="22000" />
+                <div class="li-header-actions">
+                  <button id="li-edit-btn" class="li-btn li-btn-outline" type="button">✎ Editar</button>
+                  <button id="li-capture-btn" class="li-btn li-btn-capture" type="button">◎ Capturar</button>
                 </div>
               </div>
-              <div class="row">
-                <button id="profile-save" class="secondary" type="submit">Salvar perfil</button>
-                <button id="profile-review" type="button">Analisar perfil LinkedIn</button>
+
+              <!-- Details -->
+              <div class="li-body" id="li-details-body">
+
+                <!-- Company + Education -->
+                <div class="li-section" id="li-detail-section" style="display:none">
+                  <div class="li-detail-row">
+                    <div>
+                      <div class="li-detail-label">Empresa atual</div>
+                      <div class="li-detail-val" id="li-current-company">—</div>
+                    </div>
+                    <div>
+                      <div class="li-detail-label">Educação principal</div>
+                      <div class="li-detail-val" id="li-top-education">—</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- About -->
+                <div class="li-section" id="li-about-section" style="display:none">
+                  <div class="li-section-title">Sobre</div>
+                  <div class="li-about-text" id="li-about"></div>
+                  <button class="li-about-expand" id="li-about-expand" style="display:none" type="button">Ver mais</button>
+                </div>
+
+                <!-- Skills -->
+                <div class="li-section" id="li-skills-section" style="display:none">
+                  <div class="li-section-title">Principais skills</div>
+                  <div class="li-tags" id="li-skills"></div>
+                </div>
+
+                <!-- Languages -->
+                <div class="li-section" id="li-languages-section" style="display:none">
+                  <div class="li-section-title">Idiomas</div>
+                  <div class="li-tags" id="li-languages"></div>
+                </div>
+
+                <!-- Experiences -->
+                <div class="li-section" id="li-experiences-section" style="display:none">
+                  <div class="li-section-title">Experiências</div>
+                  <div class="li-exp-list" id="li-experiences"></div>
+                  <button class="li-about-expand" id="li-exp-expand" style="display:none" type="button"></button>
+                </div>
+
+                <!-- Education -->
+                <div class="li-section" id="li-education-section" style="display:none">
+                  <div class="li-section-title">Educação</div>
+                  <div class="li-edu-list" id="li-education"></div>
+                </div>
+
+                <!-- Empty state -->
+                <div class="li-empty-state" id="li-empty-state">
+                  <div class="li-empty-icon">🔍</div>
+                  <div class="li-empty-title">Perfil LinkedIn não capturado</div>
+                  <div class="li-empty-sub">Clique em "Capturar" para abrir o LinkedIn e importar automaticamente seu perfil.</div>
+                  <button id="li-capture-btn-empty" class="li-btn li-btn-capture" type="button" style="margin-top:4px">◎ Capturar perfil agora</button>
+                </div>
+
               </div>
-              <div id="profile-meta" class="meta">Perfil ainda não carregado.</div>
-              <p class="status" id="profile-status"></p>
+
+              <!-- Captured bar -->
+              <div class="li-captured-bar" id="li-captured-bar" style="display:none">
+                <p id="li-captured-at"></p>
+                <span id="li-status-view" class="status" style="font-size:0.76rem"></span>
+              </div>
+
+            </div>
+
+            <!-- ── EDIT MODE ── -->
+            <div id="li-edit-panel" class="li-edit-panel">
+
+              <div class="li-edit-section">
+                <div class="li-edit-row">
+                  <div class="li-edit-field">
+                    <label for="le-name">Nome</label>
+                    <input id="le-name" type="text" placeholder="Nome completo" />
+                  </div>
+                  <div class="li-edit-field">
+                    <label for="le-headline">Título</label>
+                    <input id="le-headline" type="text" placeholder="Título profissional" />
+                  </div>
+                </div>
+                <div class="li-edit-row">
+                  <div class="li-edit-field">
+                    <label for="le-location">Localização</label>
+                    <input id="le-location" type="text" placeholder="Cidade, País" />
+                  </div>
+                  <div class="li-edit-field">
+                    <label for="le-connections">Conexões</label>
+                    <input id="le-connections" type="text" placeholder="500+" />
+                  </div>
+                </div>
+                <div class="li-edit-row">
+                  <div class="li-edit-field">
+                    <label for="le-current-company">Empresa atual</label>
+                    <input id="le-current-company" type="text" placeholder="Empresa atual" />
+                  </div>
+                  <div class="li-edit-field">
+                    <label for="le-top-education">Educação principal</label>
+                    <input id="le-top-education" type="text" placeholder="Formação" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="li-edit-section">
+                <div class="li-edit-field">
+                  <label for="le-about">Sobre</label>
+                  <textarea id="le-about" placeholder="Resumo sobre você…" rows="5"></textarea>
+                </div>
+              </div>
+
+              <div class="li-edit-actions">
+                <p id="li-edit-status" class="status"></p>
+                <button id="li-cancel-btn" class="li-btn li-btn-danger" type="button">Cancelar</button>
+                <button id="li-save-btn" class="li-btn li-btn-primary" type="button">Salvar alterações</button>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- ── Compensation card ── -->
+          <div class="comp-card">
+            <div class="comp-card-head">
+              <h2>Pretensão Salarial</h2>
+              <p>Preenchido automaticamente nas candidaturas</p>
+            </div>
+            <form id="comp-form">
+              <div class="comp-card-body">
+                <div class="comp-field">
+                  <label for="comp-birth-date">Data de nascimento</label>
+                  <input id="comp-birth-date" name="birthDate" type="date" />
+                </div>
+
+                <div class="comp-sep">Valor hora</div>
+                <div class="comp-row">
+                  <div class="comp-field">
+                    <label for="comp-hourly-usd">USD / hora</label>
+                    <input id="comp-hourly-usd" name="hourlyUsd" placeholder="80" />
+                  </div>
+                  <div class="comp-field">
+                    <label for="comp-hourly-brl">BRL / hora</label>
+                    <input id="comp-hourly-brl" name="hourlyBrl" placeholder="400" />
+                  </div>
+                </div>
+
+                <div class="comp-sep">Salário mensal</div>
+                <div class="comp-row">
+                  <div class="comp-field">
+                    <label for="comp-clt">CLT</label>
+                    <input id="comp-clt" name="clt" placeholder="18000" />
+                  </div>
+                  <div class="comp-field">
+                    <label for="comp-pj">PJ</label>
+                    <input id="comp-pj" name="pj" placeholder="22000" />
+                  </div>
+                </div>
+              </div>
+              <div class="comp-card-foot">
+                <button id="comp-save" class="comp-save-btn" type="submit">Salvar</button>
+                <p class="status" id="comp-status"></p>
+                <div id="comp-meta" class="comp-meta-line"></div>
+              </div>
             </form>
-          </article>
+          </div>
 
-          <article class="card">
-            <div class="toolbar">
-              <div>
-                <h2 style="margin:0">Experiência por Stack</h2>
-                <div id="profile-stack-meta" class="meta">Nenhuma stack calculada.</div>
-              </div>
-            </div>
-            <button id="profile-stack-preview-card" class="preview-launcher" type="button">
-              <div class="preview-note">Preview compacto. Clique para expandir.</div>
-              <div id="profile-stack-preview" class="preview-stack-list">
-                <div class="preview-empty">Nenhuma stack calculada.</div>
-              </div>
-            </button>
-          </article>
-        </div>
-
-        <!-- Profile review + danger zone -->
-        <div class="panel grid" style="grid-template-columns: 1.2fr 0.8fr">
-          <article class="card">
-            <h2>Profile Review JSON</h2>
-            <div class="stack">
-              <div>
-                <label>Resumo usado pelo GPT</label>
-                <div id="profile-summary" class="modal-answer compact-answer">Sem resumo salvo.</div>
-              </div>
-              <button id="profile-review-preview-card" class="preview-launcher" type="button">
-                <div class="preview-note">Preview compacto. Clique para expandir o JSON completo.</div>
-                <pre id="profile-review-json" class="code-block code-block--compact">Sem review salvo.</pre>
-              </button>
-            </div>
-          </article>
-
-          <article class="card">
-            <h2>Zona de Perigo</h2>
-            <div class="stack">
-              <p class="helper">As ações abaixo são destrutivas e não podem ser desfeitas.</p>
-              <div>
-                <label style="font-weight:600;color:var(--danger)">Deslogar e limpar tudo</label>
-                <p class="helper" style="margin-bottom:8px">Desloga do LinkedIn e remove perfil salvo, respostas, histórico GPT e aplicações locais.</p>
-                <button id="profile-reset" class="danger-button" type="button">Deslogar e limpar tudo</button>
-              </div>
-            </div>
-          </article>
         </div>
       </main>
     </div>
 
-    <!-- Content preview overlay -->
-    <div id="content-preview-overlay" class="modal-overlay" hidden>
-      <div class="modal-card">
-        <div class="toolbar">
-          <div>
-            <h2 id="content-preview-title">Detalhes</h2>
-            <div id="content-preview-meta" class="meta"></div>
-          </div>
-          <button id="content-preview-close" class="secondary" type="button" style="width:auto;padding:8px 10px">Fechar</button>
-        </div>
-        <div id="content-preview-body" class="overlay-content"></div>
-      </div>
-    </div>
-
     <script src="/admin/nav.js"></script>
     <script>
-      // ── Utilities ──
+      // ── Utils ──
       function escapeHtml(v) {
         return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
       }
@@ -136,189 +515,370 @@
         el.textContent = msg || "";
         el.className = msg ? `status ${isErr ? "danger" : "ok"}` : "status";
       }
-      function setHidden(el, hidden) { if (!el) return; hidden ? el.setAttribute("hidden","") : el.removeAttribute("hidden"); }
-      function formatDate(v) { if (!v) return "-"; const d = new Date(v); return isNaN(d) ? "-" : d.toLocaleString("pt-BR"); }
-      function formatMonthYear(v) { if (!v) return "-"; const d = new Date(v); return isNaN(d) ? "-" : d.toLocaleDateString("pt-BR",{month:"short",year:"numeric"}); }
-      function truncateText(v, max = 1200) { const s = String(v||""); return s.length <= max ? s : `${s.slice(0, max-1).trimEnd()}…`; }
+      function show(el) { if (el) el.style.display = ""; }
+      function hide(el) { if (el) el.style.display = "none"; }
+      function formatDate(v) {
+        if (!v) return "-";
+        const d = new Date(v);
+        return isNaN(d) ? "-" : d.toLocaleString("pt-BR");
+      }
       function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
       async function request(method, url, payload) {
-        const res = await fetch(url, { method, headers:{"content-type":"application/json"}, body: payload ? JSON.stringify(payload) : undefined });
+        const res = await fetch(url, { method, headers: {"content-type":"application/json"}, body: payload ? JSON.stringify(payload) : undefined });
         let data = {}; try { data = await res.json(); } catch {}
         if (!res.ok) throw new Error(data?.error || `Erro HTTP ${res.status}`);
         return data;
       }
 
-      // ── DOM refs ──
-      const profileForm = document.getElementById("profile-form");
-      const profileStatus = document.getElementById("profile-status");
-      const profileMeta = document.getElementById("profile-meta");
-      const profileSaveButton = document.getElementById("profile-save");
-      const profileReviewButton = document.getElementById("profile-review");
-      const profileResetButton = document.getElementById("profile-reset");
-      const profileRefreshButton = document.getElementById("refresh-profile");
-      const profileSummary = document.getElementById("profile-summary");
-      const profileReviewJson = document.getElementById("profile-review-json");
-      const profileStackMeta = document.getElementById("profile-stack-meta");
-      const profileStackPreview = document.getElementById("profile-stack-preview");
-      const profileStackPreviewCard = document.getElementById("profile-stack-preview-card");
-      const profileReviewPreviewCard = document.getElementById("profile-review-preview-card");
-      const contentPreviewOverlay = document.getElementById("content-preview-overlay");
-      const contentPreviewTitle = document.getElementById("content-preview-title");
-      const contentPreviewMeta = document.getElementById("content-preview-meta");
-      const contentPreviewBody = document.getElementById("content-preview-body");
-      const contentPreviewClose = document.getElementById("content-preview-close");
-
       // ── State ──
-      const profileState = { item: null, isSaving: false, isReviewing: false, isResetting: false };
+      const state = { profile: null, isSaving: false, isCapturing: false, editMode: false };
 
-      // ── Stack rendering ──
-      function renderStackPreviewHtml(entries) {
-        if (!entries.length) return `<div class="preview-empty">Nenhuma stack calculada.</div>`;
-        const visible = entries.slice(0, 5);
-        const html = visible.map(([stack, item]) => {
-          const dur = item.durationLabel || `${item.years} ano(s)`;
-          return `<div class="preview-stack-item"><strong>${escapeHtml(stack)}</strong><div class="preview-stack-meta">1ª aparição: ${escapeHtml(formatMonthYear(item.firstSeenAt))}</div><div class="preview-stack-meta">Tempo: ${escapeHtml(dur)}</div></div>`;
-        }).join("");
-        const rem = entries.length - visible.length;
-        return `${html}${rem > 0 ? `<div class="preview-note">+ ${rem} stack(s) no overlay</div>` : ""}`;
-      }
-      function buildStackOverlayHtml(entries) {
-        if (!entries.length) return `<div class="preview-empty">Nenhuma stack calculada.</div>`;
-        const rows = entries.map(([stack, item]) => {
-          const companies = Array.isArray(item.sourceCompanies) ? item.sourceCompanies.join(", ") : "";
-          const titles = Array.isArray(item.sourceTitles) ? item.sourceTitles.join(", ") : "";
-          return `<tr><td>${escapeHtml(stack)}</td><td>${escapeHtml(formatMonthYear(item.firstSeenAt))}</td><td>${escapeHtml(item.durationLabel||`${item.years} ano(s)`)}</td><td>${escapeHtml(companies||"-")}</td><td>${escapeHtml(titles||"-")}</td></tr>`;
-        }).join("");
-        return `<div class="overlay-table-wrap"><table class="overlay-table"><thead><tr><th>Stack</th><th>1ª Aparição</th><th>Tempo</th><th>Empresas</th><th>Cargos</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-      }
+      // ── DOM refs ──
+      const compForm    = document.getElementById("comp-form");
+      const compStatus  = document.getElementById("comp-status");
+      const compMeta    = document.getElementById("comp-meta");
+      const compSave    = document.getElementById("comp-save");
+      const liAvatar    = document.getElementById("li-avatar");
+      const liViewPanel = document.getElementById("li-view-panel");
+      const liEditPanel = document.getElementById("li-edit-panel");
+      const liEditBtn   = document.getElementById("li-edit-btn");
+      const liSaveBtn   = document.getElementById("li-save-btn");
+      const liCancelBtn = document.getElementById("li-cancel-btn");
+      const liCaptureBtn       = document.getElementById("li-capture-btn");
+      const liCaptureBtnEmpty  = document.getElementById("li-capture-btn-empty");
+      const liCapturedBar  = document.getElementById("li-captured-bar");
+      const liCapturedAt   = document.getElementById("li-captured-at");
+      const liStatusView   = document.getElementById("li-status-view");
+      const liEditStatus   = document.getElementById("li-edit-status");
+      const liEmptyState   = document.getElementById("li-empty-state");
+      const liAboutExpand  = document.getElementById("li-about-expand");
+      const liExpExpand    = document.getElementById("li-exp-expand");
 
-      // ── Profile rendering ──
-      function syncProfileControls() {
-        const dis = profileState.isSaving || profileState.isReviewing || profileState.isResetting;
-        profileSaveButton.disabled = dis; profileReviewButton.disabled = dis; profileResetButton.disabled = dis; profileRefreshButton.disabled = dis;
+      // ── Avatar / Banner ──
+      function getInitials(name) {
+        const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+        if (!parts.length) return "?";
+        return parts.length === 1 ? parts[0].slice(0, 2).toUpperCase()
+          : (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
       }
-      function renderProfile(profile) {
-        profileState.item = profile || null;
-        syncProfileControls();
-        const comp = (profile && profile.compensation) || {};
-        if (!profileState.isSaving) {
-          profileForm.birthDate.value = (profile && profile.birthDate) || "";
-          profileForm.hourlyUsd.value = comp.hourlyUsd || "";
-          profileForm.hourlyBrl.value = comp.hourlyBrl || "";
-          profileForm.clt.value = comp.clt || "";
-          profileForm.pj.value = comp.pj || "";
+      function nameColor(name, offset = 0) {
+        let h = offset;
+        for (const c of String(name || "")) h = c.charCodeAt(0) + ((h << 5) - h);
+        return `hsl(${Math.abs(h) % 360}, 52%, 40%)`;
+      }
+      function renderAvatar(name, avatarUrl) {
+        liAvatar.innerHTML = "";
+        if (avatarUrl) {
+          const img = document.createElement("img");
+          img.src = avatarUrl; img.alt = name || "";
+          img.onerror = () => renderAvatar(name, "");
+          liAvatar.style.background = "none";
+          liAvatar.appendChild(img);
+        } else {
+          liAvatar.style.background = `linear-gradient(135deg, ${nameColor(name)}, ${nameColor(name, 31)})`;
+          liAvatar.textContent = getInitials(name);
         }
-        const li = (profile && profile.linkedinProfile) || null;
-        if (profile && (profile.updatedAt || (li && li.capturedAt))) {
-          const pieces = [];
-          if (profile.updatedAt) pieces.push(`perfil salvo: ${formatDate(profile.updatedAt)}`);
-          if (li && li.capturedAt) pieces.push(`LinkedIn varrido: ${formatDate(li.capturedAt)}`);
-          profileMeta.textContent = pieces.join(" | ");
-        } else { profileMeta.textContent = "Perfil ainda não carregado."; }
-        profileSummary.textContent = (profile && profile.summary) ? profile.summary : "Sem resumo salvo.";
-        const rv = profile && profile.profileReview ? profile.profileReview.raw || JSON.stringify(profile.profileReview.parsed || {}, null, 2) : "Sem review salvo.";
-        profileReviewJson.textContent = truncateText(rv, 1200);
-        const stackEntries = Object.entries((profile && profile.stackExperience) || {}).sort((a, b) => (b[1].months||0) - (a[1].months||0));
-        profileStackMeta.textContent = stackEntries.length ? `${stackEntries.length} stack(s) mapeada(s).` : "Nenhuma stack calculada.";
-        profileStackPreview.innerHTML = renderStackPreviewHtml(stackEntries);
+      }
+      function renderBanner(url) {
+        const banner = document.getElementById("li-banner");
+        const existing = banner.querySelector("img");
+        if (existing) existing.remove();
+        if (url) {
+          const img = document.createElement("img");
+          img.src = url; img.alt = "";
+          banner.appendChild(img);
+        }
       }
 
-      // ── Content preview ──
-      function openContentPreview({ title, meta, html }) {
-        contentPreviewTitle.textContent = title || "Detalhes";
-        contentPreviewMeta.textContent = meta || "";
-        contentPreviewBody.innerHTML = html || `<div class="preview-empty">Sem conteúdo.</div>`;
-        setHidden(contentPreviewOverlay, false);
-        document.body.classList.add("modal-open");
+      // ── All details sections ──
+      const detailSections = ["li-detail-section","li-about-section","li-skills-section","li-languages-section","li-experiences-section","li-education-section"];
+
+      // ── Render LinkedIn view ──
+      function setVal(id, value) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (value) { el.textContent = value; el.classList.remove("li-val-empty"); }
+        else { el.innerHTML = ""; el.classList.add("li-val-empty"); }
       }
-      function closeContentPreview() {
-        setHidden(contentPreviewOverlay, true);
-        contentPreviewBody.innerHTML = "";
-        document.body.classList.remove("modal-open");
+      function renderTags(id, items) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (!Array.isArray(items) || !items.length) { el.innerHTML = '<span style="color:#9e8f7a;font-style:italic;font-size:0.82rem">Nenhum.</span>'; return; }
+        el.innerHTML = items.map((s) => `<span class="li-tag">${escapeHtml(s)}</span>`).join("");
       }
 
-      // ── API ──
-      async function refreshProfile() {
+      let allExperiences = [];
+      let expShowAll = false;
+      function renderExperiences(exps) {
+        allExperiences = Array.isArray(exps) ? exps : [];
+        const el = document.getElementById("li-experiences");
+        const showCount = expShowAll ? allExperiences.length : Math.min(3, allExperiences.length);
+        const visible = allExperiences.slice(0, showCount);
+        el.innerHTML = visible.map((exp) => {
+          const badge = exp.isCurrent ? `<span class="badge badge-ok" style="margin-left:6px;font-size:0.68rem">atual</span>` : "";
+          return `<div class="li-exp-item">
+            <div class="li-exp-title">${escapeHtml(exp.title || "—")}${badge}</div>
+            <div class="li-exp-company">${escapeHtml(exp.company || "—")}${exp.employmentType ? ` · ${escapeHtml(exp.employmentType)}` : ""}</div>
+            <div class="li-exp-dates">${escapeHtml(exp.dateRangeLabel || exp.location || "")}</div>
+          </div>`;
+        }).join("");
+        if (allExperiences.length > 3) {
+          show(liExpExpand);
+          const rem = allExperiences.length - 3;
+          liExpExpand.textContent = expShowAll ? "Ver menos" : `Ver mais ${rem} experiência${rem > 1 ? "s" : ""}`;
+        } else {
+          hide(liExpExpand);
+        }
+      }
+
+      function renderLinkedinCard(li) {
+        if (!li) {
+          renderAvatar("", "");
+          renderBanner("");
+          document.getElementById("li-name").innerHTML = '<span class="li-val-empty">Nome não capturado</span>';
+          document.getElementById("li-headline").innerHTML = '<span class="li-val-empty">Título não capturado</span>';
+          hide(document.getElementById("li-location-wrap"));
+          hide(document.getElementById("li-connections-wrap"));
+          detailSections.forEach((id) => hide(document.getElementById(id)));
+          show(liEmptyState);
+          hide(liCapturedBar);
+          return;
+        }
+
+        renderAvatar(li.name, li.avatarUrl || "");
+        renderBanner(li.backgroundImageUrl || "");
+
+        setVal("li-name", li.name);
+        setVal("li-headline", li.headline);
+
+        const locWrap  = document.getElementById("li-location-wrap");
+        const connWrap = document.getElementById("li-connections-wrap");
+        if (li.location) {
+          document.getElementById("li-location").textContent = li.location;
+          show(locWrap);
+        } else { hide(locWrap); }
+        if (li.connections) {
+          document.getElementById("li-connections").textContent = li.connections;
+          show(connWrap);
+        } else { hide(connWrap); }
+
+        hide(liEmptyState);
+
+        // Detail section
+        if (li.currentCompany || li.topEducation) {
+          setVal("li-current-company", li.currentCompany);
+          setVal("li-top-education", li.topEducation);
+          show(document.getElementById("li-detail-section"));
+        } else { hide(document.getElementById("li-detail-section")); }
+
+        // About
+        const aboutEl = document.getElementById("li-about");
+        if (li.about) {
+          aboutEl.textContent = li.about;
+          show(document.getElementById("li-about-section"));
+          // show "ver mais" if text overflows
+          setTimeout(() => {
+            if (aboutEl.scrollHeight > aboutEl.clientHeight + 4) show(liAboutExpand);
+            else hide(liAboutExpand);
+          }, 0);
+        } else { hide(document.getElementById("li-about-section")); }
+
+        // Skills
+        if (Array.isArray(li.topSkills) && li.topSkills.length) {
+          renderTags("li-skills", li.topSkills);
+          show(document.getElementById("li-skills-section"));
+        } else { hide(document.getElementById("li-skills-section")); }
+
+        // Languages
+        if (Array.isArray(li.languages) && li.languages.length) {
+          renderTags("li-languages", li.languages);
+          show(document.getElementById("li-languages-section"));
+        } else { hide(document.getElementById("li-languages-section")); }
+
+        // Experiences
+        if (Array.isArray(li.experiences) && li.experiences.length) {
+          expShowAll = false;
+          renderExperiences(li.experiences);
+          show(document.getElementById("li-experiences-section"));
+        } else { hide(document.getElementById("li-experiences-section")); }
+
+        // Education
+        const eduEl = document.getElementById("li-education");
+        if (Array.isArray(li.education) && li.education.length) {
+          eduEl.innerHTML = li.education.map((e) => `<div>
+            <div class="li-edu-school">${escapeHtml(e.school || "—")}</div>
+            <div class="li-edu-detail">${escapeHtml([e.degree, e.period].filter(Boolean).join(" · "))}</div>
+          </div>`).join("");
+          show(document.getElementById("li-education-section"));
+        } else { hide(document.getElementById("li-education-section")); }
+
+        // Captured bar
+        const captStr = li.capturedAt ? `Capturado em ${formatDate(li.capturedAt)}` : "";
+        const totStr  = li.totalExperienceLabel ? ` · ${li.totalExperienceLabel} de experiência` : "";
+        liCapturedAt.textContent = captStr + totStr;
+        if (captStr) show(liCapturedBar); else hide(liCapturedBar);
+      }
+
+      // ── Enter / exit edit mode ──
+      function enterEditMode() {
+        const li = state.profile && state.profile.linkedinProfile;
+        document.getElementById("le-name").value         = (li && li.name)           || "";
+        document.getElementById("le-headline").value     = (li && li.headline)        || "";
+        document.getElementById("le-location").value     = (li && li.location)        || "";
+        document.getElementById("le-connections").value  = (li && li.connections)     || "";
+        document.getElementById("le-current-company").value = (li && li.currentCompany) || "";
+        document.getElementById("le-top-education").value   = (li && li.topEducation)   || "";
+        document.getElementById("le-about").value        = (li && li.about)           || "";
+        setStatus(liEditStatus, "");
+        liViewPanel.classList.add("hidden");
+        liEditPanel.classList.add("active");
+        state.editMode = true;
+        document.getElementById("le-name").focus();
+      }
+
+      function exitEditMode() {
+        liEditPanel.classList.remove("active");
+        liViewPanel.classList.remove("hidden");
+        state.editMode = false;
+      }
+
+      // ── About expand ──
+      liAboutExpand.addEventListener("click", () => {
+        const aboutEl = document.getElementById("li-about");
+        const expanded = aboutEl.classList.toggle("expanded");
+        liAboutExpand.textContent = expanded ? "Ver menos" : "Ver mais";
+      });
+
+      // ── Exp expand ──
+      liExpExpand.addEventListener("click", () => {
+        expShowAll = !expShowAll;
+        renderExperiences(allExperiences);
+      });
+
+      // ── Edit button ──
+      liEditBtn.addEventListener("click", () => { if (!state.isCapturing) enterEditMode(); });
+
+      // ── Cancel ──
+      liCancelBtn.addEventListener("click", exitEditMode);
+
+      // ── Save LinkedIn edits ──
+      liSaveBtn.addEventListener("click", async () => {
+        if (state.isSaving) return;
+        state.isSaving = true;
+        liSaveBtn.disabled = true;
+        setStatus(liEditStatus, "Salvando…");
         try {
-          const data = await request("GET", "/api/admin/profile");
+          const payload = {
+            linkedinProfileEdit: {
+              name:           text(document.getElementById("le-name").value),
+              headline:       text(document.getElementById("le-headline").value),
+              location:       text(document.getElementById("le-location").value),
+              connections:    text(document.getElementById("le-connections").value),
+              currentCompany: text(document.getElementById("le-current-company").value),
+              topEducation:   text(document.getElementById("le-top-education").value),
+              about:          text(document.getElementById("le-about").value),
+            }
+          };
+          const data = await request("POST", "/api/admin/profile", payload);
           renderProfile(data.profile || null);
-        } catch (e) { setStatus(profileStatus, `Falha ao carregar: ${e.message}`, true); }
+          exitEditMode();
+          setStatus(liStatusView, "Perfil atualizado.");
+        } catch (err) { setStatus(liEditStatus, err.message, true); }
+        finally { state.isSaving = false; liSaveBtn.disabled = false; }
+      });
+
+      // ── Capture ──
+      async function captureProfile() {
+        if (state.isCapturing) return;
+        state.isCapturing = true;
+        [liCaptureBtn, liCaptureBtnEmpty].forEach((b) => { b.disabled = true; b.textContent = "Capturando…"; });
+        liEditBtn.disabled = true;
+        setStatus(liStatusView, "Abrindo LinkedIn e analisando com GPT…");
+        try {
+          const data = await request("POST", "/api/admin/processes/profile-review", {});
+          const proc = await waitForProcess(data.id, 8 * 60 * 1000);
+          if (proc.status !== "succeeded") throw new Error(proc.error || proc.summary || "Falha ao capturar.");
+          await loadProfile();
+          setStatus(liStatusView, proc.summary || "Perfil capturado.");
+        } catch (err) { setStatus(liStatusView, err.message, true); }
+        finally {
+          state.isCapturing = false;
+          [liCaptureBtn, liCaptureBtnEmpty].forEach((b) => { b.disabled = false; b.textContent = "◎ Capturar"; });
+          liCaptureBtnEmpty.textContent = "◎ Capturar perfil agora";
+          liEditBtn.disabled = false;
+        }
       }
+      liCaptureBtn.addEventListener("click", captureProfile);
+      liCaptureBtnEmpty.addEventListener("click", captureProfile);
+
+      // ── Comp form ──
+      function renderCompForm(profile) {
+        if (state.isSaving) return;
+        const comp = (profile && profile.compensation) || {};
+        compForm.birthDate.value  = (profile && profile.birthDate) || "";
+        compForm.hourlyUsd.value  = comp.hourlyUsd || "";
+        compForm.hourlyBrl.value  = comp.hourlyBrl || "";
+        compForm.clt.value        = comp.clt       || "";
+        compForm.pj.value         = comp.pj        || "";
+        const pieces = [];
+        if (profile && profile.updatedAt) pieces.push(`Salvo: ${formatDate(profile.updatedAt)}`);
+        compMeta.textContent = pieces.join(" · ");
+      }
+
+      compForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (state.isSaving) return;
+        state.isSaving = true;
+        compSave.disabled = true;
+        setStatus(compStatus, "Salvando…");
+        try {
+          const data = await request("POST", "/api/admin/profile", {
+            birthDate:  text(compForm.birthDate.value),
+            hourlyUsd:  text(compForm.hourlyUsd.value),
+            hourlyBrl:  text(compForm.hourlyBrl.value),
+            clt:        text(compForm.clt.value),
+            pj:         text(compForm.pj.value),
+          });
+          renderProfile(data.profile || null);
+          setStatus(compStatus, "Salvo.");
+        } catch (err) { setStatus(compStatus, err.message, true); }
+        finally { state.isSaving = false; compSave.disabled = false; }
+      });
+
+      // ── Full render ──
+      function renderProfile(profile) {
+        state.profile = profile || null;
+        renderLinkedinCard(profile ? profile.linkedinProfile || null : null);
+        renderCompForm(profile);
+      }
+
+      // ── Process helpers ──
       async function refreshProcesses() { return request("GET", "/api/admin/processes"); }
-      function getProcessById(state, id) {
-        if (state.running && state.running.id === id) return state.running;
-        return (state.history || []).find((p) => p.id === id) || null;
+      function getProcess(s, id) {
+        if (s.running && s.running.id === id) return s.running;
+        return (s.history || []).find((p) => p.id === id) || null;
       }
-      async function waitForProcess(id, timeout = 10 * 60 * 1000) {
-        const start = Date.now();
-        while (Date.now() - start < timeout) {
-          try {
-            const state = await refreshProcesses();
-            const proc = getProcessById(state, id);
-            if (proc && proc.status !== "running") return proc;
-          } catch {}
+      async function waitForProcess(id, ms = 600000) {
+        const end = Date.now() + ms;
+        while (Date.now() < end) {
+          try { const s = await refreshProcesses(); const p = getProcess(s, id); if (p && p.status !== "running") return p; } catch {}
           await sleep(1500);
         }
         throw new Error("Tempo limite aguardando o processo.");
       }
 
-      // ── Event listeners ──
-      profileForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        if (profileState.isSaving || profileState.isReviewing) return;
-        profileState.isSaving = true; syncProfileControls(); setStatus(profileStatus, "Salvando perfil…");
+      // ── Load ──
+      async function loadProfile() {
         try {
-          const data = await request("POST", "/api/admin/profile", { birthDate: text(profileForm.birthDate.value), hourlyUsd: text(profileForm.hourlyUsd.value), hourlyBrl: text(profileForm.hourlyBrl.value), clt: text(profileForm.clt.value), pj: text(profileForm.pj.value) });
-          renderProfile(data.profile || null); setStatus(profileStatus, "Perfil atualizado.");
-        } catch (err) { setStatus(profileStatus, err.message, true); }
-        finally { profileState.isSaving = false; syncProfileControls(); }
-      });
+          const data = await request("GET", "/api/admin/profile");
+          renderProfile(data.profile || null);
+        } catch (e) { setStatus(compStatus, `Falha ao carregar: ${e.message}`, true); }
+      }
 
-      profileReviewButton.addEventListener("click", async () => {
-        if (profileState.isReviewing || profileState.isSaving) return;
-        profileState.isReviewing = true; syncProfileControls(); setStatus(profileStatus, "Analisando perfil LinkedIn com GPT…");
-        try {
-          const data = await request("POST", "/api/admin/processes/profile-review", {});
-          const proc = await waitForProcess(data.id, 8 * 60 * 1000);
-          if (proc.status !== "succeeded") throw new Error(proc.error || proc.summary || "Falha ao analisar.");
-          await refreshProfile(); setStatus(profileStatus, proc.summary || "Perfil analisado.");
-        } catch (err) { setStatus(profileStatus, err.message, true); }
-        finally { profileState.isReviewing = false; syncProfileControls(); }
-      });
-
-      profileResetButton.addEventListener("click", async () => {
-        if (profileState.isResetting || profileState.isSaving || profileState.isReviewing) return;
-        if (!confirm("Isso vai deslogar do LinkedIn e limpar perfil, respostas, GPT e aplicações. Continuar?")) return;
-        profileState.isResetting = true; syncProfileControls(); setStatus(profileStatus, "Deslogando e limpando dados…");
-        try {
-          const data = await request("POST", "/api/admin/processes/reset-session", {});
-          const proc = await waitForProcess(data.id, 2 * 60 * 1000);
-          if (proc.status !== "succeeded") throw new Error(proc.error || proc.summary || "Falha ao limpar.");
-          await refreshProfile(); setStatus(profileStatus, proc.summary || "Sessão limpa.");
-        } catch (err) { setStatus(profileStatus, err.message, true); }
-        finally { profileState.isResetting = false; syncProfileControls(); }
-      });
-
-      profileRefreshButton.addEventListener("click", () => refreshProfile());
-
-      profileStackPreviewCard.addEventListener("click", () => {
-        const profile = profileState.item;
-        const entries = Object.entries((profile && profile.stackExperience) || {}).sort((a, b) => (b[1].months||0) - (a[1].months||0));
-        openContentPreview({ title: "Experiência por Stack", meta: entries.length ? `${entries.length} stack(s) mapeada(s).` : "Nenhuma stack.", html: buildStackOverlayHtml(entries) });
-      });
-
-      profileReviewPreviewCard.addEventListener("click", () => {
-        const profile = profileState.item;
-        const rv = profile && profile.profileReview ? profile.profileReview.raw || JSON.stringify(profile.profileReview.parsed || {}, null, 2) : "Sem review salvo.";
-        const at = profile && profile.profileReview ? profile.profileReview.createdAt : "";
-        openContentPreview({ title: "Profile Review JSON", meta: at ? `Gerado em ${formatDate(at)}` : "Nenhum review.", html: `<pre class="overlay-pre">${escapeHtml(rv)}</pre>` });
-      });
-
-      contentPreviewClose.addEventListener("click", closeContentPreview);
-      contentPreviewOverlay.addEventListener("click", (e) => { if (e.target === contentPreviewOverlay) closeContentPreview(); });
+      document.getElementById("refresh-profile").addEventListener("click", loadProfile);
 
       // ── Init ──
-      refreshProfile();
+      loadProfile();
     </script>
   </body>
 </html>

@@ -340,10 +340,36 @@ export class AdminServer {
           answers["salary-expectation-pj"] = compensation.pj;
         }
 
+        const liEdit =
+          hasOwn("linkedinProfileEdit") &&
+          body.linkedinProfileEdit &&
+          typeof body.linkedinProfileEdit === "object" &&
+          !Array.isArray(body.linkedinProfileEdit)
+            ? (body.linkedinProfileEdit as Record<string, unknown>)
+            : null;
+
+        const readStr = (v: unknown) => (typeof v === "string" ? v.trim() : undefined);
+
+        const linkedinProfile =
+          liEdit && current.linkedinProfile
+            ? {
+                ...current.linkedinProfile,
+                ...(readStr(liEdit.name) !== undefined ? { name: readStr(liEdit.name)! } : {}),
+                ...(readStr(liEdit.headline) !== undefined ? { headline: readStr(liEdit.headline)! } : {}),
+                ...(readStr(liEdit.location) !== undefined ? { location: readStr(liEdit.location)! } : {}),
+                ...(readStr(liEdit.website) !== undefined ? { website: readStr(liEdit.website)! } : {}),
+                ...(readStr(liEdit.about) !== undefined ? { about: readStr(liEdit.about)! } : {}),
+                ...(readStr(liEdit.connections) !== undefined ? { connections: readStr(liEdit.connections)! } : {}),
+                ...(readStr(liEdit.currentCompany) !== undefined ? { currentCompany: readStr(liEdit.currentCompany)! } : {}),
+                ...(readStr(liEdit.topEducation) !== undefined ? { topEducation: readStr(liEdit.topEducation)! } : {}),
+              }
+            : undefined;
+
         const profile = await saveUserProfileAsync({
           birthDate,
           compensation,
           answers,
+          ...(linkedinProfile !== undefined ? { linkedinProfile } : {}),
         });
 
         this._sendJson(res, 200, { profile });

@@ -26,6 +26,8 @@ type RawProfileData = {
     currentCompany: string
     topEducation: string
     about: string
+    avatarUrl: string
+    backgroundImageUrl: string
     topSkills: string[]
     languages: string[]
     experiences: RawProfileExperience[]
@@ -525,6 +527,8 @@ export class LinkedinProfileReviewFlow {
                     )?.getAttribute("aria-label") || ""
                 ),
                 about: getLongestText(aboutSection?.querySelector("div[dir='ltr']") || aboutSection),
+                avatarUrl: "",
+                backgroundImageUrl: "",
                 topSkills: unique([...topSkillsFromAbout, ...skillItems]).slice(0, 24),
                 languages: languageItems,
                 experiences: [],
@@ -533,12 +537,43 @@ export class LinkedinProfileReviewFlow {
             }
         })
 
+        const { avatarSrc, backgroundSrc } = await this._page.evaluate(() => {
+            const avatarImg = document.querySelector("img.profile-photo-edit__preview") as HTMLImageElement | null
+            const bgImg =
+                (document.querySelector("img#profile-background-image-target-image") as HTMLImageElement | null) ||
+                (document.querySelector("img.profile-background-image__image") as HTMLImageElement | null)
+            return {
+                avatarSrc: avatarImg?.src || "",
+                backgroundSrc: bgImg?.src || ""
+            }
+        })
+
+        const [avatarUrl, backgroundImageUrl] = await Promise.all([
+            this._downloadImageAsDataUrl(avatarSrc),
+            this._downloadImageAsDataUrl(backgroundSrc)
+        ])
+
         const fallbackExperiences = await this._scrapeExperienceEntriesFromCurrentPage()
         const experiences = await this._scrapeAllExperiences(fallbackExperiences)
 
         return {
             ...baseProfile,
+            avatarUrl,
+            backgroundImageUrl,
             experiences
+        }
+    }
+
+    private async _downloadImageAsDataUrl(url: string): Promise<string> {
+        if (!url) return ""
+        try {
+            const response = await this._page.context().request.get(url)
+            if (!response.ok()) return ""
+            const buffer = await response.body()
+            const contentType = (response.headers()["content-type"] || "image/jpeg").split(";")[0].trim()
+            return `data:${contentType};base64,${buffer.toString("base64")}`
+        } catch {
+            return ""
         }
     }
 
@@ -714,6 +749,8 @@ export class LinkedinProfileReviewFlow {
             currentCompany: raw.currentCompany,
             topEducation: raw.topEducation,
             about: raw.about,
+            avatarUrl: raw.avatarUrl,
+            backgroundImageUrl: raw.backgroundImageUrl,
             topSkills: uniqueStrings(raw.topSkills),
             languages: uniqueStrings(raw.languages),
             experiences,

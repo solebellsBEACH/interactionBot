@@ -8,6 +8,75 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/admin/shared.css" />
+    <style>
+      /* ── Stat cards ── */
+      .stat-cards {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+      @media (max-width: 680px) { .stat-cards { grid-template-columns: 1fr; } }
+      .stat-card {
+        border-radius: 16px;
+        padding: 20px 22px;
+        background: linear-gradient(135deg, var(--c1), var(--c2));
+        color: #fff;
+        box-shadow: 0 6px 24px rgba(0,0,0,0.13);
+        position: relative;
+        overflow: hidden;
+      }
+      .stat-card::after {
+        content: "";
+        position: absolute;
+        right: -18px; top: -18px;
+        width: 80px; height: 80px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.10);
+      }
+      .stat-label { font-size: 0.8rem; font-weight: 600; opacity: 0.88; margin-bottom: 8px; letter-spacing: 0.03em; }
+      .stat-value { font-size: 2.1rem; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
+      .stat-sub   { font-size: 0.75rem; opacity: 0.75; margin-top: 6px; }
+
+      /* ── Charts grid ── */
+      .charts-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+      @media (max-width: 820px) { .charts-grid { grid-template-columns: 1fr; } }
+      .chart-card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 18px 20px 14px;
+        box-shadow: 0 2px 12px rgba(70,44,8,0.05);
+      }
+      .chart-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+      .chart-title { font-size: 0.88rem; font-weight: 600; color: var(--ink); }
+      .chart-sub   { font-size: 0.74rem; color: #9e8f7a; }
+      .chart-legend {
+        display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;
+      }
+      .chart-legend-item {
+        display: flex; align-items: center; gap: 5px;
+        font-size: 0.74rem; color: #6d5d45;
+      }
+      .chart-legend-dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .donut-center {
+        text-align: center; margin-top: 4px;
+        font-size: 0.8rem; color: #9e8f7a;
+      }
+    </style>
   </head>
   <body>
     <div class="layout">
@@ -22,7 +91,77 @@
           <div class="pill" id="running-pill">Sem processo em execução</div>
         </div>
 
-        <!-- Processes -->
+        <!-- ── Stat cards ── -->
+        <div class="stat-cards">
+          <div class="stat-card" style="--c1:#8b5cf6;--c2:#ec4899">
+            <div class="stat-label">Processos Realizados</div>
+            <div class="stat-value" id="stat-total">—</div>
+            <div class="stat-sub" id="stat-total-sub">histórico completo</div>
+          </div>
+          <div class="stat-card" style="--c1:#14b8a6;--c2:#06b6d4">
+            <div class="stat-label">Taxa de Sucesso</div>
+            <div class="stat-value" id="stat-success">—</div>
+            <div class="stat-sub" id="stat-success-sub">últimas execuções</div>
+          </div>
+          <div class="stat-card" style="--c1:#3b82f6;--c2:#6366f1">
+            <div class="stat-label">Aplicações Easy Apply</div>
+            <div class="stat-value" id="stat-applications">—</div>
+            <div class="stat-sub" id="stat-app-sub">total de candidaturas</div>
+          </div>
+        </div>
+
+        <!-- ── Charts ── -->
+        <div class="charts-grid">
+          <!-- Area chart: processos por dia -->
+          <div class="chart-card">
+            <div class="chart-head">
+              <span class="chart-title">Processos por Dia</span>
+              <span class="chart-sub" id="chart-timeline-sub">últimos 14 dias</span>
+            </div>
+            <canvas id="chart-timeline" height="140"></canvas>
+            <div class="chart-legend">
+              <div class="chart-legend-item"><span class="chart-legend-dot" style="background:#8b5cf6"></span>Processos</div>
+            </div>
+          </div>
+
+          <!-- Donut: status breakdown -->
+          <div class="chart-card">
+            <div class="chart-head">
+              <span class="chart-title">Status dos Processos</span>
+              <span class="chart-sub" id="chart-donut-sub"></span>
+            </div>
+            <canvas id="chart-donut" height="140"></canvas>
+            <div class="donut-center" id="chart-donut-center"></div>
+            <div class="chart-legend" style="justify-content:center;margin-top:8px">
+              <div class="chart-legend-item"><span class="chart-legend-dot" style="background:#14b8a6"></span>Sucesso</div>
+              <div class="chart-legend-item"><span class="chart-legend-dot" style="background:#f43f5e"></span>Falha</div>
+              <div class="chart-legend-item"><span class="chart-legend-dot" style="background:#94a3b8"></span>Outros</div>
+            </div>
+          </div>
+
+          <!-- Horizontal bar: process types -->
+          <div class="chart-card">
+            <div class="chart-head">
+              <span class="chart-title">Tipos de Processo</span>
+              <span class="chart-sub">frequência por tipo</span>
+            </div>
+            <canvas id="chart-types" height="140"></canvas>
+          </div>
+
+          <!-- Line chart: easy apply por dia -->
+          <div class="chart-card">
+            <div class="chart-head">
+              <span class="chart-title">Candidaturas por Dia</span>
+              <span class="chart-sub">easy-apply · últimos 14 dias</span>
+            </div>
+            <canvas id="chart-apply" height="140"></canvas>
+            <div class="chart-legend">
+              <div class="chart-legend-item"><span class="chart-legend-dot" style="background:#06b6d4"></span>Aplicações</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Existing panels ── -->
         <div class="grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 14px">
           <article class="card">
             <h2>Processo Ativo</h2>
@@ -34,7 +173,6 @@
           </article>
         </div>
 
-        <!-- Runtime Steps + Logs -->
         <div class="panel grid" style="grid-template-columns: 0.9fr 1.3fr">
           <article class="card">
             <div class="toolbar">
@@ -116,81 +254,65 @@
       </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="/admin/nav.js"></script>
     <script>
-      // ── Shared utilities ──
+      // ── Utils ──
       function escapeHtml(v) {
         return String(v ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
       }
       function text(v) { return typeof v === "string" ? v.trim() : ""; }
-      function setStatus(el, msg, isErr = false) {
-        el.textContent = msg || "";
-        el.className = msg ? `status ${isErr ? "danger" : "ok"}` : "status";
-      }
-      function setHidden(el, hidden) {
-        if (!el) return;
-        hidden ? el.setAttribute("hidden", "") : el.removeAttribute("hidden");
-      }
-      function formatDate(v) {
-        if (!v) return "-";
-        const d = new Date(v);
-        return isNaN(d) ? "-" : d.toLocaleString("pt-BR");
-      }
-      function normalizeText(v) {
-        return String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
-      }
+      function setStatus(el, msg, isErr = false) { el.textContent = msg || ""; el.className = msg ? `status ${isErr ? "danger" : "ok"}` : "status"; }
+      function setHidden(el, hidden) { if (!el) return; hidden ? el.setAttribute("hidden", "") : el.removeAttribute("hidden"); }
+      function formatDate(v) { if (!v) return "-"; const d = new Date(v); return isNaN(d) ? "-" : d.toLocaleString("pt-BR"); }
+      function normalizeText(v) { return String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim(); }
       async function request(method, url, payload) {
-        const res = await fetch(url, {
-          method,
-          headers: { "content-type": "application/json" },
-          body: payload ? JSON.stringify(payload) : undefined,
-        });
-        let data = {};
-        try { data = await res.json(); } catch {}
+        const res = await fetch(url, { method, headers: {"content-type":"application/json"}, body: payload ? JSON.stringify(payload) : undefined });
+        let data = {}; try { data = await res.json(); } catch {}
         if (!res.ok) throw new Error(data?.error || `Erro HTTP ${res.status}`);
         return data;
       }
 
       // ── DOM refs ──
-      const runningPill = document.getElementById("running-pill");
-      const processRunning = document.getElementById("process-running");
-      const processHistory = document.getElementById("process-history");
+      const runningPill      = document.getElementById("running-pill");
+      const processRunning   = document.getElementById("process-running");
+      const processHistory   = document.getElementById("process-history");
       const runtimeActiveStep = document.getElementById("runtime-active-step");
-      const runtimeSteps = document.getElementById("runtime-steps");
-      const runtimeLogMeta = document.getElementById("runtime-log-meta");
-      const runtimeLogs = document.getElementById("runtime-logs");
+      const runtimeSteps     = document.getElementById("runtime-steps");
+      const runtimeLogMeta   = document.getElementById("runtime-log-meta");
+      const runtimeLogs      = document.getElementById("runtime-logs");
       const runtimeLogFilter = document.getElementById("runtime-log-filter");
-      const runtimeLogLevel = document.getElementById("runtime-log-level");
+      const runtimeLogLevel  = document.getElementById("runtime-log-level");
       const runtimeLogSource = document.getElementById("runtime-log-source");
       const runtimePauseButton = document.getElementById("runtime-pause");
       const runtimeClearButton = document.getElementById("runtime-clear");
       const adminPromptOverlay = document.getElementById("admin-prompt-overlay");
-      const adminPromptTitle = document.getElementById("admin-prompt-title");
-      const adminPromptMeta = document.getElementById("admin-prompt-meta");
+      const adminPromptTitle   = document.getElementById("admin-prompt-title");
+      const adminPromptMeta    = document.getElementById("admin-prompt-meta");
       const adminPromptMessage = document.getElementById("admin-prompt-message");
       const adminPromptSuggestedWrap = document.getElementById("admin-prompt-suggested-wrap");
-      const adminPromptSuggested = document.getElementById("admin-prompt-suggested");
-      const adminPromptSelectWrap = document.getElementById("admin-prompt-select-wrap");
-      const adminPromptSelect = document.getElementById("admin-prompt-select");
-      const adminPromptTextWrap = document.getElementById("admin-prompt-text-wrap");
-      const adminPromptText = document.getElementById("admin-prompt-text");
-      const adminPromptStatus = document.getElementById("admin-prompt-status");
-      const adminPromptConfirm = document.getElementById("admin-prompt-confirm");
-      const adminPromptSubmit = document.getElementById("admin-prompt-submit");
-      const adminPromptSkip = document.getElementById("admin-prompt-skip");
-      const adminPromptCancel = document.getElementById("admin-prompt-cancel");
+      const adminPromptSuggested     = document.getElementById("admin-prompt-suggested");
+      const adminPromptSelectWrap    = document.getElementById("admin-prompt-select-wrap");
+      const adminPromptSelect        = document.getElementById("admin-prompt-select");
+      const adminPromptTextWrap      = document.getElementById("admin-prompt-text-wrap");
+      const adminPromptText          = document.getElementById("admin-prompt-text");
+      const adminPromptStatus        = document.getElementById("admin-prompt-status");
+      const adminPromptConfirm       = document.getElementById("admin-prompt-confirm");
+      const adminPromptSubmit        = document.getElementById("admin-prompt-submit");
+      const adminPromptSkip          = document.getElementById("admin-prompt-skip");
+      const adminPromptCancel        = document.getElementById("admin-prompt-cancel");
 
       // ── State ──
-      const runtimeState = { activeStep: null, steps: [], logs: [], isPaused: false, filterText: "", level: "all", source: "all" };
-      const adminStreamState = { eventSource: null, reconnectTimer: null, connected: false };
-      const adminPromptState = { item: null, isSubmitting: false };
+      const runtimeState       = { activeStep: null, steps: [], logs: [], isPaused: false, filterText: "", level: "all", source: "all" };
+      const adminStreamState   = { eventSource: null, reconnectTimer: null, connected: false };
+      const adminPromptState   = { item: null, isSubmitting: false };
       const adminPromptSettings = { autoConfirmGpt: false, autoConfirmDelayMs: 1000, isSaving: false };
 
       // ── Process rendering ──
       function renderProcessState(state) {
         const running = state.running;
         if (running) {
-          runningPill.textContent = `Executando: ${running.type} (${running.id})`;
+          runningPill.textContent = `Executando: ${running.type}`;
           processRunning.innerHTML = `<div class="history-item"><strong>Em execução:</strong> ${escapeHtml(running.type)}<br><span class="meta">iniciado: ${formatDate(running.startedAt)} | id: ${escapeHtml(running.id)}</span><br><span>${escapeHtml(running.summary || "Processo iniciado.")}</span></div>`;
         } else {
           runningPill.textContent = "Sem processo em execução";
@@ -203,6 +325,180 @@
           const err = item.error ? `<div class="danger">${escapeHtml(item.error)}</div>` : "";
           return `<div class="history-item"><strong>${escapeHtml(item.type)}</strong> <span class="${cls}">(${escapeHtml(item.status)})</span><div class="meta">${formatDate(item.startedAt)} → ${formatDate(item.endedAt)}</div><div>${escapeHtml(item.summary || "-")}</div>${err}</div>`;
         }).join("");
+        renderCharts(history);
+      }
+
+      // ── Charts ──
+      const _charts = {};
+
+      function destroyChart(key) {
+        if (_charts[key]) { _charts[key].destroy(); delete _charts[key]; }
+      }
+
+      const C = {
+        purple: "#8b5cf6", purpleA: "rgba(139,92,246,0.15)",
+        teal:   "#14b8a6", tealA:   "rgba(20,184,166,0.15)",
+        pink:   "#f43f5e", pinkA:   "rgba(244,63,94,0.15)",
+        blue:   "#3b82f6", blueA:   "rgba(59,130,246,0.15)",
+        slate:  "#94a3b8",
+      };
+
+      const chartDefaults = {
+        font: { family: "'Space Grotesk', sans-serif", size: 11 },
+        color: "#8a7a68",
+      };
+
+      function last14Days() {
+        const days = [];
+        const now = new Date();
+        for (let i = 13; i >= 0; i--) {
+          const d = new Date(now);
+          d.setDate(d.getDate() - i);
+          days.push(d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }));
+        }
+        return days;
+      }
+
+      function dayKey(iso) {
+        if (!iso) return "";
+        return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+      }
+
+      function renderCharts(history) {
+        if (!window.Chart) return;
+        Chart.defaults.font.family = chartDefaults.font.family;
+        Chart.defaults.font.size   = chartDefaults.font.size;
+        Chart.defaults.color       = chartDefaults.color;
+
+        const days = last14Days();
+        const succeeded  = history.filter((p) => p.status === "succeeded").length;
+        const failed     = history.filter((p) => p.status === "failed").length;
+        const other      = history.length - succeeded - failed;
+        const applies    = history.filter((p) => p.type && p.type.includes("easy-apply"));
+
+        // Stat cards
+        document.getElementById("stat-total").textContent = history.length;
+        const rate = history.length > 0 ? Math.round((succeeded / history.length) * 100) : 0;
+        document.getElementById("stat-success").textContent = `${rate}%`;
+        document.getElementById("stat-success-sub").textContent = `${succeeded} de ${history.length} bem-sucedidos`;
+        document.getElementById("stat-applications").textContent = applies.length;
+
+        // Counts per day
+        const processByDay = Object.fromEntries(days.map((d) => [d, 0]));
+        const applyByDay   = Object.fromEntries(days.map((d) => [d, 0]));
+        history.forEach((p) => { const k = dayKey(p.startedAt); if (processByDay[k] !== undefined) processByDay[k]++; });
+        applies.forEach((p)  => { const k = dayKey(p.startedAt); if (applyByDay[k]   !== undefined) applyByDay[k]++; });
+
+        const gridColor = "rgba(0,0,0,0.05)";
+        const tickOpts  = { color: "#9e8f7a" };
+        const noGrid    = { display: false };
+
+        // Chart 1 – area: processos por dia
+        destroyChart("timeline");
+        _charts.timeline = new Chart(document.getElementById("chart-timeline"), {
+          type: "line",
+          data: {
+            labels: days,
+            datasets: [{
+              data: days.map((d) => processByDay[d]),
+              borderColor: C.purple,
+              backgroundColor: C.purpleA,
+              fill: true,
+              tension: 0.42,
+              pointRadius: 3,
+              pointHoverRadius: 5,
+              pointBackgroundColor: C.purple,
+              borderWidth: 2,
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false }, tooltip: { mode: "index", intersect: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { ...tickOpts, stepSize: 1 }, grid: { color: gridColor } },
+              x: { ticks: tickOpts, grid: noGrid }
+            }
+          }
+        });
+
+        // Chart 2 – donut: status
+        destroyChart("donut");
+        const totalForDonut = succeeded + failed + other;
+        document.getElementById("chart-donut-center").textContent = totalForDonut ? `${rate}% sucesso` : "";
+        document.getElementById("chart-donut-sub").textContent = `${totalForDonut} total`;
+        _charts.donut = new Chart(document.getElementById("chart-donut"), {
+          type: "doughnut",
+          data: {
+            labels: ["Sucesso", "Falha", "Outros"],
+            datasets: [{
+              data: [succeeded, failed, other],
+              backgroundColor: [C.teal, C.pink, C.slate],
+              borderWidth: 0,
+              hoverOffset: 6,
+            }]
+          },
+          options: {
+            responsive: true,
+            cutout: "70%",
+            plugins: { legend: { display: false }, tooltip: { mode: "nearest" } }
+          }
+        });
+
+        // Chart 3 – horizontal bar: process types
+        destroyChart("types");
+        const typeMap = {};
+        history.forEach((p) => { const t = p.type || "unknown"; typeMap[t] = (typeMap[t] || 0) + 1; });
+        const typeLabels = Object.keys(typeMap).sort((a, b) => typeMap[b] - typeMap[a]);
+        const typeColors = [C.purple, C.teal, C.blue, C.pink, C.slate];
+        _charts.types = new Chart(document.getElementById("chart-types"), {
+          type: "bar",
+          data: {
+            labels: typeLabels,
+            datasets: [{
+              data: typeLabels.map((t) => typeMap[t]),
+              backgroundColor: typeLabels.map((_, i) => typeColors[i % typeColors.length]),
+              borderRadius: 6,
+              borderSkipped: false,
+            }]
+          },
+          options: {
+            indexAxis: "y",
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { beginAtZero: true, ticks: { ...tickOpts, stepSize: 1 }, grid: { color: gridColor } },
+              y: { ticks: tickOpts, grid: noGrid }
+            }
+          }
+        });
+
+        // Chart 4 – line: easy apply by day
+        destroyChart("apply");
+        _charts.apply = new Chart(document.getElementById("chart-apply"), {
+          type: "line",
+          data: {
+            labels: days,
+            datasets: [{
+              data: days.map((d) => applyByDay[d]),
+              borderColor: C.blue,
+              backgroundColor: C.blueA,
+              fill: true,
+              tension: 0.35,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              pointBackgroundColor: C.blue,
+              borderWidth: 2,
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false }, tooltip: { mode: "index", intersect: false } },
+            scales: {
+              y: { beginAtZero: true, ticks: { ...tickOpts, stepSize: 1 }, grid: { color: gridColor } },
+              x: { ticks: tickOpts, grid: noGrid }
+            }
+          }
+        });
       }
 
       // ── Runtime rendering ──
@@ -270,15 +566,11 @@
       }
 
       // ── Admin Prompt ──
-      function syncBodyModalState() {
-        document.body.classList.toggle("modal-open", !adminPromptOverlay.hasAttribute("hidden"));
-      }
+      function syncBodyModalState() { document.body.classList.toggle("modal-open", !adminPromptOverlay.hasAttribute("hidden")); }
       function syncAdminPromptButtons() {
         const dis = adminPromptState.isSubmitting || !adminPromptState.item;
-        adminPromptConfirm.disabled = dis;
-        adminPromptSubmit.disabled = dis;
-        adminPromptSkip.disabled = dis;
-        adminPromptCancel.disabled = dis;
+        adminPromptConfirm.disabled = dis; adminPromptSubmit.disabled = dis;
+        adminPromptSkip.disabled = dis; adminPromptCancel.disabled = dis;
       }
       function renderPromptSettings(settings) {
         if (!settings) return;
@@ -286,8 +578,7 @@
         if (typeof settings.autoConfirmDelayMs === "number") adminPromptSettings.autoConfirmDelayMs = settings.autoConfirmDelayMs;
       }
       function renderAdminPrompt(item) {
-        adminPromptState.item = item || null;
-        syncAdminPromptButtons();
+        adminPromptState.item = item || null; syncAdminPromptButtons();
         if (!item) { setHidden(adminPromptOverlay, true); syncBodyModalState(); setStatus(adminPromptStatus, ""); adminPromptText.value = ""; adminPromptSelect.innerHTML = ""; return; }
         setHidden(adminPromptOverlay, false); syncBodyModalState();
         const isSelect = item.fieldType === "select";
@@ -322,10 +613,8 @@
           if (!value) { setStatus(adminPromptStatus, "Informe uma resposta antes de enviar.", true); return; }
         }
         adminPromptState.isSubmitting = true; syncAdminPromptButtons(); setStatus(adminPromptStatus, "Enviando resposta…");
-        try {
-          await request("POST", "/api/admin/prompts/respond", { id: item.id, action, value });
-          renderAdminPrompt(null);
-        } catch (e) { setStatus(adminPromptStatus, e.message, true); }
+        try { await request("POST", "/api/admin/prompts/respond", { id: item.id, action, value }); renderAdminPrompt(null); }
+        catch (e) { setStatus(adminPromptStatus, e.message, true); }
         finally { adminPromptState.isSubmitting = false; syncAdminPromptButtons(); }
       }
 
@@ -342,7 +631,7 @@
           const data = await request("GET", "/api/admin/runtime?logsLimit=200&stepsLimit=24");
           runtimeState.activeStep = data.activeStep || null;
           runtimeState.steps = Array.isArray(data.steps) ? data.steps : [];
-          runtimeState.logs = Array.isArray(data.logs) ? data.logs : [];
+          runtimeState.logs  = Array.isArray(data.logs)  ? data.logs  : [];
           renderRuntime();
         } catch (e) { runtimeLogMeta.textContent = `Falha: ${e.message}`; }
       }
@@ -356,12 +645,12 @@
         } catch (e) { if (adminPromptState.item) setStatus(adminPromptStatus, e.message, true); }
       }
 
-      // ── SSE Stream ──
+      // ── SSE ──
       function applyAdminSnapshot(data) {
         const rt = data?.runtime || {};
         runtimeState.activeStep = rt.activeStep || null;
         runtimeState.steps = Array.isArray(rt.steps) ? rt.steps : [];
-        runtimeState.logs = Array.isArray(rt.logs) ? rt.logs : [];
+        runtimeState.logs  = Array.isArray(rt.logs)  ? rt.logs  : [];
         renderRuntime();
         const prompt = data?.prompt || {};
         if (!adminPromptSettings.isSaving) renderPromptSettings(prompt.settings || {});
@@ -379,12 +668,9 @@
         disconnectAdminStream();
         const stream = new EventSource("/api/admin/stream");
         adminStreamState.eventSource = stream;
-        stream.addEventListener("open", () => { adminStreamState.connected = true; renderRuntime(); });
-        stream.addEventListener("snapshot", (e) => {
-          adminStreamState.connected = true;
-          try { applyAdminSnapshot(JSON.parse(e.data || "{}")); } catch {}
-        });
-        stream.addEventListener("error", () => {
+        stream.addEventListener("open",     () => { adminStreamState.connected = true; renderRuntime(); });
+        stream.addEventListener("snapshot", (e) => { adminStreamState.connected = true; try { applyAdminSnapshot(JSON.parse(e.data || "{}")); } catch {} });
+        stream.addEventListener("error",    () => {
           adminStreamState.connected = false; renderRuntime();
           if (adminStreamState.eventSource === stream) { stream.close(); adminStreamState.eventSource = null; }
           if (!adminStreamState.reconnectTimer) {
@@ -393,21 +679,18 @@
         });
       }
 
-      // ── Event listeners ──
+      // ── Events ──
       adminPromptConfirm.addEventListener("click", () => submitAdminPrompt("confirm"));
-      adminPromptSubmit.addEventListener("click", () => submitAdminPrompt("manual"));
-      adminPromptSkip.addEventListener("click", () => submitAdminPrompt("skip"));
-      adminPromptCancel.addEventListener("click", () => submitAdminPrompt("cancel"));
-
-      runtimeLogFilter.addEventListener("input", (e) => { runtimeState.filterText = e.currentTarget.value || ""; renderRuntime(); });
-      runtimeLogLevel.addEventListener("change", (e) => { runtimeState.level = e.currentTarget.value || "all"; renderRuntime(); });
-      runtimeLogSource.addEventListener("change", (e) => { runtimeState.source = e.currentTarget.value || "all"; renderRuntime(); });
+      adminPromptSubmit.addEventListener("click",  () => submitAdminPrompt("manual"));
+      adminPromptSkip.addEventListener("click",    () => submitAdminPrompt("skip"));
+      adminPromptCancel.addEventListener("click",  () => submitAdminPrompt("cancel"));
+      runtimeLogFilter.addEventListener("input",   (e) => { runtimeState.filterText = e.currentTarget.value || ""; renderRuntime(); });
+      runtimeLogLevel.addEventListener("change",   (e) => { runtimeState.level = e.currentTarget.value || "all"; renderRuntime(); });
+      runtimeLogSource.addEventListener("change",  (e) => { runtimeState.source = e.currentTarget.value || "all"; renderRuntime(); });
       runtimePauseButton.addEventListener("click", () => { runtimeState.isPaused = !runtimeState.isPaused; renderRuntime(); if (!runtimeState.isPaused) refreshRuntime(); });
       runtimeClearButton.addEventListener("click", async () => {
-        try {
-          await request("POST", "/api/admin/runtime/clear", {});
-          runtimeState.activeStep = null; runtimeState.steps = []; runtimeState.logs = []; renderRuntime();
-        } catch (e) { runtimeLogMeta.textContent = `Falha ao limpar: ${e.message}`; }
+        try { await request("POST", "/api/admin/runtime/clear", {}); runtimeState.activeStep = null; runtimeState.steps = []; runtimeState.logs = []; renderRuntime(); }
+        catch (e) { runtimeLogMeta.textContent = `Falha ao limpar: ${e.message}`; }
       });
 
       // ── Init ──
@@ -415,7 +698,6 @@
       refreshRuntime();
       refreshAdminPrompt();
       connectAdminStream();
-
       setInterval(refreshProcesses, 3000);
       setInterval(refreshRuntime, 15000);
       setInterval(refreshAdminPrompt, 15000);

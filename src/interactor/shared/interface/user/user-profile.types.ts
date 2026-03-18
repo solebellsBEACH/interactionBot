@@ -48,6 +48,8 @@ export type UserProfileLinkedinSnapshot = {
   currentCompany: string
   topEducation: string
   about: string
+  avatarUrl: string
+  backgroundImageUrl: string
   topSkills: string[]
   languages: string[]
   experiences: UserProfileLinkedinExperience[]

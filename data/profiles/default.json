@@ -549,7 +549,7 @@
     }
   },
   "linkedinProfile": {
-    "capturedAt": "2026-03-15T15:38:29.458Z",
+    "capturedAt": "2026-03-18T02:43:49.939Z",
     "name": "Lucas Xavier",
     "headline": "Senior Full Stack Engineer | React.js | Web3.js | TypeScript | Node.js | Micro Frontends | Remote-First | Accessibility | WCAG",
     "location": "Vila Velha, Espírito Santo, Brazil",
@@ -558,6 +558,8 @@
     "currentCompany": "Questrade Financial Group",
     "topEducation": "Universidade Vila Velha - UVV",
     "about": "Passionate Full Stack Engineer with over 5 years of experience designing and building scalable web applications using modern JavaScript frameworks. Skilled in React.js, Angular 17+, Node.js, NestJS, TypeScript, and Micro Frontends. I currently work remotely at Questrade Financial Group (Toronto, Canada), enhancing the performance and reliability of the MyQuestrade platform through modular architecture and continuous integration. I value clean architecture, collaboration across global teams, and delivering measurable impact — such as reducing critical page load times by 15% and optimizing backend integrations. 🚀 Open to opportunities in remote-first international teams, particularly in FinTech, SaaS, or scalable product environments. 💬 Tech Stack: React, Angular, Next.js, Node.js, NestJS, TypeScript, Docker, PostgreSQL, Datadog, Amplitude, CI/CD 🌍 Languages: English (Fluent), Portuguese (Native) React.js, Angular 17+, TypeScript, Node.js, NestJS, Next.js, Micro Frontends, Clean Architecture, Docker, CI/CD, PostgreSQL, Datadog, Amplitude, Cypress, E2E Testing, Performance Optimization, FinTech, SaaS, Remote Work, Full Stack Engineer, Front End Engineer, Agile, SCRUM. Passionate Full Stack Engineer with over 5 years of experience designing and building scalable web applications using modern JavaScript frameworks. Skilled in React.js, Angular 17+, Node.js, NestJS, TypeScript, and Micro Frontends. I currently work remotely at Questrade Financial Group (Toronto, Canada), enhancing the performance and reliability of the MyQuestrade platform through modular architecture and continuous integration. I value clean architecture, collaboration across global teams, and delivering measurable impact — such as reducing critical page load times by 15% and optimizing backend integrations. 🚀 Open to opportunities in remote-first international teams, particularly in FinTech, SaaS, or scalable product environments. 💬 Tech Stack: React, Angular, Next.js, Node.js, NestJS, TypeScript, Docker, PostgreSQL, Datadog, Amplitude, CI/CD 🌍 Languages: English (Fluent), Portuguese (Native) React.js, Angular 17+, TypeScript, Node.js, NestJS, Next.js, Micro Frontends, Clean Architecture, Docker, CI/CD, PostgreSQL, Datadog, Amplitude, Cypress, E2E Testing, Performance Optimization, FinTech, SaaS, Remote Work, Full Stack Engineer, Front End Engineer, Agile, SCRUM.",
+    "avatarUrl": "",
+    "backgroundImageUrl": "",
     "topSkills": [
       "React.js",
       "Node.js",
@@ -730,5 +732,5 @@
     "totalExperienceLabel": "5 anos e 9 meses"
   },
   "profileReview": null,
-  "updatedAt": "2026-03-15T15:38:29.460Z"
+  "updatedAt": "2026-03-18T02:43:49.941Z"
 }

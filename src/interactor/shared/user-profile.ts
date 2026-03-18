@@ -236,6 +236,8 @@ const normalizeLinkedinProfile = (value: unknown): UserProfileLinkedinSnapshot |
         currentCompany: normalizeText(record.currentCompany),
         topEducation: normalizeText(record.topEducation),
         about: normalizeText(record.about),
+        avatarUrl: normalizeText(record.avatarUrl),
+        backgroundImageUrl: normalizeText(record.backgroundImageUrl),
         topSkills: normalizeStringArray(record.topSkills),
         languages: normalizeStringArray(record.languages),
         experiences,
