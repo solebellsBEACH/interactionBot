@@ -2,7 +2,8 @@ import { BrowserContext, chromium } from "playwright";
 
 import { AdminPromptBroker } from "../admin/prompt-broker";
 import { AdminProcessManager } from "../admin/process-manager";
-import { AdminServer } from "../admin/admin-server";
+import { createFastifyServer } from "../admin/fastify-server";
+import { startWorkerPool } from "../admin/queue/worker-pool";
 import { hydrateControlPlaneContext } from "../api/controllers/auth";
 import { LinkedinFeatures } from "./features/linkedin";
 import { DiscordClient } from "./shared/discord/discord-client";
@@ -12,7 +13,7 @@ import { hydrateUserProfile } from "./shared/user-profile";
 import { resolveScopedPath } from "./shared/utils/user-data-dir";
 
 let browser: BrowserContext | undefined
-let adminServer: AdminServer | undefined
+let adminServer: { start: () => Promise<string>; stop: () => Promise<void>; address: string } | undefined
 let shuttingDown = false
 
 async function main(): Promise<void> {
@@ -62,7 +63,7 @@ async function main(): Promise<void> {
             resetSession: linkedinFeatures.resetSession.bind(linkedinFeatures)
         })
 
-        adminServer = new AdminServer({
+        adminServer = await createFastifyServer({
             host: env.admin.host,
             port: resolveAdminPort(env.admin.port),
             processManager,
@@ -71,6 +72,11 @@ async function main(): Promise<void> {
 
         await adminServer.start()
         logger.info(`Admin disponível em ${adminServer.address}`)
+
+        if (env.queue.enabled) {
+            startWorkerPool()
+            logger.info("Worker pool BullMQ iniciado.")
+        }
     }
 
     logger.info('LinkedIn aberto. Feche a janela para encerrar.')

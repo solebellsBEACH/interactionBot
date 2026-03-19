@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { clearRemoteUserProfile, fetchRemoteUserProfile, saveRemoteUserProfile } from "../../api/controllers/user-profile";
+import { getProfile as getPgProfile, saveProfile as savePgProfile, createSchema as createPgSchema } from "../../admin/db/profile-store";
 import type { UserProfile } from "./interface/user/user-profile.types";
 import type {
     UserProfileCompensation,
@@ -47,16 +48,19 @@ let activeProfileScope = ""
 
 const getProfileStorageMode = () => {
     const value = (process.env.USER_PROFILE_STORAGE || "auto").trim().toLowerCase()
-    if (value === "api" || value === "local" || value === "auto") return value
+    if (value === "api" || value === "local" || value === "auto" || value === "postgres") return value
     return "auto"
 }
 
 const shouldUseApiProfile = () => {
     const mode = getProfileStorageMode()
+    if (mode === "postgres") return false
     if (mode === "api") return true
     if (mode === "local") return false
     return hasBotControlPlaneContext()
 }
+
+const shouldUsePostgresProfile = () => getProfileStorageMode() === "postgres"
 
 const getProfileStorageKey = () => {
     const scopeId = getBotScopeId()
@@ -495,7 +499,18 @@ export const hydrateUserProfile = async (force = false) => {
     if (profileHydrated && !force) return userProfile
 
     let nextProfile: UserProfile | null = null
-    if (shouldUseApiProfile()) {
+
+    if (shouldUsePostgresProfile()) {
+        try {
+            await createPgSchema()
+            const pgProfile = await getPgProfile(getProfileStorageKey())
+            if (pgProfile) {
+                nextProfile = normalizeUserProfile(pgProfile)
+            }
+        } catch (error) {
+            logger.warn("Falha ao carregar user profile do PostgreSQL. Usando fallback local.", error)
+        }
+    } else if (shouldUseApiProfile()) {
         try {
             const remote = await fetchRemoteUserProfile()
             if (remote) {
@@ -571,6 +586,11 @@ export const saveUserProfile = (value: Partial<UserProfile>) => {
 
     applyCachedProfile(merged)
     saveProfileToFile(userProfile)
+    if (shouldUsePostgresProfile()) {
+        void savePgProfile(getProfileStorageKey(), userProfile).catch((error) => {
+            logger.warn("Falha ao salvar user profile no PostgreSQL.", error)
+        })
+    }
     void queueRemoteProfileSave(userProfile)
     profileHydrated = true
     return userProfile

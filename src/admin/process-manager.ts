@@ -8,7 +8,13 @@ import type {
 } from "../interactor/shared/interface/scrap/jobs.types";
 import type { UserProfile } from "../interactor/shared/interface/user/user-profile.types";
 import { logger } from "../interactor/shared/services/logger";
+import { env } from "../interactor/shared/env";
 import { adminRuntimeStore } from "./admin-runtime-store";
+import { redis } from "./redis/client";
+import { jobQueue } from "./queue/queue";
+import type { WorkerJob } from "../interactor/worker/worker-job";
+
+const REDIS_HISTORY_KEY = "bot:process:history";
 
 type UpvoteOptions = {
   maxLikes?: number
@@ -120,6 +126,7 @@ export class AdminProcessManager {
   constructor(actions: LinkedinCommandActions, options?: { historyLimit?: number }) {
     this._actions = actions;
     this._historyLimit = options?.historyLimit ?? 30;
+    void this._loadHistoryFromRedis();
   }
 
   getState() {
@@ -127,6 +134,27 @@ export class AdminProcessManager {
       running: this._running,
       history: [...this._history],
     };
+  }
+
+  private async _loadHistoryFromRedis() {
+    if (!redis) return;
+    try {
+      const raw = await redis.get(REDIS_HISTORY_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as AdminProcessRecord[];
+      if (Array.isArray(parsed)) {
+        this._history = parsed.slice(0, this._historyLimit);
+      }
+    } catch {
+      // ignore — start fresh
+    }
+  }
+
+  private _persistHistoryToRedis() {
+    if (!redis) return;
+    void redis
+      .set(REDIS_HISTORY_KEY, JSON.stringify(this._history))
+      .catch(() => undefined);
   }
 
   startEasyApply(payload: EasyApplyPayload) {
@@ -370,6 +398,7 @@ export class AdminProcessManager {
     }
 
     this._history = [];
+    this._persistHistoryToRedis();
 
     return this._startProcess("reset-session", {}, async () => {
       const result = await this._actions.resetSession?.();
@@ -422,7 +451,11 @@ export class AdminProcessManager {
       },
     });
 
-    void run()
+    const runner = env.queue.enabled && jobQueue
+      ? () => this._runViaQueue(processRecord, type, input)
+      : run;
+
+    void runner()
       .then((result) => {
         processRecord.status = "succeeded";
         processRecord.endedAt = new Date().toISOString();
@@ -468,9 +501,56 @@ export class AdminProcessManager {
       .finally(() => {
         this._running = null;
         this._history = [processRecord, ...this._history].slice(0, this._historyLimit);
+        this._persistHistoryToRedis();
       });
 
     return processRecord;
+  }
+
+  private async _runViaQueue(
+    processRecord: AdminProcessRecord,
+    type: AdminProcessType,
+    input: Record<string, unknown>
+  ): Promise<ProcessResult> {
+    if (!jobQueue) throw new Error("Queue not available");
+
+    const workerJob: WorkerJob = {
+      id: processRecord.id,
+      type,
+      payload: input,
+      headless: true,
+    };
+
+    const queueEvents = await this._getQueueEvents();
+    const job = await jobQueue.add(type, { processRecord, job: workerJob });
+    const result = await job.waitUntilFinished(queueEvents);
+    return result as ProcessResult;
+  }
+
+  private _queueEvents: import("bullmq").QueueEvents | null = null;
+  private async _getQueueEvents() {
+    if (!this._queueEvents) {
+      const { QueueEvents } = await import("bullmq");
+      const redisUrl = env.redis.url;
+      if (!redisUrl) throw new Error("REDIS_URL required for queue mode");
+      const connection = this._parseRedisUrl(redisUrl);
+      this._queueEvents = new QueueEvents("linkedin-jobs", { connection });
+    }
+    return this._queueEvents;
+  }
+
+  private _parseRedisUrl(url: string) {
+    try {
+      const u = new URL(url);
+      return {
+        host: u.hostname || "127.0.0.1",
+        port: u.port ? Number(u.port) : 6379,
+        password: u.password || undefined,
+        db: u.pathname ? Number(u.pathname.slice(1)) || 0 : 0,
+      };
+    } catch {
+      return { host: "127.0.0.1", port: 6379 };
+    }
   }
 
   private _createId() {

@@ -102,5 +102,15 @@ export const env = {
     recruiterURL: readString('LINKEDIN_RECRUITER_URL', DEFAULTS.linkedin.recruiterURL),
     message: readString('LINKEDIN_CONNECT_MESSAGE', DEFAULTS.linkedin.message),
     defaultJobsApplyLength: readNumber('LINKEDIN_DEFAULT_JOBS_APPLY_LENGTH', DEFAULTS.linkedin.defaultJobsApplyLength)
-  }
+  },
+  redis: {
+    url: readString('REDIS_URL'),
+  },
+  queue: {
+    enabled: readBool('WORKER_QUEUE_ENABLED'),
+  },
+  db: {
+    url: readString('DATABASE_URL'),
+    profileStorage: readString('USER_PROFILE_STORAGE', 'file'),
+  },
 }

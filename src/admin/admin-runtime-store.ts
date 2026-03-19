@@ -11,6 +11,10 @@ import {
 import { subscribeLogs } from "../interactor/shared/services/logger";
 import type { LogEntry } from "../interactor/shared/services/logger";
 import { hasBotControlPlaneContext } from "../interactor/shared/utils/user-data-dir";
+import { redis } from "./redis/client";
+
+const REDIS_LOGS_KEY = "bot:runtime:logs";
+const REDIS_STEPS_KEY = "bot:runtime:steps";
 
 type RecordStepInput = {
   key?: string;
@@ -50,6 +54,20 @@ class AdminRuntimeStore {
     const logsLimit = this._normalizeLimit(options?.logsLimit, 200, MAX_LOG_ENTRIES);
     const stepsLimit = this._normalizeLimit(options?.stepsLimit, 24, MAX_STEP_ENTRIES);
 
+    if (redis) {
+      try {
+        const [rawLogs, rawSteps] = await Promise.all([
+          redis.lrange(REDIS_LOGS_KEY, 0, logsLimit - 1),
+          redis.lrange(REDIS_STEPS_KEY, 0, stepsLimit - 1),
+        ]);
+        const logs = rawLogs.map((s) => JSON.parse(s) as AdminRuntimeLogEntry);
+        const steps = rawSteps.map((s) => JSON.parse(s) as AdminRuntimeStepEntry);
+        return { activeStep: this._activeStep, steps, logs };
+      } catch {
+        // fall through to in-memory
+      }
+    }
+
     return {
       activeStep: this._activeStep,
       steps: this._steps.slice(0, stepsLimit),
@@ -63,6 +81,14 @@ class AdminRuntimeStore {
         await clearAdminRuntime();
       } catch {
         this._markRemoteFailure();
+      }
+    }
+
+    if (redis) {
+      try {
+        await redis.del(REDIS_LOGS_KEY, REDIS_STEPS_KEY);
+      } catch {
+        // ignore
       }
     }
 
@@ -91,6 +117,14 @@ class AdminRuntimeStore {
       this._activeStep = null;
     }
 
+    if (redis) {
+      const r = redis;
+      void r
+        .lpush(REDIS_STEPS_KEY, JSON.stringify(entry))
+        .then(() => r.ltrim(REDIS_STEPS_KEY, 0, MAX_STEP_ENTRIES - 1))
+        .catch(() => undefined);
+    }
+
     this._queueRemote(() => appendAdminRuntimeStep(entry));
     return entry;
   }
@@ -106,6 +140,15 @@ class AdminRuntimeStore {
     };
 
     this._logs = [logEntry, ...this._logs].slice(0, MAX_LOG_ENTRIES);
+
+    if (redis) {
+      const r = redis;
+      void r
+        .lpush(REDIS_LOGS_KEY, JSON.stringify(logEntry))
+        .then(() => r.ltrim(REDIS_LOGS_KEY, 0, MAX_LOG_ENTRIES - 1))
+        .catch(() => undefined);
+    }
+
     this._queueRemote(() => appendAdminRuntimeLog(logEntry));
   }
 
