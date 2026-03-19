@@ -7,6 +7,7 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "npx concurrently -n bot,web -c green,cyan \"ts-node src/interactor/main.ts\" \"npm run dev --workspace=packages/app\"",
     "start": "ts-node src/interactor/main.ts",
     "open:linkedin": "npx ts-node src/interactor/main.ts",
     "worker": "ts-node src/interactor/worker.ts",
@@ -17,7 +18,10 @@
     "test": "node scripts/test-functions.mjs",
     "test:playwright": "playwright test",
     "test:ui": "playwright test --ui --headed",
-    "build:web": "npm run build --workspace=packages/web"
+    "build:web": "npm run build --workspace=packages/web",
+    "dev:app": "npm run dev --workspace=packages/app",
+    "build:app": "npm run build --workspace=packages/app",
+    "start:app": "npm run start --workspace=packages/app"
   },
   "author": "",
   "license": "MIT",
