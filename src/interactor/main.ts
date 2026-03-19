@@ -5,6 +5,7 @@ import { AdminProcessManager } from "../admin/process-manager";
 import { createFastifyServer } from "../admin/fastify-server";
 import { startWorkerPool } from "../admin/queue/worker-pool";
 import { hydrateControlPlaneContext } from "../api/controllers/auth";
+import { createAnalyticsSchema } from "../admin/db/analytics-store";
 import { LinkedinFeatures } from "./features/linkedin";
 import { DiscordClient } from "./shared/discord/discord-client";
 import { env } from "./shared/env";
@@ -33,6 +34,7 @@ async function main(): Promise<void> {
 
     await hydrateControlPlaneContext()
     await hydrateUserProfile()
+    await createAnalyticsSchema().catch(() => undefined)
 
     browser = await chromium.launchPersistentContext(resolveScopedPath(env.userDataDir), {
         headless: false,

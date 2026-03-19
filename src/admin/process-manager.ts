@@ -12,6 +12,7 @@ import { env } from "../interactor/shared/env";
 import { adminRuntimeStore } from "./admin-runtime-store";
 import { redis } from "./redis/client";
 import { jobQueue } from "./queue/queue";
+import { saveAppliedJobsBatch, saveJobSearch } from "./db/analytics-store";
 import type { WorkerJob } from "../interactor/worker/worker-job";
 
 const REDIS_HISTORY_KEY = "bot:process:history";
@@ -476,6 +477,7 @@ export class AdminProcessManager {
             type,
           },
         });
+        void this._saveAnalytics(type, input, result.output).catch(() => undefined);
       })
       .catch((error: unknown) => {
         processRecord.status = "failed";
@@ -550,6 +552,50 @@ export class AdminProcessManager {
       };
     } catch {
       return { host: "127.0.0.1", port: 6379 };
+    }
+  }
+
+  private async _saveAnalytics(
+    type: AdminProcessType,
+    input: Record<string, unknown>,
+    output: unknown
+  ): Promise<void> {
+    const o = output as Record<string, unknown> | undefined;
+
+    if (type === "scan-applied-jobs") {
+      type ScannedJob = { url?: string; title?: string; company?: string; location?: string; appliedAt?: string };
+      const jobs = (o?.jobsPreview as ScannedJob[] | undefined) ?? [];
+      await saveAppliedJobsBatch(jobs.map((j) => ({ ...j, url: j.url ?? "", source: "scan" })));
+    }
+
+    if (type === "search-jobs") {
+      const tag = input.tag as string;
+      const jobsFound = (o?.total as number) ?? 0;
+      const jobsApplied = (o?.applied as number) ?? 0;
+      await saveJobSearch({ tag, jobsFound, jobsApplied, location: input.location as string | undefined });
+      if (input.apply && o?.jobs) {
+        const now = new Date().toISOString();
+        type SearchJob = { url?: string; title?: string; company?: string; location?: string };
+        const jobs = o.jobs as SearchJob[];
+        await saveAppliedJobsBatch(jobs.map((j) => ({ ...j, url: j.url ?? "", appliedAt: now, source: "search-jobs", tag })));
+      }
+    }
+
+    if (type === "easy-apply") {
+      const jobUrl = input.jobUrl as string | undefined;
+      if (jobUrl && jobUrl !== "default") {
+        await saveAppliedJobsBatch([{ url: jobUrl, appliedAt: new Date().toISOString(), source: "easy-apply" }]);
+      }
+    }
+
+    if (type === "apply-jobs") {
+      const jobUrls = input.jobUrls as string[] | undefined;
+      if (jobUrls?.length) {
+        const failed = new Set((o?.failed as string[] | undefined) ?? []);
+        const succeeded = jobUrls.filter((u) => !failed.has(u));
+        const now = new Date().toISOString();
+        await saveAppliedJobsBatch(succeeded.map((url) => ({ url, appliedAt: now, source: "apply-jobs" })));
+      }
     }
   }
 

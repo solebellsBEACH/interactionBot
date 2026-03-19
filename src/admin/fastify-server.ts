@@ -1,8 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import fastifyStatic from "@fastify/static";
 import fastifyCors from "@fastify/cors";
-import path from "path";
-import fs from "fs";
 
 import { listGptInteractions } from "../api/controllers/gpt-interactions";
 import {
@@ -15,6 +12,7 @@ import { env } from "../interactor/shared/env";
 import { logger } from "../interactor/shared/services/logger";
 import { getBotTenantId, getBotWorkspaceId, hasBotControlPlaneContext } from "../interactor/shared/utils/user-data-dir";
 import { adminRuntimeStore } from "./admin-runtime-store";
+import { getAnalyticsSummary, getAppliedJobs } from "./db/analytics-store";
 import { AdminPromptAction, AdminPromptBroker, AdminPromptError } from "./prompt-broker";
 import {
   AdminProcessManager,
@@ -83,58 +81,9 @@ export async function createFastifyServer(options: FastifyServerOptions): Promis
   stop: () => Promise<void>;
   address: string;
 }> {
-  const vanillaAssetsPath = path.resolve(process.cwd(), "src", "admin", "web");
-  const reactBuildPath = path.resolve(process.cwd(), "packages", "web", "dist");
-  const useReactBuild = fs.existsSync(reactBuildPath);
-
-  const adminAssetsPath = useReactBuild ? reactBuildPath : vanillaAssetsPath;
-
   const app: FastifyInstance = Fastify({ logger: false });
 
   await app.register(fastifyCors, { origin: true });
-
-  // Static admin assets (React build or vanilla HTML files)
-  await app.register(fastifyStatic, {
-    root: adminAssetsPath,
-    prefix: "/admin/",
-    decorateReply: true,
-    wildcard: false,
-  });
-
-  if (useReactBuild) {
-    // React SPA: serve index.html for all /admin/* routes (client-side routing)
-    const indexHtml = path.join(reactBuildPath, "index.html");
-    app.get("/", (_, reply) => { reply.redirect("/admin"); });
-    app.get("/admin", (_, reply) => { reply.type("text/html; charset=utf-8").sendFile("index.html"); });
-    app.get("/admin/*", (_, reply) => {
-      // Only serve index.html for non-asset paths
-      const reqPath = (_ as { url: string }).url;
-      if (reqPath.match(/\.\w+$/)) return reply.callNotFound();
-      reply.type("text/html; charset=utf-8").sendFile("index.html");
-    });
-  } else {
-    // Vanilla HTML pages
-    const serveHtml = (name: string) => (_: unknown, reply: { type: (t: string) => void; sendFile: (f: string) => void }) => {
-      reply.type("text/html; charset=utf-8");
-      reply.sendFile(`${name}.html`);
-    };
-
-    app.get("/", (_, reply) => { reply.redirect("/admin"); });
-    app.get("/admin", serveHtml("index"));
-    app.get("/admin/", serveHtml("index"));
-    app.get("/admin/dashboard", serveHtml("dashboard"));
-    app.get("/admin/dashboard/", serveHtml("dashboard"));
-    app.get("/admin/jobs", serveHtml("jobs"));
-    app.get("/admin/jobs/", serveHtml("jobs"));
-    app.get("/admin/profile", serveHtml("profile"));
-    app.get("/admin/profile/", serveHtml("profile"));
-    app.get("/admin/gpt", serveHtml("gpt"));
-    app.get("/admin/gpt/", serveHtml("gpt"));
-    app.get("/admin/settings", serveHtml("settings"));
-    app.get("/admin/settings/", serveHtml("settings"));
-
-    // Vanilla static assets (nav.js, shared.css, saas-dashboard.js served automatically by @fastify/static)
-  }
 
   // ── API: processes ──────────────────────────────────────────────────────────
 
@@ -381,6 +330,23 @@ export async function createFastifyServer(options: FastifyServerOptions): Promis
   app.post("/api/admin/processes/reset-session", async (_, reply) => {
     const processRecord = options.processManager.startResetSession();
     reply.code(202).send(processRecord);
+  });
+
+  // ── API: analytics ──────────────────────────────────────────────────────────
+
+  app.get("/api/admin/analytics/summary", async (_, reply) => {
+    reply.send(await getAnalyticsSummary());
+  });
+
+  app.get("/api/admin/analytics/applied-jobs", async (req, reply) => {
+    const q = req.query as Record<string, string>;
+    const jobs = await getAppliedJobs({
+      company: q.company || undefined,
+      tag: q.tag || undefined,
+      order: q.order === "asc" ? "asc" : "desc",
+      limit: q.limit ? Math.min(Number(q.limit) || 200, 500) : 200,
+    });
+    reply.send({ jobs });
   });
 
   // ── SSE stream ──────────────────────────────────────────────────────────────

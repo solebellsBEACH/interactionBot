@@ -45,6 +45,8 @@ export default function JobsPage() {
   const [easyApplyStatus, setEasyApplyStatus] = useState('')
   const [appliedJobs, setAppliedJobs] = useState<AppliedJob[]>([])
   const [easyApplyUrl, setEasyApplyUrl] = useState('')
+  const [companyFilter, setCompanyFilter] = useState('')
+  const [dateOrder, setDateOrder] = useState<'desc' | 'asc'>('desc')
 
   const [tag, setTag] = useState('')
   const [maxResults, setMaxResults] = useState('')
@@ -301,30 +303,65 @@ export default function JobsPage() {
         </div>
       )}
 
-      {appliedJobs.length > 0 && (
-        <div className="card">
-          <h2>Vagas Aplicadas</h2>
-          <div className="table-wrap" style={{ maxHeight: 220, marginTop: 10 }}>
-            <table>
-              <thead>
-                <tr><th>#</th><th>Vaga</th><th>Empresa</th><th>Local</th><th>Aplicada</th><th>Link</th></tr>
-              </thead>
-              <tbody>
-                {appliedJobs.map((j, i) => (
-                  <tr key={i}>
-                    <td className="meta">{i + 1}</td>
-                    <td>{j.title ?? '-'}</td>
-                    <td>{j.company ?? '-'}</td>
-                    <td>{j.location ?? '-'}</td>
-                    <td><span className="meta">{formatDate(j.appliedAt)}</span></td>
-                    <td>{j.url ? <a href={j.url} target="_blank" rel="noreferrer">Abrir</a> : '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {appliedJobs.length > 0 && (() => {
+        const filtered = appliedJobs
+          .filter((j) => !companyFilter || (j.company ?? '').toLowerCase().includes(companyFilter.toLowerCase()))
+          .slice()
+          .sort((a, b) => {
+            const ta = new Date(a.appliedAt ?? 0).getTime()
+            const tb = new Date(b.appliedAt ?? 0).getTime()
+            return dateOrder === 'desc' ? tb - ta : ta - tb
+          })
+
+        return (
+          <div className="card">
+            <div className="toolbar" style={{ marginBottom: 10 }}>
+              <div>
+                <h2 style={{ margin: 0 }}>Vagas Aplicadas</h2>
+                <div className="meta">{filtered.length} de {appliedJobs.length} vaga(s)</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="search"
+                  placeholder="Filtrar por empresa…"
+                  style={{ width: 200 }}
+                  value={companyFilter}
+                  onChange={(e) => setCompanyFilter(e.target.value)}
+                />
+                <button
+                  style={{ width: 'auto', padding: '8px 12px', background: 'transparent', border: '1px solid var(--line)', color: 'var(--ink)', fontWeight: 500 }}
+                  onClick={() => setDateOrder((o) => o === 'desc' ? 'asc' : 'desc')}
+                  title="Ordenar por data"
+                >
+                  Data {dateOrder === 'desc' ? '↓' : '↑'}
+                </button>
+              </div>
+            </div>
+            <div className="table-wrap" style={{ maxHeight: 320 }}>
+              <table>
+                <thead>
+                  <tr><th>#</th><th>Vaga</th><th>Empresa</th><th>Local</th><th>Aplicada</th><th>Link</th></tr>
+                </thead>
+                <tbody>
+                  {filtered.map((j, i) => (
+                    <tr key={i}>
+                      <td className="meta">{i + 1}</td>
+                      <td>{j.title ?? '-'}</td>
+                      <td>{j.company ?? '-'}</td>
+                      <td>{j.location ?? '-'}</td>
+                      <td><span className="meta">{formatDate(j.appliedAt)}</span></td>
+                      <td>{j.url ? <a href={j.url} target="_blank" rel="noreferrer">Abrir</a> : '-'}</td>
+                    </tr>
+                  ))}
+                  {!filtered.length && (
+                    <tr><td colSpan={6} className="muted">Nenhuma vaga para o filtro.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </>
   )
 }

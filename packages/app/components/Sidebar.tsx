@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useTheme } from '@/hooks/useTheme'
 
 const NAV_LINKS = [
   { href: '/admin', label: 'Início', exact: true },
@@ -14,6 +15,7 @@ const NAV_LINKS = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const { dark, toggle } = useTheme()
 
   return (
     <aside className="sidebar">
@@ -28,6 +30,9 @@ export function Sidebar() {
           )
         })}
       </nav>
+      <button onClick={toggle} className="theme-toggle" title={dark ? 'Modo claro' : 'Modo escuro'}>
+        {dark ? '☀' : '◐'}
+      </button>
     </aside>
   )
 }
