@@ -1,5 +1,3 @@
-import OpenAI from "openai";
-
 import {
     GptInteractionSource,
     saveGptInteraction,
@@ -15,9 +13,8 @@ import { logger } from "../services/logger";
 
 export type GptConfig = {
     enabled?: boolean
-    apiKey?: string
-    model?: string
     baseUrl?: string
+    model?: string
     requestTimeoutMs?: number
     temperature?: number
     maxTokens?: number
@@ -32,37 +29,25 @@ export type GptProfileReview = {
     parsed: Record<string, unknown> | null
 }
 
+type OllamaMessage = { role: string; content: string }
+
+interface OllamaResponse {
+    message?: { content?: string }
+}
+
 export class GptClient {
-    private readonly _config: Required<Omit<GptConfig, "apiKey" | "baseUrl">> & Pick<GptConfig, "apiKey" | "baseUrl">
-    private _client?: OpenAI
-    private _clientKey?: string
+    private readonly _config: Required<GptConfig>
     private _disabledLogged = false
-    private _missingKeyLogged = false
 
     constructor(config: GptConfig = {}) {
         this._config = {
-            enabled: config.enabled ?? Boolean(config.apiKey),
-            apiKey: config.apiKey,
-            model: config.model ?? "gpt-4o-mini",
-            baseUrl: config.baseUrl,
-            requestTimeoutMs: config.requestTimeoutMs ?? 20_000,
+            enabled: config.enabled ?? true,
+            baseUrl: config.baseUrl ?? "http://localhost:11434",
+            model: config.model ?? "llama3.2",
+            requestTimeoutMs: config.requestTimeoutMs ?? 30_000,
             temperature: config.temperature ?? 0.1,
-            maxTokens: config.maxTokens ?? 64
+            maxTokens: config.maxTokens ?? 64,
         }
-    }
-
-    async testClient(prompt: string) {
-        const openai = this._getClient()
-        if (!openai) return null
-
-        const response = await openai.responses.create({
-            model: this._config.model,
-            input: prompt,
-            store: true,
-        })
-
-        logger.info("GPT test response", response)
-        return response
     }
 
     async answerField(
@@ -75,127 +60,41 @@ export class GptClient {
             this._logDisabledOnce()
             return null
         }
-        const openai = this._getClient()
-        if (!openai) return null
-
         const prompt = this._buildPrompt(field, profile, historyAnswers)
         if (!prompt) return null
 
         const systemPrompt =
             "You fill job application fields. Reply with only the value, no extra text. If the answer is numeric, reply with a rounded integer only."
 
-        let responsesError: unknown = null
-        const responsesStartedAt = Date.now()
-
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), this._config.requestTimeoutMs)
+        const startedAt = Date.now()
         try {
-            const data = await openai.responses.create({
-                model: this._config.model,
-                temperature: this._config.temperature,
-                max_output_tokens: this._config.maxTokens,
-                input: [
-                    {
-                        role: "system",
-                        content: systemPrompt
-                    },
-                    { role: "user", content: prompt }
-                ]
-            }, {
-                signal: controller.signal
-            })
-
-            const content = this._extractResponseText(data)
+            const content = await this._callOllama([
+                { role: "system", content: systemPrompt },
+                { role: "user", content: prompt }
+            ])
             const trimmed = typeof content === "string" ? content.trim() : ""
             if (trimmed) {
                 void this._saveInteraction({
-                    field,
-                    prompt,
-                    answer: trimmed,
-                    source: "responses",
-                    success: true,
-                    step: context?.step,
-                    durationMs: Date.now() - responsesStartedAt
+                    field, prompt, answer: trimmed, source: "llama",
+                    success: true, step: context?.step, durationMs: Date.now() - startedAt
                 })
                 return trimmed
             }
-
-            responsesError = new Error("empty-response")
+            void this._saveInteraction({
+                field, prompt, source: "llama", success: false,
+                error: "empty-response", step: context?.step, durationMs: Date.now() - startedAt
+            })
         } catch (error) {
-            responsesError = error
-            this._logError("responses", error)
-        } finally {
-            clearTimeout(timeout)
+            this._logError(error)
+            void this._saveInteraction({
+                field, prompt, source: "llama", success: false,
+                error: this._errorToString(error), step: context?.step, durationMs: Date.now() - startedAt
+            })
         }
 
-        const completionStartedAt = Date.now()
-        try {
-            const completion = await openai.chat.completions.create({
-                model: this._config.model,
-                temperature: this._config.temperature,
-                max_tokens: this._config.maxTokens,
-                messages: [
-                    {
-                        role: "system",
-                        content: systemPrompt
-                    },
-                    { role: "user", content: prompt }
-                ]
-            })
-
-            const content = completion.choices?.[0]?.message?.content
-            if (typeof content !== "string") {
-                void this._saveInteraction({
-                    field,
-                    prompt,
-                    source: "chat.completions",
-                    success: false,
-                    error: this._mergeErrors(responsesError, "empty-response"),
-                    step: context?.step,
-                    durationMs: Date.now() - completionStartedAt
-                })
-                return null
-            }
-
-            const trimmed = content.trim()
-            if (!trimmed) {
-                void this._saveInteraction({
-                    field,
-                    prompt,
-                    source: "chat.completions",
-                    success: false,
-                    error: this._mergeErrors(responsesError, "empty-response"),
-                    step: context?.step,
-                    durationMs: Date.now() - completionStartedAt
-                })
-                return null
-            }
-
-            void this._saveInteraction({
-                field,
-                prompt,
-                answer: trimmed,
-                source: "chat.completions",
-                success: true,
-                step: context?.step,
-                durationMs: Date.now() - completionStartedAt
-            })
-
-            return trimmed
-        } catch (error) {
-            this._logError("chat.completions", error)
-            void this._saveInteraction({
-                field,
-                prompt,
-                source: "chat.completions",
-                success: false,
-                error: this._mergeErrors(responsesError, error),
-                step: context?.step,
-                durationMs: Date.now() - completionStartedAt
-            })
-            return null
-        }
+        return null
     }
+
     async reviewLinkedinProfile(
         profile: UserProfileLinkedinSnapshot,
         compensation?: UserProfileCompensation,
@@ -206,9 +105,6 @@ export class GptClient {
             this._logDisabledOnce()
             return null
         }
-
-        const openai = this._getClient()
-        if (!openai) return null
 
         const prompt = this._buildProfileReviewPrompt(profile, compensation, stackExperience, birthDate)
         const field: FormPromptField = {
@@ -222,182 +118,78 @@ export class GptClient {
             "You are a senior recruiter and LinkedIn profile reviewer for software engineers. Reply with valid JSON only."
         const maxTokens = Math.max(this._config.maxTokens, 1_200)
 
-        let responsesError: unknown = null
-        const responsesStartedAt = Date.now()
-
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), this._config.requestTimeoutMs)
+        const startedAt = Date.now()
         try {
-            const data = await openai.responses.create({
-                model: this._config.model,
-                temperature: this._config.temperature,
-                max_output_tokens: maxTokens,
-                input: [
-                    {
-                        role: "system",
-                        content: systemPrompt
-                    },
-                    {
-                        role: "user",
-                        content: prompt
-                    }
-                ]
-            }, {
-                signal: controller.signal
-            })
-
-            const review = this._parseProfileReview(this._extractResponseText(data))
+            const content = await this._callOllama(
+                [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: prompt }
+                ],
+                maxTokens
+            )
+            const review = this._parseProfileReview(typeof content === "string" ? content : null)
             if (review) {
                 void this._saveInteraction({
-                    field,
-                    prompt,
-                    answer: review.raw,
-                    source: "responses",
-                    success: true,
-                    durationMs: Date.now() - responsesStartedAt
+                    field, prompt, answer: review.raw, source: "llama",
+                    success: true, durationMs: Date.now() - startedAt
                 })
                 return review
             }
-
-            responsesError = new Error("invalid-json-response")
+            void this._saveInteraction({
+                field, prompt, source: "llama", success: false,
+                error: "invalid-json-response", durationMs: Date.now() - startedAt
+            })
         } catch (error) {
-            responsesError = error
-            this._logError("responses", error)
-        } finally {
-            clearTimeout(timeout)
+            this._logError(error)
+            void this._saveInteraction({
+                field, prompt, source: "llama", success: false,
+                error: this._errorToString(error), durationMs: Date.now() - startedAt
+            })
         }
 
-        const completionStartedAt = Date.now()
-        try {
-            const completion = await openai.chat.completions.create({
-                model: this._config.model,
-                temperature: this._config.temperature,
-                max_tokens: maxTokens,
-                messages: [
-                    {
-                        role: "system",
-                        content: systemPrompt
-                    },
-                    {
-                        role: "user",
-                        content: prompt
-                    }
-                ]
-            })
-
-            const content = completion.choices?.[0]?.message?.content
-            const review = this._parseProfileReview(typeof content === "string" ? content : null)
-            if (!review) {
-                void this._saveInteraction({
-                    field,
-                    prompt,
-                    source: "chat.completions",
-                    success: false,
-                    error: this._mergeErrors(responsesError, "invalid-json-response"),
-                    durationMs: Date.now() - completionStartedAt
-                })
-                return null
-            }
-
-            void this._saveInteraction({
-                field,
-                prompt,
-                answer: review.raw,
-                source: "chat.completions",
-                success: true,
-                durationMs: Date.now() - completionStartedAt
-            })
-
-            return review
-        } catch (error) {
-            this._logError("chat.completions", error)
-            void this._saveInteraction({
-                field,
-                prompt,
-                source: "chat.completions",
-                success: false,
-                error: this._mergeErrors(responsesError, error),
-                durationMs: Date.now() - completionStartedAt
-            })
-            return null
-        }
+        return null
     }
 
-    private _getClient() {
-        if (!this._config.apiKey) {
-            if (!this._missingKeyLogged) {
-                this._missingKeyLogged = true
-                logger.warn("GPT enabled but OPENAI_API_KEY is missing.")
-            }
-            return null
-        }
-        if (this._client && this._clientKey === this._config.apiKey) {
-            return this._client
-        }
-
-        this._clientKey = this._config.apiKey
-        this._client = new OpenAI({
-            apiKey: this._config.apiKey,
-            timeout: this._config.requestTimeoutMs,
-            ...(this._config.baseUrl
-                ? { baseURL: this._config.baseUrl.replace(/\/+$/, "") }
-                : {})
+    private async _callOllama(messages: OllamaMessage[], maxTokens?: number): Promise<string | null> {
+        const baseUrl = this._config.baseUrl.replace(/\/v1\/?$/, "").replace(/\/+$/, "")
+        const response = await fetch(`${baseUrl}/api/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                model: this._config.model,
+                messages,
+                stream: false,
+                options: {
+                    temperature: this._config.temperature,
+                    num_predict: maxTokens ?? this._config.maxTokens,
+                },
+            }),
+            signal: AbortSignal.timeout(this._config.requestTimeoutMs),
         })
-        return this._client
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+        const data = await response.json() as OllamaResponse
+        return data.message?.content?.trim() ?? null
     }
 
     private _logDisabledOnce() {
         if (this._disabledLogged) return
         this._disabledLogged = true
-        logger.warn("GPT is disabled. Set GPT_ENABLED=true and OPENAI_API_KEY.")
+        logger.warn("AI is disabled. Set GPT_ENABLED=true or configure LLAMA_BASE_URL.")
     }
 
-    private _logError(source: string, error: unknown) {
+    private _logError(error: unknown) {
         if (error && typeof error === "object") {
             const record = error as Record<string, unknown>
-            const status = record.status
-            const message = record.message
-            const code = record.code
-            logger.warn("GPT request failed", {
-                source,
-                status: typeof status === "number" ? status : undefined,
-                code: typeof code === "string" ? code : undefined,
-                message: typeof message === "string" ? message : String(error)
+            logger.warn("Llama request failed", {
+                status: typeof record.status === "number" ? record.status : undefined,
+                code: typeof record.code === "string" ? record.code : undefined,
+                message: typeof record.message === "string" ? record.message : String(error)
             })
             return
         }
-        logger.warn("GPT request failed", { source, message: String(error) })
-    }
-
-    private _extractResponseText(response: unknown) {
-        if (!response || typeof response !== "object") return null
-        const asRecord = response as Record<string, unknown>
-
-        const directOutput = asRecord.output_text
-        if (typeof directOutput === "string" && directOutput.trim()) {
-            return directOutput.trim()
-        }
-
-        const output = asRecord.output
-        if (!Array.isArray(output)) return null
-
-        for (const item of output) {
-            if (!item || typeof item !== "object") continue
-            const itemRecord = item as Record<string, unknown>
-            const content = itemRecord.content
-            if (!Array.isArray(content)) continue
-
-            for (const part of content) {
-                if (!part || typeof part !== "object") continue
-                const partRecord = part as Record<string, unknown>
-                const text = partRecord.text
-                if (typeof text === "string" && text.trim()) {
-                    return text.trim()
-                }
-            }
-        }
-
-        return null
+        logger.warn("Llama request failed", { message: String(error) })
     }
 
     private _parseProfileReview(content: string | null): GptProfileReview | null {
@@ -671,15 +463,6 @@ export class GptClient {
             .toLowerCase()
     }
 
-    private _mergeErrors(first: unknown, second: unknown) {
-        const pieces = [first, second]
-            .map((value) => this._errorToString(value))
-            .filter(Boolean)
-
-        if (pieces.length === 0) return undefined
-        return pieces.join(" | ")
-    }
-
     private _errorToString(error: unknown) {
         if (!error) return ""
         if (error instanceof Error) return error.message || error.name
@@ -717,7 +500,7 @@ export class GptClient {
                 durationMs: payload.durationMs
             })
         } catch (error) {
-            logger.warn("Failed to save GPT interaction", {
+            logger.warn("Failed to save AI interaction", {
                 message: this._errorToString(error)
             })
         }

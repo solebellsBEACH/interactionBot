@@ -78,12 +78,11 @@ export const env = {
     password: readString('LINKEDIN_PASSWORD'),
   },
   gpt: {
-    enabled: readBool('GPT_ENABLED') || Boolean(readString('OPENAI_API_KEY')),
-    apiKey: readString('OPENAI_API_KEY'),
-    model: readString('GPT_MODEL', 'gpt-4o-mini'),
-    baseUrl: readString('GPT_BASE_URL'),
-    requestTimeoutMs: readNumber('GPT_TIMEOUT_MS', 20_000),
-    temperature: readNumber('GPT_TEMPERATURE', 0.2),
+    enabled: readBool('GPT_ENABLED', true),
+    baseUrl: readString('LLAMA_BASE_URL', 'http://localhost:11434'),
+    model: readString('LLAMA_MODEL', 'llama3.2'),
+    requestTimeoutMs: readNumber('GPT_TIMEOUT_MS', 90_000),
+    temperature: readNumber('GPT_TEMPERATURE', 0.1),
     maxTokens: readNumber('GPT_MAX_TOKENS', 64),
   },
   easyApply: {

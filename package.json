@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npx concurrently -n bot,web -c green,cyan \"ts-node src/interactor/main.ts\" \"npm run dev --workspace=packages/app\"",
+    "dev": "docker compose up -d && npx concurrently -n bot,web -c green,cyan \"ts-node src/interactor/main.ts\" \"npm run dev --workspace=packages/app\"",
     "start": "ts-node src/interactor/main.ts",
     "open:linkedin": "npx ts-node src/interactor/main.ts",
     "worker": "ts-node src/interactor/worker.ts",
@@ -16,6 +16,7 @@
     "install:chrome": "npx playwright install chrome",
     "install:browsers": "npx playwright install chromium",
     "test": "node scripts/test-functions.mjs",
+    "test:ia": "ts-node scripts/test-ia.ts",
     "test:playwright": "playwright test",
     "test:ui": "playwright test --ui --headed",
     "build:web": "npm run build --workspace=packages/web",
@@ -32,8 +33,7 @@
     "discord.js": "^14.16.3",
     "fastify": "^5.8.2",
     "ioredis": "^5.10.0",
-    "openai": "^6.27.0",
-    "playwright": "1.48.2",
+"playwright": "1.48.2",
     "postgres": "^3.4.8"
   },
   "devDependencies": {
