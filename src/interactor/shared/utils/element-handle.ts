@@ -143,46 +143,6 @@ export class ElementHandle {
             const type = tag === 'input' ? (await item.getAttribute('type'))?.toLowerCase() : null
             if (tag === 'input' && type && this._isSkippableInputType(type)) continue
 
-            if (tag === 'input' && type === 'file') {
-                // Skip file inputs that are LinkedIn resume pickers — handled by _handleResumeSelection
-                const isResumePicker = await item.evaluate((el) => {
-                    const container = el.closest('[data-test-form-element], .jobs-easy-apply-form-element, fieldset')
-                        || el.parentElement?.parentElement || el.parentElement
-                    if (!container) return false
-                    return Boolean(container.querySelector('[aria-label*="select resume" i], [aria-label*="deselect resume" i]'))
-                }).catch(() => false)
-                if (isResumePicker) continue
-
-                const meta = await this._getControlMeta(item)
-                const label = meta.labelText || meta.placeholder || meta.ariaLabel || meta.name || meta.id
-                const key = normalizeKey(label || undefined)
-                const uniqueKey = meta.id || meta.name || key
-                if (uniqueKey && seenKeys.has(uniqueKey)) continue
-                if (uniqueKey) seenKeys.add(uniqueKey)
-
-                const value = await this._readFieldValue(item)
-                let finalValue = value
-                if (prompt && !value.trim()) {
-                    const answer = await prompt({
-                        type: 'input',
-                        key,
-                        label,
-                        value
-                    })
-                    if (answer && answer.trim()) {
-                        await item.setInputFiles(answer.trim()).catch(() => undefined)
-                        finalValue = answer.trim()
-                    }
-                }
-
-                values.push({
-                    key,
-                    label,
-                    value: finalValue
-                })
-                continue
-            }
-
             const target = await this._resolveEditableTarget(item)
             const targetVisible = await target.isVisible().catch(() => false)
             if (!targetVisible) continue
@@ -410,7 +370,7 @@ export class ElementHandle {
     }
 
     private _isSkippableInputType(type: string) {
-        return ['hidden', 'checkbox', 'radio', 'button', 'submit', 'reset', 'image'].includes(type)
+        return ['hidden', 'checkbox', 'radio', 'button', 'submit', 'reset', 'image', 'file'].includes(type)
     }
 
     private async _resolveEditableTarget(control: Locator): Promise<Locator> {
