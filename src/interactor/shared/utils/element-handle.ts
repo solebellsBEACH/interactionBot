@@ -97,6 +97,7 @@ export class ElementHandle {
 
     private async _getFormValues(element: Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormValues> {
         await this._handleCheckboxes(element)
+        await this._handleResumeSelection(element)
         const selectValues = await this._getSelectValues(element, prompt)
         const radioValues = await this._getRadioValues(element, prompt)
         const inputValues = await this._getInputValues(element, prompt)
@@ -105,6 +106,26 @@ export class ElementHandle {
             selectValues: [...selectValues, ...radioValues],
             inputValues
         };
+    }
+
+    private async _handleResumeSelection(element: Locator) {
+        try {
+            const deselect = element.locator('[aria-label*="Deselect resume" i], [aria-label*="Desmarcar" i]')
+            if (await deselect.first().isVisible().catch(() => false)) return
+
+            const select = element.locator('[aria-label*="Select resume" i], [aria-label*="Selecionar currículo" i], [aria-label*="Selecionar curriculo" i]')
+            const count = await select.count().catch(() => 0)
+            for (let i = 0; i < count; i++) {
+                const btn = select.nth(i)
+                if (await btn.isVisible().catch(() => false)) {
+                    await btn.click({ force: true }).catch(() => undefined)
+                    await this._page.waitForTimeout(300)
+                    return
+                }
+            }
+        } catch {
+            // ignore
+        }
     }
 
     private async _getInputValues(element: Locator, prompt?: (field: FormPromptField) => Promise<string | null>): Promise<FormFieldValue[]> {
@@ -123,6 +144,15 @@ export class ElementHandle {
             if (tag === 'input' && type && this._isSkippableInputType(type)) continue
 
             if (tag === 'input' && type === 'file') {
+                // Skip file inputs that are LinkedIn resume pickers — handled by _handleResumeSelection
+                const isResumePicker = await item.evaluate((el) => {
+                    const container = el.closest('[data-test-form-element], .jobs-easy-apply-form-element, fieldset')
+                        || el.parentElement?.parentElement || el.parentElement
+                    if (!container) return false
+                    return Boolean(container.querySelector('[aria-label*="select resume" i], [aria-label*="deselect resume" i]'))
+                }).catch(() => false)
+                if (isResumePicker) continue
+
                 const meta = await this._getControlMeta(item)
                 const label = meta.labelText || meta.placeholder || meta.ariaLabel || meta.name || meta.id
                 const key = normalizeKey(label || undefined)
@@ -314,6 +344,7 @@ export class ElementHandle {
             }
 
             for (const [name, radios] of groups.entries()) {
+                if (await this._isResumeGroup(radios)) continue
                 const entry = await this._handleRadioGroup(radios, prompt, name)
                 if (entry) values.push(entry)
             }
@@ -324,6 +355,7 @@ export class ElementHandle {
             const hasInputRadio = await group.locator('input[type="radio"]').count().catch(() => 0)
             if (hasInputRadio > 0) continue
             const radios = await group.locator('[role="radio"]').all()
+            if (await this._isResumeGroup(radios)) continue
             const entry = await this._handleRadioGroup(radios, prompt)
             if (entry) values.push(entry)
         }
@@ -492,6 +524,23 @@ export class ElementHandle {
             key,
             label,
             value: selected || ''
+        }
+    }
+
+    private async _isResumeGroup(radios: Locator[]): Promise<boolean> {
+        if (radios.length === 0) return false
+        try {
+            return radios[0].evaluate((el) => {
+                const container =
+                    el.closest('fieldset, [role="radiogroup"], [data-test-form-element], .jobs-easy-apply-form-element') ||
+                    el.parentElement?.parentElement ||
+                    document.body
+                return Boolean(
+                    container.querySelector('[aria-label*="select resume" i], [aria-label*="deselect resume" i]')
+                )
+            })
+        } catch {
+            return false
         }
     }
 
