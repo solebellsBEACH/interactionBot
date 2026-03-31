@@ -53,6 +53,8 @@ export const EASY_APPLY_BUTTON_SELECTORS = {
         'footer button.artdeco-button--primary'
     ],
     next: [
+        'button[data-easy-apply-next-button], [data-live-test-easy-apply-next-button]',
+        'button[aria-label*="Continue to next step" i], button[aria-label*="continuar para" i]',
         'button[data-control-name*="continue"], button[data-test-id*="continue"], button[data-easy-apply-next-step]',
         'button:has-text("Próximo"), button:has-text("Proximo"), button:has-text("Continuar"), button:has-text("Next"), button:has-text("Avançar"), button:has-text("Avancar"), button:has-text("Seguinte")',
         '[role="button"][aria-label*="continuar" i], [role="button"][aria-label*="next" i], [role="button"]:has-text("Continuar"), [role="button"]:has-text("Next")',
