@@ -116,7 +116,8 @@ export class EasyApplyFlow {
                         await this._closeModalIfOpen()
                         break
                     }
-                    throw error
+                    logger.warn(`Easy Apply: erro ao coletar campos na etapa ${step}, tentando avançar mesmo assim`, error)
+                    this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} com erro na coleta`, this._formatErrorReason(error), 'running')
                 }
                 if (values) stepsValues.push(values)
 
