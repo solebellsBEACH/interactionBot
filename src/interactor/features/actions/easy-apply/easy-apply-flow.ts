@@ -106,18 +106,24 @@ export class EasyApplyFlow {
             while (step <= this._maxSteps) {
                 this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} em andamento`, 'Coletando campos do formulário.', 'running')
                 let values: EasyApplyStepValues | null = null
-                try {
-                    values = await this._collectStepValues(step)
-                } catch (error) {
-                    if (error instanceof EasyApplyAbortError) {
-                        outcome.status = 'stopped'
-                        outcome.reason = (error as any)?.message || 'standalone-missing'
-                        this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} interrompida`, outcome.reason, 'error')
-                        await this._closeModalIfOpen()
-                        break
+                const isResumeStep = await this._isResumeStep()
+                if (isResumeStep) {
+                    await this._elementHandle.handleForm()
+                    this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step}: seleção de currículo`, 'Pulando coleta de campos.', 'running')
+                } else {
+                    try {
+                        values = await this._collectStepValues(step)
+                    } catch (error) {
+                        if (error instanceof EasyApplyAbortError) {
+                            outcome.status = 'stopped'
+                            outcome.reason = (error as any)?.message || 'standalone-missing'
+                            this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} interrompida`, outcome.reason, 'error')
+                            await this._closeModalIfOpen()
+                            break
+                        }
+                        logger.warn(`Easy Apply: erro ao coletar campos na etapa ${step}, tentando avançar mesmo assim`, error)
+                        this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} com erro na coleta`, this._formatErrorReason(error), 'running')
                     }
-                    logger.warn(`Easy Apply: erro ao coletar campos na etapa ${step}, tentando avançar mesmo assim`, error)
-                    this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} com erro na coleta`, this._formatErrorReason(error), 'running')
                 }
                 if (values) stepsValues.push(values)
 
@@ -636,6 +642,17 @@ export class EasyApplyFlow {
             return error.replace(/\s+/g, ' ').trim().slice(0, 120)
         }
         return 'error'
+    }
+
+    private async _isResumeStep(): Promise<boolean> {
+        return this._page.evaluate(() => {
+            const modal =
+                document.querySelector('.jobs-easy-apply-modal, [data-test-modal], .artdeco-modal') ||
+                document.body
+            return Boolean(
+                modal.querySelector('[aria-label*="select resume" i], [aria-label*="deselect resume" i], [aria-label*="selecionar curriculo" i], [aria-label*="desmarcar" i]')
+            )
+        }).catch(() => false)
     }
 
     private _recordRuntimeStep(key: string, label: string, detail?: string, status: 'pending' | 'running' | 'waiting' | 'done' | 'skipped' | 'error' = 'running') {
