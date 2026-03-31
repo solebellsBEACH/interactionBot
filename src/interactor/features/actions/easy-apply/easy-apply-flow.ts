@@ -107,10 +107,7 @@ export class EasyApplyFlow {
                 this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} em andamento`, 'Coletando campos do formulário.', 'running')
                 let values: EasyApplyStepValues | null = null
                 const isResumeStep = await this._isResumeStep()
-                if (isResumeStep) {
-                    await this._elementHandle.handleForm()
-                    this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step}: seleção de currículo`, 'Pulando coleta de campos.', 'running')
-                } else {
+                if (!isResumeStep) {
                     try {
                         values = await this._collectStepValues(step)
                     } catch (error) {
@@ -124,6 +121,8 @@ export class EasyApplyFlow {
                         logger.warn(`Easy Apply: erro ao coletar campos na etapa ${step}, tentando avançar mesmo assim`, error)
                         this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} com erro na coleta`, this._formatErrorReason(error), 'running')
                     }
+                } else {
+                    this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step}: currículo`, 'Pulando IA, clicando Next.', 'running')
                 }
                 if (values) stepsValues.push(values)
 
