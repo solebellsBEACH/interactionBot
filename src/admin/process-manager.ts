@@ -1,12 +1,8 @@
 import type { EasyApplyStepValues } from "../interactor/shared/interface/easy-apply/step-values.types";
 import type {
-  AppliedJobsRangePreset,
-  AppliedJobsScanResult,
   EasyApplyJobResult,
-  ScanAppliedJobsOptions,
   SearchJobTagOptions,
 } from "../interactor/shared/interface/scrap/jobs.types";
-import type { UserProfile } from "../interactor/shared/interface/user/user-profile.types";
 import { logger } from "../interactor/shared/services/logger";
 import { env } from "../interactor/shared/env";
 import { adminRuntimeStore } from "./admin-runtime-store";
@@ -17,37 +13,15 @@ import type { WorkerJob } from "../interactor/worker/worker-job";
 
 const REDIS_HISTORY_KEY = "bot:process:history";
 
-type UpvoteOptions = {
-  maxLikes?: number
-  tag?: string
-}
-
 type LinkedinCommandActions = {
   easyApply: (jobUrl?: string) => Promise<EasyApplyStepValues[]>
   searchJobTag: (searchJobTag: string, options?: SearchJobTagOptions) => Promise<EasyApplyJobResult[]>
-  sendConnection: (profileUrl: string, inMailOptions?: { message: string }) => Promise<void>
-  upvoteOnPosts: (options?: UpvoteOptions) => Promise<string[]>
-  scanAppliedJobs?: (options?: ScanAppliedJobsOptions) => Promise<AppliedJobsScanResult>
-  reviewOwnProfile?: () => Promise<UserProfile>
-  resetSession?: () => Promise<{
-    cleared: {
-      applications: number
-      easyApplyResponses: number
-      fieldAnswers: number
-      gptInteractions: number
-    }
-  }>
 }
 
 export type AdminProcessType =
   | "easy-apply"
   | "search-jobs"
-  | "apply-jobs"
-  | "connect"
-  | "upvote-posts"
-  | "scan-applied-jobs"
-  | "profile-review"
-  | "reset-session";
+  | "apply-jobs";
 export type AdminProcessStatus = "running" | "succeeded" | "failed";
 
 export type AdminProcessRecord = {
@@ -77,21 +51,6 @@ export type ApplyJobsPayload = {
 
 export type EasyApplyPayload = {
   jobUrl?: string;
-};
-
-export type ConnectPayload = {
-  profileUrl: string;
-  message?: string;
-};
-
-export type UpvotePayload = {
-  tag: string;
-  maxLikes?: number;
-};
-
-export type ScanAppliedJobsPayload = {
-  periodPreset?: AppliedJobsRangePreset;
-  customDays?: number;
 };
 
 type ProcessResult = {
@@ -287,139 +246,6 @@ export class AdminProcessManager {
     );
   }
 
-  startConnect(payload: ConnectPayload) {
-    const profileUrl = payload.profileUrl?.trim();
-    if (!profileUrl) {
-      throw new ProcessValidationError("Informe a URL do perfil para conectar.");
-    }
-
-    return this._startProcess(
-      "connect",
-      { profileUrl, message: payload.message || "" },
-      async () => {
-        const message = payload.message?.trim();
-        await this._actions.sendConnection(profileUrl, message ? { message } : undefined);
-        return {
-          summary: `Convite enviado para ${profileUrl}.`,
-        };
-      }
-    );
-  }
-
-  startUpvote(payload: UpvotePayload) {
-    const tag = payload.tag?.trim();
-    if (!tag) {
-      throw new ProcessValidationError("Informe a tag para curtir posts.");
-    }
-
-    const maxLikes = payload.maxLikes;
-    if (maxLikes !== undefined && (!Number.isFinite(maxLikes) || maxLikes <= 0)) {
-      throw new ProcessValidationError("O valor de curtidas deve ser maior que zero.");
-    }
-
-    const options: UpvoteOptions = {
-      tag,
-      ...(maxLikes !== undefined ? { maxLikes } : {}),
-    };
-
-    return this._startProcess("upvote-posts", { ...options }, async () => {
-      const links = await this._actions.upvoteOnPosts(options);
-      return {
-        summary: `${links.length} post(s) curtido(s) para "${tag}".`,
-        output: {
-          total: links.length,
-          links,
-        },
-      };
-    });
-  }
-
-  startProfileReview() {
-    if (!this._actions.reviewOwnProfile) {
-      throw new ProcessValidationError("A análise do perfil não está habilitada.");
-    }
-
-    return this._startProcess("profile-review", {}, async () => {
-      const profile = await this._actions.reviewOwnProfile?.();
-      if (!profile) {
-        throw new Error("Não foi possível analisar o perfil atual.");
-      }
-
-      const stackCount = Object.keys(profile.stackExperience || {}).length;
-      const hasReview = Boolean(profile.profileReview?.raw);
-
-      return {
-        summary: hasReview
-          ? `Perfil analisado com ${stackCount} stack(s) mapeada(s) e review JSON gerado.`
-          : `Perfil analisado com ${stackCount} stack(s) mapeada(s).`,
-        output: {
-          profile,
-        },
-      };
-    });
-  }
-
-  startScanAppliedJobs(payload: ScanAppliedJobsPayload = {}) {
-    if (!this._actions.scanAppliedJobs) {
-      throw new ProcessValidationError("A varredura de vagas aplicadas não está habilitada.");
-    }
-
-    const periodPreset = this._normalizeAppliedJobsPreset(payload.periodPreset);
-    const customDays = this._normalizeAppliedJobsCustomDays(payload.customDays, periodPreset);
-
-    return this._startProcess("scan-applied-jobs", { periodPreset, customDays }, async () => {
-      const result = await this._actions.scanAppliedJobs?.({ periodPreset, customDays });
-      if (!result) {
-        throw new Error("Não foi possível varrer as vagas aplicadas.");
-      }
-
-      const stopLabel = result.stoppedEarly
-        ? " Varredura encerrada ao sair da janela escolhida."
-        : "";
-
-      return {
-        summary: `${result.total} vaga(s) aplicada(s) encontradas no filtro ${result.filterLabel}. ${result.scannedPages} página(s) varridas.${stopLabel}`,
-        output: {
-          total: result.total,
-          scannedPages: result.scannedPages,
-          totalPages: result.totalPages,
-          filterPreset: result.filterPreset,
-          filterDays: result.filterDays,
-          filterLabel: result.filterLabel,
-          stoppedEarly: result.stoppedEarly,
-          jobsPreview: result.jobs.slice(0, 100),
-        },
-      };
-    });
-  }
-
-  startResetSession() {
-    if (!this._actions.resetSession) {
-      throw new ProcessValidationError("O reset de sessão não está habilitado.");
-    }
-
-    this._history = [];
-    this._persistHistoryToRedis();
-
-    return this._startProcess("reset-session", {}, async () => {
-      const result = await this._actions.resetSession?.();
-      const cleared = result?.cleared || {
-        applications: 0,
-        easyApplyResponses: 0,
-        fieldAnswers: 0,
-        gptInteractions: 0,
-      };
-
-      return {
-        summary: "Sessão do LinkedIn encerrada e dados locais limpos.",
-        output: {
-          ...result,
-          cleared,
-        },
-      };
-    });
-  }
-
   private _startProcess(
     type: AdminProcessType,
     input: Record<string, unknown>,
@@ -562,12 +388,6 @@ export class AdminProcessManager {
   ): Promise<void> {
     const o = output as Record<string, unknown> | undefined;
 
-    if (type === "scan-applied-jobs") {
-      type ScannedJob = { url?: string; title?: string; company?: string; location?: string; appliedAt?: string };
-      const jobs = (o?.jobsPreview as ScannedJob[] | undefined) ?? [];
-      await saveAppliedJobsBatch(jobs.map((j) => ({ ...j, url: j.url ?? "", source: "scan" })));
-    }
-
     if (type === "search-jobs") {
       const tag = input.tag as string;
       const jobsFound = (o?.total as number) ?? 0;
@@ -615,30 +435,6 @@ export class AdminProcessManager {
     const normalized = Math.trunc(value);
     if (normalized <= 0) return undefined;
     return Math.min(normalized, 100);
-  }
-
-  private _normalizeAppliedJobsPreset(value?: AppliedJobsRangePreset): AppliedJobsRangePreset {
-    if (value === "week" || value === "month" || value === "quarter" || value === "custom") {
-      return value;
-    }
-    return "month";
-  }
-
-  private _normalizeAppliedJobsCustomDays(
-    value: number | undefined,
-    periodPreset: AppliedJobsRangePreset
-  ) {
-    if (periodPreset !== "custom") return undefined;
-    if (!Number.isFinite(value)) {
-      throw new ProcessValidationError("Informe a quantidade de dias para o filtro custom.");
-    }
-
-    const normalized = Math.trunc(value ?? 0);
-    if (normalized <= 0) {
-      throw new ProcessValidationError("O filtro custom deve ter ao menos 1 dia.");
-    }
-
-    return Math.min(normalized, 3650);
   }
 
   private _normalizeWaitMs(value?: number) {

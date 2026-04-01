@@ -5,12 +5,7 @@ import { logger } from "../shared/services/logger";
 export type WorkerJobType =
   | "easy-apply"
   | "search-jobs"
-  | "apply-jobs"
-  | "connect"
-  | "upvote-posts"
-  | "scan-applied-jobs"
-  | "profile-review"
-  | "reset-session";
+  | "apply-jobs";
 
 export type WorkerJob = {
   id?: string;
@@ -116,12 +111,7 @@ export const parseWorkerJob = (value: unknown): WorkerJob => {
   if (
     type !== "easy-apply" &&
     type !== "search-jobs" &&
-    type !== "apply-jobs" &&
-    type !== "connect" &&
-    type !== "upvote-posts" &&
-    type !== "scan-applied-jobs" &&
-    type !== "profile-review" &&
-    type !== "reset-session"
+    type !== "apply-jobs"
   ) {
     throw new Error("worker-job-type-invalid");
   }
@@ -255,53 +245,6 @@ export const runWorkerJob = async (
       return {
         summary: `${applied} aplicação(ões) concluída(s) em ${jobUrls.length} vaga(s).`,
         output: { attempted: jobUrls.length, applied, failed },
-      };
-    }
-    case "connect": {
-      const profileUrl = readString(payload.profileUrl);
-      if (!profileUrl) {
-        throw new Error("worker-job-missing-profile-url");
-      }
-      const message = readString(payload.message);
-      await features.sendConnection(profileUrl, message ? { message } : undefined);
-      return {
-        summary: `Convite enviado para ${profileUrl}.`,
-      };
-    }
-    case "upvote-posts": {
-      const tag = readString(payload.tag);
-      const maxLikes = readNumber(payload.maxLikes);
-      const links = await features.upvoteOnPosts({
-        ...(tag ? { tag } : {}),
-        ...(maxLikes !== undefined ? { maxLikes } : {}),
-      });
-      return {
-        summary: `${links.length} post(s) curtido(s).`,
-        output: { total: links.length, links },
-      };
-    }
-    case "scan-applied-jobs": {
-      const result = await features.scanAppliedJobs({
-        periodPreset: payload.periodPreset as any,
-        customDays: readNumber(payload.customDays),
-      });
-      return {
-        summary: `${result.total} vaga(s) aplicada(s) encontradas no filtro ${result.filterLabel}.`,
-        output: result,
-      };
-    }
-    case "profile-review": {
-      const profile = await features.reviewOwnProfile();
-      return {
-        summary: `Perfil analisado com ${Object.keys(profile.stackExperience || {}).length} stack(s).`,
-        output: { profile },
-      };
-    }
-    case "reset-session": {
-      const result = await features.resetSession();
-      return {
-        summary: "Sessão do LinkedIn encerrada e dados locais limpos.",
-        output: result,
       };
     }
     default:

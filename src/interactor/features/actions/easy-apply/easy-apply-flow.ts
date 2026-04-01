@@ -72,152 +72,10 @@ export class EasyApplyFlow {
             trace.push(entry)
         }
 
+
         try {
-            this._recordRuntimeStep('easy-apply:lifecycle', 'Easy Apply iniciado', normalizeWhitespace(jobURL), 'running')
-            pushTrace('start')
-            this._recordRuntimeStep('easy-apply:modal', 'Abrindo modal Easy Apply', undefined, 'running')
-            await this._navigator.goToLinkedinURL(jobURL)
-            pushTrace('open-modal')
-            await this._openEasyApplyModal()
-            pushTrace('modal-opened')
-            this._recordRuntimeStep('easy-apply:modal', 'Modal Easy Apply aberto', undefined, 'done')
-            let lastFingerprint = await this._waitForFormAndFingerprint()
-            if (!lastFingerprint) {
-                pushTrace('form-missing-retry')
-                this._recordRuntimeStep('easy-apply:form', 'Formulário Easy Apply ainda não visível', 'Tentando reabrir o modal.', 'running')
-                await this._closeModalIfOpen()
-                await this._openEasyApplyModal()
-                lastFingerprint = await this._waitForFormAndFingerprint()
-                if (!lastFingerprint) {
-                    logger.warn('Easy Apply: form not found after opening modal')
-                    await this._logModalDiagnostics()
-                    outcome.status = 'no-form'
-                    outcome.reason = 'form-not-found'
-                    pushTrace('no-form')
-                    this._recordRuntimeStep('easy-apply:form', 'Formulário Easy Apply não encontrado', 'O modal abriu sem formulário utilizável.', 'error')
-                    throw new Error('easy-apply-form-not-found')
-                }
-            }
-            pushTrace('form-visible')
-            this._recordRuntimeStep('easy-apply:form', 'Formulário Easy Apply visível', undefined, 'done')
-
-            let step = 1
-            let stagnantCount = 0
-            while (step <= this._maxSteps) {
-                this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} em andamento`, 'Coletando campos do formulário.', 'running')
-                let values: EasyApplyStepValues | null = null
-                try {
-                    values = await this._collectStepValues(step)
-                } catch (error) {
-                    if (error instanceof EasyApplyAbortError) {
-                        outcome.status = 'stopped'
-                        outcome.reason = (error as any)?.message || 'standalone-missing'
-                        this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} interrompida`, outcome.reason, 'error')
-                        await this._closeModalIfOpen()
-                        break
-                    }
-                    throw error
-                }
-                if (values) stepsValues.push(values)
-
-                const inputCount = values?.inputValues?.length ?? 0
-                const selectCount = values?.selectValues?.length ?? 0
-                const stepSummary = values ? `step${step}:${inputCount}/${selectCount}` : `step${step}:no-values`
-
-                const { nextButtons, reviewButtons, submitButtons } = this._getButtonLocators()
-                const submit = await this._firstEnabled(submitButtons)
-                const review = await this._firstEnabled(reviewButtons)
-                const next = await this._firstEnabled(nextButtons)
-
-                let clicked = false
-                let action = 'none'
-                if (review) {
-                    action = 'review'
-                    this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step}`, 'Próxima ação: revisar candidatura.', 'running')
-                    await this._clickAndWait(review)
-                    clicked = true
-                } else if (next) {
-                    action = 'next'
-                    this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step}`, 'Próxima ação: avançar para a próxima etapa.', 'running')
-                    await this._clickAndWait(next)
-                    clicked = true
-                }
-                if (!clicked && submit) {
-                    action = 'submit'
-                    this._recordRuntimeStep('easy-apply:submit', 'Candidatura pronta para envio', 'Botão de submissão detectado.', 'pending')
-                }
-                pushTrace(`${stepSummary}:${action}`)
-
-                if (!clicked) {
-                    if (submit) {
-                        this._recordRuntimeStep('easy-apply:submit', 'Enviando candidatura', undefined, 'running')
-                        await this._finalizeSubmit(jobURL, stepsValues, submit)
-                        outcome.status = 'submitted'
-                        outcome.reason = 'submit'
-                        pushTrace('submitted')
-                        this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} concluída`, 'Fluxo finalizado com submit.', 'done')
-                        break
-                    }
-
-                    if (!(await this._isModalOpen())) {
-                        outcome.status = 'modal-closed'
-                        pushTrace('modal-closed')
-                        this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} interrompida`, 'Modal fechado antes do próximo passo.', 'error')
-                        break
-                    }
-
-                    logger.warn('Easy Apply: no next/review/submit button found, stopping at step', step)
-                    outcome.reason = 'no-action'
-                    pushTrace('no-action')
-                    this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} sem ação disponível`, 'Nenhum botão next/review/submit foi encontrado.', 'error')
-                    break
-                }
-
-                const nextFingerprint = await this._waitForFormChange(lastFingerprint)
-                if (!nextFingerprint || nextFingerprint === lastFingerprint) {
-                    pushTrace('form-unchanged')
-                    this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} sem mudança detectada`, 'O formulário não mudou após o clique.', 'error')
-                    const submitAfter = await this._firstEnabled(submitButtons)
-                    if (submitAfter) {
-                        this._recordRuntimeStep('easy-apply:submit', 'Enviando candidatura', 'Submit detectado após clique sem troca de formulário.', 'running')
-                        await this._finalizeSubmit(jobURL, stepsValues, submitAfter)
-                        outcome.status = 'submitted'
-                        outcome.reason = 'submit-after'
-                        pushTrace('submitted')
-                        this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} concluída`, 'Fluxo finalizado com submit após clique.', 'done')
-                        break
-                    }
-
-                    if (!(await this._isModalOpen())) {
-                        outcome.status = 'modal-closed'
-                        pushTrace('modal-closed')
-                        this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} interrompida`, 'Modal fechado após o clique.', 'error')
-                        break
-                    }
-
-                    stagnantCount++
-                    if (stagnantCount >= this._maxStagnantSteps) {
-                        logger.warn('Easy Apply: form did not change after click, stopping at step', step)
-                        outcome.reason = 'stagnant'
-                        pushTrace('stagnant')
-                        this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} estagnada`, 'O formulário não mudou após múltiplas tentativas.', 'error')
-                        break
-                    }
-                    continue
-                }
-
-                lastFingerprint = nextFingerprint
-                pushTrace('form-changed')
-                stagnantCount = 0
-                this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} concluída`, `Próxima etapa: ${step + 1}.`, 'done')
-                step++
-            }
-
-            if (step > this._maxSteps && outcome.status !== 'submitted') {
-                outcome.reason = 'max-steps'
-                pushTrace('max-steps')
-                this._recordRuntimeStep('easy-apply:lifecycle', 'Easy Apply interrompido', 'Limite máximo de etapas atingido.', 'error')
-            }
+            await this._redirectAndOpenModal(jobURL, pushTrace, outcome)
+            await this._easyApplyFormLoop(jobURL, outcome, stepsValues, pushTrace)
         } catch (error) {
             if (outcome.status !== 'no-form') {
                 outcome.status = 'stopped'
@@ -229,9 +87,188 @@ export class EasyApplyFlow {
         } finally {
             await this._logResult(jobURL, stepsValues, outcome, trace)
         }
-
-        return stepsValues
+        return []
     }
+
+    private async _redirectAndOpenModal(jobURL: string, pushTrace: (entry: string) => void, outcome: EasyApplyOutcome,) {
+        this._recordRuntimeStep('easy-apply:lifecycle', 'Easy Apply iniciado', normalizeWhitespace(jobURL), 'running')
+        pushTrace('start')
+        this._recordRuntimeStep('easy-apply:modal', 'Abrindo modal Easy Apply', undefined, 'running')
+        await this._navigator.goToLinkedinURL(jobURL)
+        pushTrace('open-modal')
+        await this._openEasyApplyModal()
+        pushTrace('modal-opened')
+        this._recordRuntimeStep('easy-apply:modal', 'Modal Easy Apply aberto', undefined, 'done')
+
+        let lastFingerprint = await this._waitForFormAndFingerprint()
+        if (!lastFingerprint) {
+            pushTrace('form-missing-retry')
+            this._recordRuntimeStep('easy-apply:form', 'Formulário Easy Apply ainda não visível', 'Tentando reabrir o modal.', 'running')
+            await this._closeModalIfOpen()
+            await this._openEasyApplyModal()
+            lastFingerprint = await this._waitForFormAndFingerprint()
+            if (!lastFingerprint) {
+                logger.warn('Easy Apply: form not found after opening modal')
+                await this._logModalDiagnostics()
+                outcome.status = 'no-form'
+                outcome.reason = 'form-not-found'
+                pushTrace('no-form')
+                this._recordRuntimeStep('easy-apply:form', 'Formulário Easy Apply não encontrado', 'O modal abriu sem formulário utilizável.', 'error')
+                throw new Error('easy-apply-form-not-found')
+            }
+        }
+        pushTrace('form-visible')
+        this._recordRuntimeStep('easy-apply:form', 'Formulário Easy Apply visível', undefined, 'done')
+    }
+
+    private async _easyApplyFormLoop(
+        jobURL: string,
+        outcome: EasyApplyOutcome,
+        stepsValues: EasyApplyStepValues[],
+        pushTrace: (entry: string) => void
+    ) {
+        let step = 1
+        let stagnantCount = 0
+        let lastFingerprint = await this._getFormFingerprint() ?? ''
+
+        while (step <= this._maxSteps) {
+            this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} em andamento`, 'Coletando campos do formulário.', 'running')
+
+            let values: EasyApplyStepValues | null = null
+            try {
+                values = await this._collectStepValues(step)
+            } catch (error) {
+                if (error instanceof EasyApplyAbortError) {
+                    outcome.status = 'stopped'
+                    outcome.reason = (error as any)?.message || 'standalone-missing'
+                    this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} interrompida`, outcome.reason, 'error')
+                    await this._closeModalIfOpen()
+                    break
+                }
+                throw error
+            }
+            if (values) stepsValues.push(values)
+
+            const inputCount = values?.inputValues?.length ?? 0
+            const selectCount = values?.selectValues?.length ?? 0
+            const stepSummary = values ? `step${step}:${inputCount}/${selectCount}` : `step${step}:no-values`
+
+            const { submitButton, reviewButton, nextButton } = await this._resolveStepAction()
+            const navAction = await this._clickNavigationButton(step, reviewButton, nextButton)
+            pushTrace(`${stepSummary}:${navAction ?? (submitButton ? 'submit' : 'none')}`)
+
+            if (!navAction) {
+                if (submitButton) {
+                    this._recordRuntimeStep('easy-apply:submit', 'Candidatura pronta para envio', 'Botão de submissão detectado.', 'pending')
+                    this._recordRuntimeStep('easy-apply:submit', 'Enviando candidatura', undefined, 'running')
+                    await this._finalizeSubmit(jobURL, stepsValues, submitButton)
+                    outcome.status = 'submitted'
+                    outcome.reason = 'submit'
+                    pushTrace('submitted')
+                    this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} concluída`, 'Fluxo finalizado com submit.', 'done')
+                    break
+                }
+
+                if (!(await this._isModalOpen())) {
+                    outcome.status = 'modal-closed'
+                    pushTrace('modal-closed')
+                    this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} interrompida`, 'Modal fechado antes do próximo passo.', 'error')
+                    break
+                }
+
+                logger.warn('Easy Apply: no next/review/submit button found, stopping at step', step)
+                outcome.reason = 'no-action'
+                pushTrace('no-action')
+                this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} sem ação disponível`, 'Nenhum botão next/review/submit foi encontrado.', 'error')
+                break
+            }
+
+            const nextFingerprint = await this._waitForFormChange(lastFingerprint)
+            if (!nextFingerprint || nextFingerprint === lastFingerprint) {
+                const result = await this._handleFormStagnation(step, jobURL, stepsValues, outcome, pushTrace, stagnantCount)
+                if (result.shouldBreak) break
+                stagnantCount = result.newStagnantCount
+                continue
+            }
+
+            lastFingerprint = nextFingerprint
+            pushTrace('form-changed')
+            stagnantCount = 0
+            this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} concluída`, `Próxima etapa: ${step + 1}.`, 'done')
+            step++
+        }
+    }
+
+    private async _resolveStepAction() {
+        const { nextButtons, reviewButtons, submitButtons } = this._getButtonLocators()
+        const [submitButton, reviewButton, nextButton] = await Promise.all([
+            this._firstEnabled(submitButtons),
+            this._firstEnabled(reviewButtons),
+            this._firstEnabled(nextButtons),
+        ])
+        return { submitButton, reviewButton, nextButton }
+    }
+
+    private async _clickNavigationButton(
+        step: number,
+        reviewButton: Locator | null,
+        nextButton: Locator | null
+    ): Promise<'review' | 'next' | null> {
+        if (reviewButton) {
+            this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step}`, 'Próxima ação: revisar candidatura.', 'running')
+            await this._clickAndWait(reviewButton)
+            return 'review'
+        }
+        if (nextButton) {
+            this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step}`, 'Próxima ação: avançar para a próxima etapa.', 'running')
+            await this._clickAndWait(nextButton)
+            return 'next'
+        }
+        return null
+    }
+
+    private async _handleFormStagnation(
+        step: number,
+        jobURL: string,
+        stepsValues: EasyApplyStepValues[],
+        outcome: EasyApplyOutcome,
+        pushTrace: (entry: string) => void,
+        stagnantCount: number
+    ): Promise<{ shouldBreak: boolean; newStagnantCount: number }> {
+        pushTrace('form-unchanged')
+        this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} sem mudança detectada`, 'O formulário não mudou após o clique.', 'error')
+
+        const { submitButtons } = this._getButtonLocators()
+        const submitAfter = await this._firstEnabled(submitButtons)
+        if (submitAfter) {
+            this._recordRuntimeStep('easy-apply:submit', 'Enviando candidatura', 'Submit detectado após clique sem troca de formulário.', 'running')
+            await this._finalizeSubmit(jobURL, stepsValues, submitAfter)
+            outcome.status = 'submitted'
+            outcome.reason = 'submit-after'
+            pushTrace('submitted')
+            this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} concluída`, 'Fluxo finalizado com submit após clique.', 'done')
+            return { shouldBreak: true, newStagnantCount: stagnantCount }
+        }
+
+        if (!(await this._isModalOpen())) {
+            outcome.status = 'modal-closed'
+            pushTrace('modal-closed')
+            this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} interrompida`, 'Modal fechado após o clique.', 'error')
+            return { shouldBreak: true, newStagnantCount: stagnantCount }
+        }
+
+        const newStagnantCount = stagnantCount + 1
+        if (newStagnantCount >= this._maxStagnantSteps) {
+            logger.warn('Easy Apply: form did not change after click, stopping at step', step)
+            outcome.reason = 'stagnant'
+            pushTrace('stagnant')
+            this._recordRuntimeStep(`easy-apply:step:${step}`, `Etapa ${step} estagnada`, 'O formulário não mudou após múltiplas tentativas.', 'error')
+            return { shouldBreak: true, newStagnantCount }
+        }
+
+        return { shouldBreak: false, newStagnantCount }
+    }
+
 
     private async _openEasyApplyModal() {
         const candidates = this._getOpenButtonLocators()

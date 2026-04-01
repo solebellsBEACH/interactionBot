@@ -57,12 +57,7 @@ async function main(): Promise<void> {
     if (env.admin.enabled) {
         const processManager = new AdminProcessManager({
             easyApply: linkedinFeatures.easyApply.bind(linkedinFeatures),
-            searchJobTag: linkedinFeatures.searchJobTag.bind(linkedinFeatures),
-            sendConnection: linkedinFeatures.sendConnection.bind(linkedinFeatures),
-            upvoteOnPosts: linkedinFeatures.upvoteOnPosts.bind(linkedinFeatures),
-            scanAppliedJobs: linkedinFeatures.scanAppliedJobs.bind(linkedinFeatures),
-            reviewOwnProfile: linkedinFeatures.reviewOwnProfile.bind(linkedinFeatures),
-            resetSession: linkedinFeatures.resetSession.bind(linkedinFeatures)
+            searchJobTag: linkedinFeatures.searchJobTag.bind(linkedinFeatures)
         })
 
         adminServer = await createFastifyServer({

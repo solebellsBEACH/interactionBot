@@ -20,10 +20,6 @@ export enum CommandName {
     EasyApply = "easy-apply",
     CatchJobs = "catch-jobs",
     SearchJobs = "search-jobs",
-    Connect = "connect",
-    UpvotePosts = "upvote-posts",
-    ReviewProfile = "review-profile",
-    ResetSession = "reset-session",
     Unknown = "unknown"
 }
 
@@ -297,10 +293,6 @@ export class DiscordClient {
             `${prefix}help - mostra esta mensagem`,
             `${prefix}easy-apply [tag] [max] --loc <local> --pages <n> - busca vagas e aplica`,
             `${prefix}search-jobs [tag] [max] --loc <local> --pages <n> - busca vagas com filtros`,
-            `${prefix}connect <profileUrl> [mensagem] - envia convite`,
-            `${prefix}upvote-posts - curte posts por tema`,
-            `${prefix}review-profile - analisa e salva o seu perfil`,
-            `${prefix}reset-session - desloga e limpa os dados locais`,
             "Se houver pergunta pendente, responda sem prefixo."
         ].join("\n")
     }

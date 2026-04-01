@@ -294,44 +294,6 @@ export async function createFastifyServer(options: FastifyServerOptions): Promis
     reply.code(202).send(processRecord);
   });
 
-  app.post("/api/admin/processes/connect", async (req, reply) => {
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const processRecord = options.processManager.startConnect({
-      profileUrl: readStr(body.profileUrl) || "",
-      message: readStr(body.message),
-    });
-    reply.code(202).send(processRecord);
-  });
-
-  app.post("/api/admin/processes/upvote-posts", async (req, reply) => {
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const processRecord = options.processManager.startUpvote({
-      tag: readStr(body.tag) || "",
-      maxLikes: readNum(body.maxLikes),
-    });
-    reply.code(202).send(processRecord);
-  });
-
-  app.post("/api/admin/processes/scan-applied-jobs", async (req, reply) => {
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const processRecord = options.processManager.startScanAppliedJobs({
-      periodPreset: readStr(body.periodPreset) as
-        | "week" | "month" | "quarter" | "custom" | undefined,
-      customDays: readNum(body.customDays),
-    });
-    reply.code(202).send(processRecord);
-  });
-
-  app.post("/api/admin/processes/profile-review", async (_, reply) => {
-    const processRecord = options.processManager.startProfileReview();
-    reply.code(202).send(processRecord);
-  });
-
-  app.post("/api/admin/processes/reset-session", async (_, reply) => {
-    const processRecord = options.processManager.startResetSession();
-    reply.code(202).send(processRecord);
-  });
-
   // ── API: analytics ──────────────────────────────────────────────────────────
 
   app.get("/api/admin/analytics/summary", async (_, reply) => {

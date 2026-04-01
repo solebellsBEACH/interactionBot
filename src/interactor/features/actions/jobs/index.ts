@@ -1,13 +1,8 @@
+import { Page } from "playwright";
 
-import {  Page } from "playwright";
-
-import { LINKEDIN_URLS } from "../../../shared/constants/linkedin-urls";
-import { LinkedinAppliedJobsScrap } from "../../../shared/scrap/applied-jobs";
 import { LinkedinJobsScrap } from "../../../shared/scrap/jobs";
 import type {
-    AppliedJobsScanResult,
     EasyApplyJobResult,
-    ScanAppliedJobsOptions,
     SearchJobTagOptions
 } from "../../../shared/interface/scrap/jobs.types";
 import { LinkedinCoreFeatures } from "../../linkedin-core";
@@ -18,14 +13,12 @@ export class LinkedinJobsFlow {
 
         private readonly _page: Page
         private readonly _navigator: LinkedinCoreFeatures
-        private readonly _linkedinJobsScrap :LinkedinJobsScrap
-        private readonly _appliedJobsScrap: LinkedinAppliedJobsScrap
+        private readonly _linkedinJobsScrap: LinkedinJobsScrap
 
-    constructor( page: Page, navigator: LinkedinCoreFeatures ) {
+    constructor(page: Page, navigator: LinkedinCoreFeatures) {
             this._page = page
             this._navigator = navigator
             this._linkedinJobsScrap = new LinkedinJobsScrap(page)
-            this._appliedJobsScrap = new LinkedinAppliedJobsScrap(page)
     }
 
     async catchJobs(searchJobTag?: string, options?: SearchJobTagOptions): Promise<EasyApplyJobResult[]> {
@@ -43,12 +36,8 @@ export class LinkedinJobsFlow {
             ...(effectiveMaxResults && effectiveMaxResults > 0 ? { maxResults: effectiveMaxResults } : {})
         }
 
-        const results = await this.searchJobTag(tag, searchOptions)
-
-        return results
+        return this.searchJobTag(tag, searchOptions)
     }
-
-
 
     async searchJobTag(searchJobTag: string, options?: SearchJobTagOptions): Promise<EasyApplyJobResult[]> {
             const tag = searchJobTag.trim()
@@ -146,10 +135,4 @@ export class LinkedinJobsFlow {
 
             return Array.from(results.values())
         }
-
-    async scanAppliedJobs(options?: ScanAppliedJobsOptions): Promise<AppliedJobsScanResult> {
-            await this._navigator.goToLinkedinURL(LINKEDIN_URLS.appliedJobs || this._appliedJobsScrap.getAppliedJobsUrl())
-            return this._appliedJobsScrap.scan(options)
-        }
-
 }

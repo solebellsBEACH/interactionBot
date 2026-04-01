@@ -3,14 +3,20 @@
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSaveMode": "file",
   "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.formatOnSave": true
+    "editor.defaultFormatter": "vscode.typescript-language-features",
+    "editor.formatOnSave": true,
+    "editor.foldingStrategy": "auto",
+    "editor.showFoldingControls": "always"
   },
   "[typescriptreact]": {
+    "editor.foldingStrategy": "auto",
+"editor.showFoldingControls": "always",
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true
   },
   "[javascript]": {
+    "editor.foldingStrategy": "auto",
+"editor.showFoldingControls": "always",
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true
   },

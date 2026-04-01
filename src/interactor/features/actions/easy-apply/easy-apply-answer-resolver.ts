@@ -60,50 +60,51 @@ export class EasyApplyAnswerResolver {
             return cached
         }
 
-        const historyContext = await this._historyContext(field)
-        const gptAnswer = this._coerceAnswer(field, await this._askWithGpt(field, step, historyContext))
-        if (gptAnswer) {
-            const gptDecision = await this._confirmGptAnswer(field, step, gptAnswer)
-            if (gptDecision === SKIP_FIELD) {
-                logger.info(`[easy-apply] etapa ${step}: campo pulado no admin para "${label}"`)
-                return null
-            }
-            const confirmed = this._coerceAnswer(field, gptDecision)
-            if (confirmed) {
-                this._storeCachedAnswer(field, confirmed)
-                logger.info(`[easy-apply] etapa ${step}: usando GPT confirmado para "${label}"`)
-                return confirmed
-            }
-        }
+        // const historyContext = await this._historyContext(field)
+        // const gptAnswer = this._coerceAnswer(field, await this._askWithGpt(field, step, historyContext))
+        // if (gptAnswer) {
+        //     const gptDecision = await this._confirmGptAnswer(field, step, gptAnswer)
+        //     if (gptDecision === SKIP_FIELD) {
+        //         logger.info(`[easy-apply] etapa ${step}: campo pulado no admin para "${label}"`)
+        //         return null
+        //     }
+        //     const confirmed = this._coerceAnswer(field, gptDecision)
+        //     if (confirmed) {
+        //         this._storeCachedAnswer(field, confirmed)
+        //         logger.info(`[easy-apply] etapa ${step}: usando GPT confirmado para "${label}"`)
+        //         return confirmed
+        //     }
+        // }
 
-        const profileAnswer = this._coerceAnswer(field, this._answerFromProfile(field))
-        if (profileAnswer) {
-            this._storeCachedAnswer(field, profileAnswer)
-            logger.info(`[easy-apply] etapa ${step}: usando perfil salvo para "${label}"`)
-            return profileAnswer
-        }
+        // const profileAnswer = this._coerceAnswer(field, this._answerFromProfile(field))
+        // if (profileAnswer) {
+        //     this._storeCachedAnswer(field, profileAnswer)
+        //     logger.info(`[easy-apply] etapa ${step}: usando perfil salvo para "${label}"`)
+        //     return profileAnswer
+        // }
 
-        const historyAnswer = this._coerceAnswer(field, await this._answerFromHistory(field))
-        if (historyAnswer) {
-            this._storeCachedAnswer(field, historyAnswer)
-            logger.info(`[easy-apply] etapa ${step}: usando histórico salvo para "${label}"`)
-            return historyAnswer
-        }
-        if (this._isStandalone) {
-            throw new EasyApplyAbortError(`standalone-missing:${label}`)
-        }
-
-        const manualDecision = await this._askForField(field, step, true)
-        if (manualDecision === SKIP_FIELD) {
-            logger.info(`[easy-apply] etapa ${step}: campo pulado manualmente para "${label}"`)
-            return null
-        }
-        const manualAnswer = this._coerceAnswer(field, manualDecision)
-        if (manualAnswer) {
-            this._storeCachedAnswer(field, manualAnswer)
-            logger.info(`[easy-apply] etapa ${step}: usando resposta manual para "${label}"`)
-        }
-        return manualAnswer
+        // const historyAnswer = this._coerceAnswer(field, await this._answerFromHistory(field))
+        // if (historyAnswer) {
+        //     this._storeCachedAnswer(field, historyAnswer)
+        //     logger.info(`[easy-apply] etapa ${step}: usando histórico salvo para "${label}"`)
+        //     return historyAnswer
+        // }
+        // if (this._isStandalone) {
+        //     throw new EasyApplyAbortError(`standalone-missing:${label}`)
+        // }
+console.log(field, step)
+        // const manualDecision = await this._askForField(field, step, true)
+        // if (manualDecision === SKIP_FIELD) {
+        //     logger.info(`[easy-apply] etapa ${step}: campo pulado manualmente para "${label}"`)
+        //     return null
+        // }
+        // const manualAnswer = this._coerceAnswer(field, manualDecision)
+        // if (manualAnswer) {
+        //     this._storeCachedAnswer(field, manualAnswer)
+        //     logger.info(`[easy-apply] etapa ${step}: usando resposta manual para "${label}"`)
+        // }
+        // return manualAnswer
+        return 'resposta teste'
     }
 
     private _coerceAnswer(field: FormPromptField, answer: string | null) {
@@ -459,37 +460,40 @@ export class EasyApplyAnswerResolver {
     }
     private async _askForField(field: FormPromptField, step: number, forcePrompt = false): Promise<string | null | typeof SKIP_FIELD> {
         const label = field.label || field.key || 'field'
-        const adminResult = await this._requestAdminPrompt({
-            kind: 'answer-field',
-            step,
-            fieldLabel: label,
-            fieldKey: field.key,
-            fieldType: field.type,
-            prompt:
-                field.type === 'select'
-                    ? `Escolha uma opção para "${label}".`
-                    : `Informe um valor para "${label}".`,
-            suggestedAnswer: field.type === 'input' ? field.value || '' : undefined,
-            options: field.type === 'select' ? (field.options || []) : []
-        })
-        if (adminResult) {
-            return this._resolveAdminPromptResult(adminResult, null)
-        }
+        console.log(field, step)
+        // const adminResult = await this._requestAdminPrompt({
+        //     kind: 'answer-field',
+        //     step,
+        //     fieldLabel: label,
+        //     fieldKey: field.key,
+        //     fieldType: field.type,
+        //     prompt:
+        //         field.type === 'select'
+        //             ? `Escolha uma opção para "${label}".`
+        //             : `Informe um valor para "${label}".`,
+        //     suggestedAnswer: field.type === 'input' ? field.value || '' : undefined,
+        //     options: field.type === 'select' ? (field.options || []) : []
+        // })
+        // if (adminResult) {
+        //     return this._resolveAdminPromptResult(adminResult, null)
+        // }
+        //  if(label.includes('Select resume')){
+        //         return null
+        // }
+        // if (field.type === 'select') {
+        //     const options = field.options || []
+        //     const optionsText = options.map((option, idx) => `${idx + 1}) ${option}`).join('\n')
+        //     const prompt = `[Easy Apply] Step ${step} - choose for "${label}":\n${optionsText}\nReply with number or text.`
+        //     const webAnswer = await this._promptWeb(prompt, options)
+        //     if (webAnswer) return webAnswer
+        //     if (forcePrompt) return this._promptCli(prompt)
+        //     return null
+        // }
 
-        if (field.type === 'select') {
-            const options = field.options || []
-            const optionsText = options.map((option, idx) => `${idx + 1}) ${option}`).join('\n')
-            const prompt = `[Easy Apply] Step ${step} - choose for "${label}":\n${optionsText}\nReply with number or text.`
-            const webAnswer = await this._promptWeb(prompt, options)
-            if (webAnswer) return webAnswer
-            if (forcePrompt) return this._promptCli(prompt)
-            return null
-        }
-
-        const prompt = `[Easy Apply] Step ${step} - fill "${label}":`
-        const webAnswer = await this._promptWeb(prompt)
-        if (webAnswer) return webAnswer
-        if (forcePrompt) return this._promptCli(prompt)
+        // const prompt = `[Easy Apply] Step ${step} - fill "${label}":`
+        // const webAnswer = await this._promptWeb(prompt)
+        // if (webAnswer) return webAnswer
+        // if (forcePrompt) return this._promptCli(prompt)
         return null
     }
 
@@ -887,6 +891,7 @@ export class EasyApplyAnswerResolver {
     }
 
     private async _promptWeb(prompt: string, options?: string[]) {
+        console.log(prompt, options)
         const jobId = (process.env.BOT_JOB_ID || '').trim()
         if (!jobId) return null
         try {

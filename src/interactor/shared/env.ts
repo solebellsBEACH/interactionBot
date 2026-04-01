@@ -95,12 +95,9 @@ export const env = {
     authToken: readString('API_AUTH_TOKEN', readString('BOT_API_TOKEN')),
   },
   linkedinURLs: {
-    postUrl: readString('LINKEDIN_POST_URL', DEFAULTS.linkedin.postUrl),
     feedURL: readString('LINKEDIN_FEED_URL', DEFAULTS.linkedin.feedURL),
     searchJobTag: readString('LINKEDIN_SEARCH_TAG', DEFAULTS.linkedin.searchJobTag),
     jobURL: readString('LINKEDIN_JOB_URL', DEFAULTS.linkedin.jobURL),
-    recruiterURL: readString('LINKEDIN_RECRUITER_URL', DEFAULTS.linkedin.recruiterURL),
-    message: readString('LINKEDIN_CONNECT_MESSAGE', DEFAULTS.linkedin.message),
     defaultJobsApplyLength: readNumber('LINKEDIN_DEFAULT_JOBS_APPLY_LENGTH', DEFAULTS.linkedin.defaultJobsApplyLength)
   },
   redis: {

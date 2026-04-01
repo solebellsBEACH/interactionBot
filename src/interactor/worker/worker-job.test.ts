@@ -48,10 +48,10 @@ test("resolveWorkerHeadless e applyWorkerUserContext respeitam job e env", () =>
     delete process.env.BOT_LINKEDIN_ACCOUNT_ID;
     process.env.WORKER_HEADLESS = "false";
 
-    assert.equal(resolveWorkerHeadless({ type: "reset-session" }), false);
+    assert.equal(resolveWorkerHeadless({ type: "easy-apply" }), false);
 
     applyWorkerUserContext({
-      type: "reset-session",
+      type: "easy-apply",
       userId: "tenant-b",
       linkedinAccountId: "account-b",
       runId: "run-2",
@@ -60,7 +60,7 @@ test("resolveWorkerHeadless e applyWorkerUserContext respeitam job e env", () =>
     assert.equal(process.env.BOT_USER_ID, "tenant-b");
     assert.equal(process.env.BOT_LINKEDIN_ACCOUNT_ID, "account-b");
     assert.equal(process.env.BOT_RUN_ID, "run-2");
-    assert.equal(resolveWorkerHeadless({ type: "reset-session", headless: true }), true);
+    assert.equal(resolveWorkerHeadless({ type: "easy-apply", headless: true }), true);
   } finally {
     restoreEnv("BOT_USER_ID", previousUserId);
     restoreEnv("BOT_RUN_ID", previousRunId);

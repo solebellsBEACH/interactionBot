@@ -1,37 +1,21 @@
 import { normalizeTextBasic, normalizeWhitespace } from "./normalize";
 
 export type Action =
-  | 'account'
   | 'session'
-  | 'profile'
-  | 'dashboard'
-  | 'dashboard-profile'
-  | 'dashboard-network'
-  | 'connections-visit'
   | 'easy-apply'
   | 'search-jobs'
   | 'catch-jobs'
-  | 'applied-jobs'
-  | 'connect'
-  | 'upvote'
 
 export type ParsedArgs = {
   action?: Action
   jobUrl?: string
   tag?: string
-  profileUrl?: string
-  message?: string
   maxResults?: number
-  maxLikes?: number
   maxApplicants?: number
   maxPages?: number
   postedWithinDays?: number
   easyApplyOnly?: boolean
   includeUnknownApplicants?: boolean
-  maxConnections?: number
-  delayMs?: number
-  maxScrollRounds?: number
-  maxIdleRounds?: number
   headless?: boolean
   workplaceTypes?: string[]
 };
@@ -88,15 +72,9 @@ const parseOptionalList = (value: string | boolean | undefined) => {
 const parseDatePostedDays = (value: string | undefined) => {
   if (!value) return undefined
   const normalized = normalizeTextBasic(value)
-  if (['24h', '24hours', '24hrs', 'day', '1d', 'hoje'].includes(normalized)) {
-    return 1
-  }
-  if (['week', 'semana', '7d', '1w'].includes(normalized)) {
-    return 7
-  }
-  if (['month', 'mes', 'mês', '30d', '1m'].includes(normalized)) {
-    return 30
-  }
+  if (['24h', '24hours', '24hrs', 'day', '1d', 'hoje'].includes(normalized)) return 1
+  if (['week', 'semana', '7d', '1w'].includes(normalized)) return 7
+  if (['month', 'mes', 'mês', '30d', '1m'].includes(normalized)) return 30
   return undefined
 }
 
@@ -115,19 +93,12 @@ export const parseArgs = (argv: string[]): ParsedArgs => {
     action: typeof raw.action === 'string' ? (raw.action as Action) : undefined,
     jobUrl: getStringArg(raw, 'jobUrl'),
     tag: getStringArg(raw, 'tag'),
-    profileUrl: getStringArg(raw, 'profileUrl'),
-    message: getStringArg(raw, 'message'),
     maxResults: parseOptionalNumber(raw.maxResults),
-    maxLikes: parseOptionalNumber(raw.maxLikes),
     maxApplicants: parseOptionalNumber(raw.maxApplicants),
     maxPages: parseOptionalNumber(raw.maxPages),
     postedWithinDays: postedWithinDays ?? datePostedDays,
     easyApplyOnly: parseOptionalBoolean(raw.easyApplyOnly),
     includeUnknownApplicants: parseOptionalBoolean(raw.includeUnknownApplicants),
-    maxConnections: parseOptionalNumber(raw.maxConnections),
-    delayMs: parseOptionalNumber(raw.delayMs),
-    maxScrollRounds: parseOptionalNumber(raw.maxScrollRounds),
-    maxIdleRounds: parseOptionalNumber(raw.maxIdleRounds),
     headless: parseOptionalBoolean(raw.headless),
     workplaceTypes
   }
