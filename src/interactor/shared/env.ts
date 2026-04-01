@@ -86,6 +86,11 @@ export const env = {
     temperature: readNumber('GPT_TEMPERATURE', 0.2),
     maxTokens: readNumber('GPT_MAX_TOKENS', 64),
   },
+  llama: {
+    enabled: readBool('LLAMA_ENABLED', true),
+    baseUrl: readString('LLAMA_BASE_URL', 'http://localhost:3000'),
+    timeoutMs: readNumber('LLAMA_TIMEOUT_MS', 30_000),
+  },
   easyApply: {
     isStandalone: readBool('EASY_APPLY_STANDALONE'),
     promptTimeoutMs: readNumber('EASY_APPLY_PROMPT_TIMEOUT_MS', 120_000),

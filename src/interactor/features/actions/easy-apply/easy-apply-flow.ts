@@ -4,7 +4,7 @@ import { LinkedinCoreFeatures } from "../../linkedin-core";
 import type { AdminPromptBroker } from "../../../../admin/prompt-broker";
 import { adminRuntimeStore } from "../../../../admin/admin-runtime-store";
 import { saveEasyApplyResponses } from "../../../../api/controllers/easy-apply-responses";
-import { GptClient } from "../../../shared/ai/gpt-client";
+import { LlamaClient } from "../../../shared/ai/llama-client";
 import type { DiscordClient } from "../../../shared/discord/discord-client";
 import { ElementHandle } from "../../../shared/utils/element-handle";
 import { env } from "../../../shared/env";
@@ -55,8 +55,7 @@ export class EasyApplyFlow {
         this._discord = discord
         this._answerResolver = new EasyApplyAnswerResolver({
             adminPromptBroker,
-            page,
-            gpt: new GptClient(env.gpt),
+            llama: new LlamaClient(env.llama),
             profile: userProfile,
             isStandalone: env.easyApply.isStandalone,
             promptTimeoutMs: env.easyApply.promptTimeoutMs

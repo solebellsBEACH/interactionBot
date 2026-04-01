@@ -1,5 +1,4 @@
 import readline from "readline";
-import { Page } from "playwright";
 
 import type {
     AdminPromptBroker,
@@ -8,7 +7,7 @@ import type {
 } from "../../../../admin/prompt-broker";
 import { getFieldAnswer } from "../../../../api/controllers/field-answers";
 import { createPrompt, waitForPromptAnswer } from "../../../../api/controllers/prompt-queue";
-import { GptClient } from "../../../shared/ai/gpt-client";
+import { LlamaClient } from "../../../shared/ai/llama-client";
 import { FormPromptField } from "../../../shared/interface/forms/form.types";
 import type { UserProfile } from "../../../shared/interface/user/user-profile.types";
 import { logger } from "../../../shared/services/logger";
@@ -25,8 +24,7 @@ const SKIP_FIELD = "__interactionbot_skip_field__" as const
 
 type AnswerResolverOptions = {
     adminPromptBroker?: AdminPromptBroker
-    page?: Page
-    gpt?: GptClient
+    llama?: LlamaClient
     profile: UserProfile
     isStandalone: boolean
     promptTimeoutMs: number
@@ -38,16 +36,14 @@ export class EasyApplyAnswerResolver {
     private _historyAvailable = true
     private readonly _adminPromptBroker?: AdminPromptBroker
     private readonly _profile: UserProfile
-    private readonly _page?: Page
-    private readonly _gpt?: GptClient
+    private readonly _llama?: LlamaClient
     private readonly _isStandalone: boolean
     private readonly _promptTimeoutMs: number
 
     constructor(options: AnswerResolverOptions) {
         this._adminPromptBroker = options.adminPromptBroker
         this._profile = options.profile
-        this._page = options.page
-        this._gpt = options.gpt
+        this._llama = options.llama
         this._isStandalone = options.isStandalone
         this._promptTimeoutMs = options.promptTimeoutMs
     }
@@ -60,51 +56,31 @@ export class EasyApplyAnswerResolver {
             return cached
         }
 
-        // const historyContext = await this._historyContext(field)
-        // const gptAnswer = this._coerceAnswer(field, await this._askWithGpt(field, step, historyContext))
-        // if (gptAnswer) {
-        //     const gptDecision = await this._confirmGptAnswer(field, step, gptAnswer)
-        //     if (gptDecision === SKIP_FIELD) {
-        //         logger.info(`[easy-apply] etapa ${step}: campo pulado no admin para "${label}"`)
-        //         return null
-        //     }
-        //     const confirmed = this._coerceAnswer(field, gptDecision)
-        //     if (confirmed) {
-        //         this._storeCachedAnswer(field, confirmed)
-        //         logger.info(`[easy-apply] etapa ${step}: usando GPT confirmado para "${label}"`)
-        //         return confirmed
-        //     }
-        // }
+        const llamaAnswer = this._coerceAnswer(field, await this._askWithLlama(field, step))
+        if (llamaAnswer) {
+            this._storeCachedAnswer(field, llamaAnswer)
+            logger.info(`[easy-apply] etapa ${step}: usando Llama para "${label}"`)
+            return llamaAnswer
+        }
 
-        // const profileAnswer = this._coerceAnswer(field, this._answerFromProfile(field))
-        // if (profileAnswer) {
-        //     this._storeCachedAnswer(field, profileAnswer)
-        //     logger.info(`[easy-apply] etapa ${step}: usando perfil salvo para "${label}"`)
-        //     return profileAnswer
-        // }
+        const profileAnswer = this._coerceAnswer(field, this._answerFromProfile(field))
+        if (profileAnswer) {
+            this._storeCachedAnswer(field, profileAnswer)
+            logger.info(`[easy-apply] etapa ${step}: usando perfil salvo para "${label}"`)
+            return profileAnswer
+        }
 
-        // const historyAnswer = this._coerceAnswer(field, await this._answerFromHistory(field))
-        // if (historyAnswer) {
-        //     this._storeCachedAnswer(field, historyAnswer)
-        //     logger.info(`[easy-apply] etapa ${step}: usando histórico salvo para "${label}"`)
-        //     return historyAnswer
-        // }
-        // if (this._isStandalone) {
-        //     throw new EasyApplyAbortError(`standalone-missing:${label}`)
-        // }
-console.log(field, step)
-        // const manualDecision = await this._askForField(field, step, true)
-        // if (manualDecision === SKIP_FIELD) {
-        //     logger.info(`[easy-apply] etapa ${step}: campo pulado manualmente para "${label}"`)
-        //     return null
-        // }
-        // const manualAnswer = this._coerceAnswer(field, manualDecision)
-        // if (manualAnswer) {
-        //     this._storeCachedAnswer(field, manualAnswer)
-        //     logger.info(`[easy-apply] etapa ${step}: usando resposta manual para "${label}"`)
-        // }
-        // return manualAnswer
-        return 'resposta teste'
+        const historyAnswer = this._coerceAnswer(field, await this._answerFromHistory(field))
+        if (historyAnswer) {
+            this._storeCachedAnswer(field, historyAnswer)
+            logger.info(`[easy-apply] etapa ${step}: usando histórico salvo para "${label}"`)
+            return historyAnswer
+        }
+
+        if (this._isStandalone) {
+            throw new EasyApplyAbortError(`standalone-missing:${label}`)
+        }
+        return null
     }
 
     private _coerceAnswer(field: FormPromptField, answer: string | null) {
@@ -252,248 +228,41 @@ console.log(field, step)
         return context
     }
 
-    private async _askWithGpt(field: FormPromptField, step: number, historyAnswers?: Record<string, string>) {
-        if (!this._gpt) return null
-        return this._gpt.answerField(field, this._profile, historyAnswers, { step })
+    private async _askWithLlama(field: FormPromptField, step: number) {
+        if (!this._llama) return null
+        return this._llama.answerField(field, { step })
     }
 
-    private async _confirmGptAnswer(field: FormPromptField, step: number, gptAnswer: string): Promise<string | null | typeof SKIP_FIELD> {
-        const label = field.label || field.key || 'field'
-        const options = field.type === 'select'
-            ? (field.options || []).map((option) => option.trim()).filter(Boolean)
-            : []
+    private async _askForField(field: FormPromptField, step: number, forcePrompt = false): Promise<string | null | typeof SKIP_FIELD> {
+        const llamaAnswer = await this._askWithLlama(field, step)
+        if (llamaAnswer) return llamaAnswer
 
         const adminResult = await this._requestAdminPrompt({
-            kind: 'confirm-gpt',
+            kind: 'answer-field',
             step,
-            fieldLabel: label,
+            fieldLabel: field.label || field.key || 'field',
             fieldKey: field.key,
             fieldType: field.type,
-            prompt: `Confirme ou ajuste a resposta para "${label}".`,
-            suggestedAnswer: gptAnswer,
-            options
+            prompt:
+                field.type === 'select'
+                    ? `Escolha uma opção para "${field.label || field.key}".`
+                    : `Informe um valor para "${field.label || field.key}".`,
+            suggestedAnswer: field.type === 'input' ? field.value || '' : undefined,
+            options: field.type === 'select' ? (field.options || []) : []
         })
         if (adminResult) {
-            return this._resolveAdminPromptResult(adminResult, gptAnswer)
+            return this._resolveAdminPromptResult(adminResult, null)
         }
 
-        if (!this._page || this._page.isClosed()) return gptAnswer
-
-        try {
-            const result = await this._page.evaluate(
-                ({ fieldLabel, suggested, stepNumber, fieldType, selectOptions, timeoutMs }) => {
-                    type PopupResult = {
-                        action: 'confirm' | 'manual' | 'timeout'
-                        value?: string | null
-                    }
-
-                    return new Promise<PopupResult>((resolve) => {
-                        const existing = document.getElementById('interactionbot-gpt-confirm-popup')
-                        if (existing) existing.remove()
-
-                        const overlay = document.createElement('div')
-                        overlay.id = 'interactionbot-gpt-confirm-popup'
-                        overlay.setAttribute(
-                            'style',
-                            [
-                                'position:fixed',
-                                'inset:0',
-                                'z-index:2147483647',
-                                'background:rgba(15,15,15,0.55)',
-                                'display:flex',
-                                'align-items:center',
-                                'justify-content:center',
-                                'padding:16px'
-                            ].join(';')
-                        )
-
-                        const card = document.createElement('div')
-                        card.setAttribute(
-                            'style',
-                            [
-                                'width:min(640px,95vw)',
-                                'max-height:90vh',
-                                'overflow:auto',
-                                'background:#ffffff',
-                                'border-radius:12px',
-                                'box-shadow:0 20px 60px rgba(0,0,0,0.35)',
-                                'padding:16px',
-                                'font-family:Arial,sans-serif',
-                                'color:#111827'
-                            ].join(';')
-                        )
-
-                        const title = document.createElement('div')
-                        title.textContent = `Easy Apply step ${stepNumber}`
-                        title.setAttribute('style', 'font-size:16px;font-weight:700;margin-bottom:6px')
-
-                        const subtitle = document.createElement('div')
-                        subtitle.textContent = `Field: ${fieldLabel}`
-                        subtitle.setAttribute('style', 'font-size:13px;color:#374151;margin-bottom:10px')
-
-                        const gptLabel = document.createElement('div')
-                        gptLabel.textContent = 'GPT suggestion'
-                        gptLabel.setAttribute('style', 'font-size:12px;font-weight:700;margin-bottom:4px')
-
-                        const gptValue = document.createElement('div')
-                        gptValue.textContent = suggested
-                        gptValue.setAttribute(
-                            'style',
-                            'border:1px solid #d1d5db;border-radius:8px;padding:8px;background:#f9fafb;font-size:13px;white-space:pre-wrap;word-break:break-word'
-                        )
-
-                        const manualLabel = document.createElement('div')
-                        manualLabel.textContent = 'Manual answer (used when you click "Use manual answer")'
-                        manualLabel.setAttribute('style', 'font-size:12px;font-weight:700;margin:12px 0 4px')
-
-                        let manualControl: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-                        if (fieldType === 'select' && Array.isArray(selectOptions) && selectOptions.length > 0) {
-                            const select = document.createElement('select')
-                            select.setAttribute(
-                                'style',
-                                'width:100%;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px'
-                            )
-                            for (const option of selectOptions) {
-                                const item = document.createElement('option')
-                                item.value = option
-                                item.textContent = option
-                                if (option === suggested) {
-                                    item.selected = true
-                                }
-                                select.appendChild(item)
-                            }
-                            manualControl = select
-                        } else {
-                            const input = document.createElement('textarea')
-                            input.value = suggested
-                            input.setAttribute(
-                                'style',
-                                'width:100%;min-height:82px;padding:8px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;resize:vertical'
-                            )
-                            manualControl = input
-                        }
-
-                        const error = document.createElement('div')
-                        error.setAttribute('style', 'min-height:18px;margin-top:8px;color:#b91c1c;font-size:12px')
-
-                        const actions = document.createElement('div')
-                        actions.setAttribute('style', 'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px')
-
-                        const confirmButton = document.createElement('button')
-                        confirmButton.type = 'button'
-                        confirmButton.textContent = 'Confirm GPT'
-                        confirmButton.setAttribute(
-                            'style',
-                            'background:#0f766e;color:#fff;border:0;border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer'
-                        )
-
-                        const manualButton = document.createElement('button')
-                        manualButton.type = 'button'
-                        manualButton.textContent = 'Use manual answer'
-                        manualButton.setAttribute(
-                            'style',
-                            'background:#b45309;color:#fff;border:0;border-radius:8px;padding:8px 10px;font-size:13px;cursor:pointer'
-                        )
-
-                        let timeoutHandle = 0
-                        const finish = (action: PopupResult['action'], value?: string | null) => {
-                            if (timeoutHandle) {
-                                window.clearTimeout(timeoutHandle)
-                            }
-                            overlay.remove()
-                            resolve({ action, value })
-                        }
-
-                        confirmButton.addEventListener('click', () => {
-                            finish('confirm', suggested)
-                        })
-
-                        manualButton.addEventListener('click', () => {
-                            const manualValue = manualControl.value.trim()
-                            if (!manualValue) {
-                                error.textContent = 'Type a manual answer before confirming.'
-                                return
-                            }
-                            finish('manual', manualValue)
-                        })
-
-                        actions.appendChild(confirmButton)
-                        actions.appendChild(manualButton)
-
-                        card.appendChild(title)
-                        card.appendChild(subtitle)
-                        card.appendChild(gptLabel)
-                        card.appendChild(gptValue)
-                        card.appendChild(manualLabel)
-                        card.appendChild(manualControl)
-                        card.appendChild(error)
-                        card.appendChild(actions)
-                        overlay.appendChild(card)
-                        document.body.appendChild(overlay)
-
-                        timeoutHandle = window.setTimeout(() => {
-                            finish('timeout', null)
-                        }, timeoutMs)
-                    })
-                },
-                {
-                    fieldLabel: label,
-                    suggested: gptAnswer,
-                    stepNumber: step,
-                    fieldType: field.type,
-                    selectOptions: options,
-                    timeoutMs: this._promptTimeoutMs
-                }
-            )
-
-            if (!result) return null
-            if (result.action === 'confirm') return gptAnswer
-            if (result.action === 'manual') {
-                const value = typeof result.value === 'string' ? result.value.trim() : ''
-                return value || null
+        if (forcePrompt) {
+            if (field.type === 'select') {
+                const options = field.options || []
+                const optionsText = options.map((option, idx) => `${idx + 1}) ${option}`).join('\n')
+                return this._promptCli(`[Easy Apply] Step ${step} - choose for "${field.label || field.key}":\n${optionsText}\nReply with number or text.`)
             }
-            return null
-        } catch (error) {
-            logger.warn('Unable to show GPT confirmation popup', error)
-            return gptAnswer
+            return this._promptCli(`[Easy Apply] Step ${step} - fill "${field.label || field.key}":`)
         }
-    }
-    private async _askForField(field: FormPromptField, step: number, forcePrompt = false): Promise<string | null | typeof SKIP_FIELD> {
-        const label = field.label || field.key || 'field'
-        console.log(field, step)
-        // const adminResult = await this._requestAdminPrompt({
-        //     kind: 'answer-field',
-        //     step,
-        //     fieldLabel: label,
-        //     fieldKey: field.key,
-        //     fieldType: field.type,
-        //     prompt:
-        //         field.type === 'select'
-        //             ? `Escolha uma opção para "${label}".`
-        //             : `Informe um valor para "${label}".`,
-        //     suggestedAnswer: field.type === 'input' ? field.value || '' : undefined,
-        //     options: field.type === 'select' ? (field.options || []) : []
-        // })
-        // if (adminResult) {
-        //     return this._resolveAdminPromptResult(adminResult, null)
-        // }
-        //  if(label.includes('Select resume')){
-        //         return null
-        // }
-        // if (field.type === 'select') {
-        //     const options = field.options || []
-        //     const optionsText = options.map((option, idx) => `${idx + 1}) ${option}`).join('\n')
-        //     const prompt = `[Easy Apply] Step ${step} - choose for "${label}":\n${optionsText}\nReply with number or text.`
-        //     const webAnswer = await this._promptWeb(prompt, options)
-        //     if (webAnswer) return webAnswer
-        //     if (forcePrompt) return this._promptCli(prompt)
-        //     return null
-        // }
 
-        // const prompt = `[Easy Apply] Step ${step} - fill "${label}":`
-        // const webAnswer = await this._promptWeb(prompt)
-        // if (webAnswer) return webAnswer
-        // if (forcePrompt) return this._promptCli(prompt)
         return null
     }
 
