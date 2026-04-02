@@ -336,16 +336,19 @@ export class ElementHandle {
         if (selects.length === 0) return []
 
         const values: FormFieldValue[] = []
+        const seenKeys = new Set<string>()
 
         for (const select of selects) {
             const meta = await this._getControlMeta(select)
-            const selectedOption = await select.locator('option:checked').allInnerTexts()
-            let value = selectedOption[0]?.trim() || ''
             const allEntries = await this._getSelectEntries(select)
-            const allLabels = allEntries.map((entry) => entry.label)
-
             const label = meta.labelText || meta.ariaLabel || meta.name || meta.id
             const key = normalizeKey(label || undefined)
+            const uniqueKey = meta.id || meta.name || key
+            if (uniqueKey && seenKeys.has(uniqueKey)) continue
+            if (uniqueKey) seenKeys.add(uniqueKey)
+
+            const currentSelection = await this._readSelectState(select)
+            let value = currentSelection.label || currentSelection.value
 
             const missing = !value || this._isSelectPlaceholder(value)
             if (prompt && missing) {
@@ -362,8 +365,9 @@ export class ElementHandle {
                 const resolvedIndex = this._resolveSelectIndex(answer, entries)
                 if (resolvedIndex !== null) {
                     const selected = entries[resolvedIndex]
-                    await select.selectOption({ index: selected.index })
-                    value = selected.label
+                    await this._setSelectValue(select, selected)
+                    const updatedSelection = await this._readSelectState(select)
+                    value = updatedSelection.label || updatedSelection.value || selected.label || selected.value
                 }
             }
 
@@ -616,13 +620,15 @@ export class ElementHandle {
     }
 
     private _isSelectPlaceholder(value: string) {
-        const normalized = value.toLowerCase()
+        const normalized = value.trim().toLowerCase()
+        if (!normalized) return true
         const hasSelectOption = normalized.includes('select') && normalized.includes('option')
         return (
             hasSelectOption ||
             normalized.includes('selecione') ||
             normalized.includes('selecionar') ||
-            normalized.includes('choose')
+            normalized.includes('choose') ||
+            normalized.includes('escolha')
         )
     }
 
@@ -650,11 +656,72 @@ export class ElementHandle {
     private async _getSelectEntries(select: Locator): Promise<SelectEntry[]> {
         return select.locator('option').evaluateAll((options) =>
             options.map((option, index) => ({
-                label: (option.textContent || '').trim(),
+                label:
+                    (option.textContent || '').trim() ||
+                    (option as HTMLOptionElement).label ||
+                    (option as HTMLOptionElement).value ||
+                    '',
                 value: (option as HTMLOptionElement).value || '',
                 index
             }))
         )
+    }
+
+    private async _readSelectState(select: Locator): Promise<SelectEntry> {
+        return select.evaluate((element) => {
+            const control = element as HTMLSelectElement
+            const selectedOption =
+                control.selectedOptions?.[0] ||
+                control.options?.[control.selectedIndex] ||
+                null
+
+            return {
+                label:
+                    (selectedOption?.textContent || '').trim() ||
+                    selectedOption?.label ||
+                    control.value ||
+                    '',
+                value: control.value || '',
+                index: control.selectedIndex ?? -1
+            }
+        }).catch(() => ({
+            label: '',
+            value: '',
+            index: -1
+        }))
+    }
+
+    private async _setSelectValue(select: Locator, entry: SelectEntry) {
+        if (entry.value) {
+            try {
+                await select.selectOption({ value: entry.value })
+                return
+            } catch {
+                // fallback below
+            }
+        }
+
+        try {
+            await select.selectOption({ index: entry.index })
+            return
+        } catch {
+            // fallback below
+        }
+
+        await select.evaluate((element, target) => {
+            const control = element as HTMLSelectElement
+            const option = control.options[target.index]
+            if (!option) return
+
+            control.selectedIndex = target.index
+            option.selected = true
+            if (target.value) {
+                control.value = target.value
+            }
+
+            control.dispatchEvent(new Event('input', { bubbles: true }))
+            control.dispatchEvent(new Event('change', { bubbles: true }))
+        }, entry).catch(() => undefined)
     }
 
 }

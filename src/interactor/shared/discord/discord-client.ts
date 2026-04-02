@@ -20,6 +20,7 @@ export enum CommandName {
     EasyApply = "easy-apply",
     CatchJobs = "catch-jobs",
     SearchJobs = "search-jobs",
+    SearchEasyApply = "search-easy-apply",
     Unknown = "unknown"
 }
 
@@ -293,6 +294,7 @@ export class DiscordClient {
             `${prefix}help - mostra esta mensagem`,
             `${prefix}easy-apply [tag] [max] --loc <local> --pages <n> - busca vagas e aplica`,
             `${prefix}search-jobs [tag] [max] --loc <local> --pages <n> - busca vagas com filtros`,
+            `${prefix}search-easy-apply [tag] [max] --loc <local> --pages <n> - busca somente vagas Easy Apply`,
             "Se houver pergunta pendente, responda sem prefixo."
         ].join("\n")
     }

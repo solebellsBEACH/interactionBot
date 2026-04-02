@@ -23,6 +23,9 @@ export class LinkedinDiscordCommands {
             },
             [CommandName.SearchJobs]: async ({ args }) => {
                 await this._searchJobs.run(discord, args, false)
+            },
+            [CommandName.SearchEasyApply]: async ({ args }) => {
+                await this._searchJobs.run(discord, [...args, "--easy-apply-only"], false)
             }
         })
     }
