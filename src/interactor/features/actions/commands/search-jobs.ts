@@ -27,6 +27,8 @@ type ParsedSearchArgs = {
     skipMaxPagesPrompt?: boolean
     skipApplicantsPrompt?: boolean
     autoApply?: boolean
+    workplaceTypes?: string[]
+    startOffset?: number
 }
 
 export class SearchJobsCommand {
@@ -134,6 +136,8 @@ export class SearchJobsCommand {
         let onlyNonPromoted = parsed.onlyNonPromoted
         let maxApplicants = parsed.maxApplicants
         let easyApplyOnly = parsed.easyApplyOnly
+        const workplaceTypes = parsed.workplaceTypes
+        const startOffset = parsed.startOffset
 
         if (!tag) {
             const tagAnswer = await discord.ask("Qual tag de busca? (ex: react+next)")
@@ -225,7 +229,9 @@ export class SearchJobsCommand {
             maxPages,
             onlyNonPromoted: onlyNonPromoted ?? false,
             maxApplicants,
-            easyApplyOnly: easyApplyOnly ?? true
+            easyApplyOnly: easyApplyOnly ?? true,
+            workplaceTypes,
+            startOffset
         }
     }
 
@@ -235,6 +241,8 @@ export class SearchJobsCommand {
             ...(filters.location ? { location: filters.location } : {}),
             ...(filters.geoId ? { geoId: filters.geoId } : {}),
             ...(filters.maxPages ? { maxPages: filters.maxPages } : {}),
+            ...(filters.workplaceTypes ? { workplaceTypes: filters.workplaceTypes } : {}),
+            ...(filters.startOffset ? { startOffset: filters.startOffset } : {}),
             easyApplyOnly: filters.easyApplyOnly,
             onlyNonPromoted: filters.onlyNonPromoted,
             maxApplicants: filters.maxApplicants,
@@ -249,7 +257,9 @@ export class SearchJobsCommand {
             filters.maxPages ? `paginas: ${filters.maxPages}` : undefined,
             `promovidas: ${filters.onlyNonPromoted ? "nao" : "sim"}`,
             filters.maxApplicants !== undefined ? `candidaturas <= ${filters.maxApplicants}` : undefined,
-            `easy apply: ${filters.easyApplyOnly ? "sim" : "tudo"}`
+            `easy apply: ${filters.easyApplyOnly ? "sim" : "tudo"}`,
+            filters.workplaceTypes?.includes("2") ? "remoto" : undefined,
+            filters.startOffset ? `inicio: ${filters.startOffset}` : undefined
         ].filter(Boolean).join(" | ")
     }
 
@@ -278,6 +288,8 @@ export class SearchJobsCommand {
         let skipMaxPagesPrompt = false
         let skipApplicantsPrompt = false
         let autoApply: boolean | undefined
+        let workplaceTypes: string[] | undefined
+        let startOffset: number | undefined
 
         const parseInline = (rawValue: string, normalizedValue: string, keys: string[]) => {
             for (const key of keys) {
@@ -421,6 +433,26 @@ export class SearchJobsCommand {
                 continue
             }
 
+            if (
+                normalized === "--remote" ||
+                normalized === "--remoto" ||
+                normalized === "--remote-only" ||
+                normalized === "--somente-remoto" ||
+                normalized === "--only-remote"
+            ) {
+                workplaceTypes = ["2"]
+                continue
+            }
+
+            if (normalized === "--start" || normalized === "--inicio" || normalized === "--skip") {
+                const val = parseArgNumber(parts[index + 1])
+                if (val !== undefined) {
+                    startOffset = val
+                    index++
+                }
+                continue
+            }
+
             if (normalized === "--loc" || normalized === "--location" || normalized === "--local" || normalized === "--localizacao") {
                 const collected = collectValue(index + 1)
                 const parsedLocation = parseLocationAnswer(collected.value || null)
@@ -520,6 +552,13 @@ export class SearchJobsCommand {
                 continue
             }
 
+            const inlineStart = parseInline(raw, normalized, ["start", "inicio", "skip"])
+            if (inlineStart) {
+                const val = parseArgNumber(inlineStart)
+                if (val !== undefined) startOffset = val
+                continue
+            }
+
             if (!maxResults && /^\d+$/.test(raw)) {
                 maxResults = Number(raw)
                 continue
@@ -541,7 +580,9 @@ export class SearchJobsCommand {
             skipLocationPrompt,
             skipMaxPagesPrompt,
             skipApplicantsPrompt,
-            autoApply
+            autoApply,
+            workplaceTypes,
+            startOffset
         }
     }
 

@@ -280,6 +280,8 @@ export async function createFastifyServer(options: FastifyServerOptions): Promis
         onlyNonPromoted: readBool(body.onlyNonPromoted),
         maxApplicants: readNum(body.maxApplicants),
         includeDetails: readBool(body.includeDetails),
+        workplaceTypes: readStringArray(body.workplaceTypes).length > 0 ? readStringArray(body.workplaceTypes) : undefined,
+        startOffset: readNum(body.startOffset),
       },
     });
     reply.code(202).send(processRecord);

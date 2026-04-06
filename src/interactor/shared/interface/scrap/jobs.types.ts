@@ -21,6 +21,7 @@ export type SearchJobTagOptions = {
   includeDetails?: boolean
   postedWithinDays?: number
   workplaceTypes?: string[]
+  startOffset?: number
 }
 
 export type AppliedJobResult = {

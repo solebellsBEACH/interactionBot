@@ -10,6 +10,8 @@ export type SearchFilters = {
     onlyNonPromoted: boolean
     maxApplicants?: number
     easyApplyOnly: boolean
+    workplaceTypes?: string[]
+    startOffset?: number
 }
 
 export type LinkedinCommandActions = {

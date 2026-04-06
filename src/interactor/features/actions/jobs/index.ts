@@ -54,6 +54,7 @@ export class LinkedinJobsFlow {
             const includeDetails = options?.includeDetails ?? true
             const postedWithinDays = options?.postedWithinDays
             const workplaceTypes = options?.workplaceTypes
+            const startOffset = options?.startOffset ?? 0
             const results = new Map<string, EasyApplyJobResult>()
 
             for (let pageIndex = 0; pageIndex < maxPages; pageIndex++) {
@@ -62,7 +63,7 @@ export class LinkedinJobsFlow {
                 const searchUrl = this._linkedinJobsScrap.buildSearchJobUrl(
                     tag,
                     options?.location,
-                    pageIndex * 25,
+                    startOffset + pageIndex * 25,
                     options?.geoId,
                     easyApplyOnly,
                     postedWithinDays,
